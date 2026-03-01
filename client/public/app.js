@@ -2453,7 +2453,22 @@ function App() {
   var _settings$preferences;
   // Load saved data or use demo defaults
   const saved = useRef(dbLoad()).current;
-  const init = (key, fallback) => saved && saved[key] !== undefined ? saved[key] : fallback;
+  const init = (key, fallback) => {
+    if (!saved || saved[key] === undefined) return fallback;
+    // Deep merge settings with defaults to ensure all sections exist
+    if (key === "settings" && typeof fallback === "object" && typeof saved[key] === "object") {
+      const merged = { ...fallback };
+      for (const [k, v] of Object.entries(saved[key])) {
+        if (typeof v === "object" && v !== null && !Array.isArray(v) && typeof merged[k] === "object" && merged[k] !== null && !Array.isArray(merged[k])) {
+          merged[k] = { ...merged[k], ...v };
+        } else {
+          merged[k] = v;
+        }
+      }
+      return merged;
+    }
+    return saved[key];
+  };
   const [activeModule, setActiveModule] = useState("dashboard");
   const [driverMode, setDriverMode] = useState(null); // null = normal, {user} = locked driver portal
   const [pendingCustomer, setPendingCustomer] = useState(null); // for cross-module customer handoff
@@ -2486,7 +2501,7 @@ function App() {
     markupValue: val.markupValue || 0
   }));
 
-  // ── AUTO-SAVE: persist all data to PostgreSQL on every change ──
+  // ── AUTO-SAVE: persist all data to localStorage on every change ──
   const saveTimer = useRef(null);
   useEffect(() => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -2580,7 +2595,7 @@ function App() {
   };
   const dbSizeKB = (() => {
     try {
-      const raw = JSON.stringify(_cachedData || {});
+      const raw = localStorage.getItem(DB_KEY);
       return raw ? (new Blob([raw]).size / 1024).toFixed(1) : "0";
     } catch (e) {
       return "?";
@@ -34686,6 +34701,159 @@ function DriverPortal({
 // ============================================================
 // SYSTEM SETTINGS MODULE
 // ============================================================
+// Settings UI helper components (top level to prevent focus loss)
+const SectionLabel = ({
+  children
+}) => /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontSize: 11,
+    fontWeight: 700,
+    color: "#64748b",
+    textTransform: "uppercase",
+    letterSpacing: "0.5px",
+    marginTop: 18,
+    marginBottom: 8,
+    paddingBottom: 6,
+    borderBottom: "1px solid #2d3748"
+  }
+}, children);
+const Toggle = ({
+  label,
+  value,
+  onChange,
+  hint
+}) => /*#__PURE__*/React.createElement("div", {
+  style: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "8px 0",
+    borderBottom: "1px solid #1a2030"
+  }
+}, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontSize: 13,
+    color: "#e2e8f0",
+    fontWeight: 500
+  }
+}, label), hint && /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontSize: 10,
+    color: "#64748b",
+    marginTop: 2
+  }
+}, hint)), /*#__PURE__*/React.createElement("button", {
+  onClick: () => onChange(!value),
+  style: {
+    width: 42,
+    height: 24,
+    borderRadius: 12,
+    border: "none",
+    cursor: "pointer",
+    position: "relative",
+    background: value ? "#22c55e" : "#334155",
+    transition: "all 0.2s"
+  }
+}, /*#__PURE__*/React.createElement("div", {
+  style: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    background: "#fff",
+    position: "absolute",
+    top: 3,
+    left: value ? 21 : 3,
+    transition: "all 0.2s",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.3)"
+  }
+})));
+const Field = ({
+  label,
+  value,
+  onChange,
+  type = "text",
+  placeholder,
+  hint,
+  disabled,
+  style: st
+}) => /*#__PURE__*/React.createElement("div", {
+  style: {
+    marginBottom: 10,
+    ...st
+  }
+}, /*#__PURE__*/React.createElement("label", {
+  style: {
+    display: "block",
+    fontSize: 12,
+    color: "#94a3b8",
+    marginBottom: 5,
+    fontWeight: 500
+  }
+}, label), /*#__PURE__*/React.createElement("input", {
+  type: type,
+  value: value || "",
+  onChange: e => onChange(e.target.value),
+  disabled: disabled,
+  placeholder: placeholder,
+  style: {
+    width: "100%",
+    background: disabled ? "#0a0d14" : "#0f1117",
+    border: "1px solid #2d3748",
+    borderRadius: 8,
+    padding: "9px 12px",
+    color: disabled ? "#475569" : "#e2e8f0",
+    fontSize: 13,
+    boxSizing: "border-box",
+    opacity: disabled ? 0.6 : 1
+  }
+}), hint && /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontSize: 10,
+    color: "#64748b",
+    marginTop: 3
+  }
+}, hint));
+const Dropdown = ({
+  label,
+  value,
+  onChange,
+  options,
+  hint
+}) => /*#__PURE__*/React.createElement("div", {
+  style: {
+    marginBottom: 10
+  }
+}, /*#__PURE__*/React.createElement("label", {
+  style: {
+    display: "block",
+    fontSize: 12,
+    color: "#94a3b8",
+    marginBottom: 5,
+    fontWeight: 500
+  }
+}, label), /*#__PURE__*/React.createElement("select", {
+  value: value || "",
+  onChange: e => onChange(e.target.value),
+  style: {
+    width: "100%",
+    background: "#0f1117",
+    border: "1px solid #2d3748",
+    borderRadius: 8,
+    padding: "9px 12px",
+    color: "#e2e8f0",
+    fontSize: 13
+  }
+}, options.map(o => /*#__PURE__*/React.createElement("option", {
+  key: o.value || o,
+  value: o.value || o
+}, o.label || o))), hint && /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontSize: 10,
+    color: "#64748b",
+    marginTop: 3
+  }
+}, hint));
+
 function SystemSettings({
   settings,
   setSettings,
@@ -34782,157 +34950,6 @@ function SystemSettings({
     label: "Database",
     icon: "inventory"
   }];
-  const SectionLabel = ({
-    children
-  }) => /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 11,
-      fontWeight: 700,
-      color: "#64748b",
-      textTransform: "uppercase",
-      letterSpacing: "0.5px",
-      marginTop: 18,
-      marginBottom: 8,
-      paddingBottom: 6,
-      borderBottom: "1px solid #2d3748"
-    }
-  }, children);
-  const Toggle = ({
-    label,
-    value,
-    onChange,
-    hint
-  }) => /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      padding: "8px 0",
-      borderBottom: "1px solid #1a2030"
-    }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 13,
-      color: "#e2e8f0",
-      fontWeight: 500
-    }
-  }, label), hint && /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 10,
-      color: "#64748b",
-      marginTop: 2
-    }
-  }, hint)), /*#__PURE__*/React.createElement("button", {
-    onClick: () => onChange(!value),
-    style: {
-      width: 42,
-      height: 24,
-      borderRadius: 12,
-      border: "none",
-      cursor: "pointer",
-      position: "relative",
-      background: value ? "#22c55e" : "#334155",
-      transition: "all 0.2s"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      width: 18,
-      height: 18,
-      borderRadius: 9,
-      background: "#fff",
-      position: "absolute",
-      top: 3,
-      left: value ? 21 : 3,
-      transition: "all 0.2s",
-      boxShadow: "0 1px 3px rgba(0,0,0,0.3)"
-    }
-  })));
-  const Field = ({
-    label,
-    value,
-    onChange,
-    type = "text",
-    placeholder,
-    hint,
-    disabled,
-    style: st
-  }) => /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginBottom: 10,
-      ...st
-    }
-  }, /*#__PURE__*/React.createElement("label", {
-    style: {
-      display: "block",
-      fontSize: 12,
-      color: "#94a3b8",
-      marginBottom: 5,
-      fontWeight: 500
-    }
-  }, label), /*#__PURE__*/React.createElement("input", {
-    type: type,
-    value: value || "",
-    onChange: e => onChange(e.target.value),
-    disabled: disabled,
-    placeholder: placeholder,
-    style: {
-      width: "100%",
-      background: disabled ? "#0a0d14" : "#0f1117",
-      border: "1px solid #2d3748",
-      borderRadius: 8,
-      padding: "9px 12px",
-      color: disabled ? "#475569" : "#e2e8f0",
-      fontSize: 13,
-      boxSizing: "border-box",
-      opacity: disabled ? 0.6 : 1
-    }
-  }), hint && /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 10,
-      color: "#64748b",
-      marginTop: 3
-    }
-  }, hint));
-  const Dropdown = ({
-    label,
-    value,
-    onChange,
-    options,
-    hint
-  }) => /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginBottom: 10
-    }
-  }, /*#__PURE__*/React.createElement("label", {
-    style: {
-      display: "block",
-      fontSize: 12,
-      color: "#94a3b8",
-      marginBottom: 5,
-      fontWeight: 500
-    }
-  }, label), /*#__PURE__*/React.createElement("select", {
-    value: value || "",
-    onChange: e => onChange(e.target.value),
-    style: {
-      width: "100%",
-      background: "#0f1117",
-      border: "1px solid #2d3748",
-      borderRadius: 8,
-      padding: "9px 12px",
-      color: "#e2e8f0",
-      fontSize: 13
-    }
-  }, options.map(o => /*#__PURE__*/React.createElement("option", {
-    key: o.value || o,
-    value: o.value || o
-  }, o.label || o))), hint && /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 10,
-      color: "#64748b",
-      marginTop: 3
-    }
-  }, hint));
   const saveUser = () => {
     if (editUser) {
       setSettings(prev => ({
