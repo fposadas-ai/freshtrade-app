@@ -34875,8 +34875,10 @@ function SystemSettings({
     role: "warehouse",
     email: "",
     pin: "",
+    password: "",
     active: true
   });
+  const [showPassword, setShowPassword] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const importRef = useRef(null);
   const update = (section, key, value) => {
@@ -34951,6 +34953,16 @@ function SystemSettings({
     icon: "inventory"
   }];
   const saveUser = () => {
+    if (userForm.role !== "driver" && !editUser) {
+      const pw = userForm.password || "";
+      if (pw.length < 8) { showToast("Password must be at least 8 characters", "error"); return; }
+      if (!/[A-Z]/.test(pw)) { showToast("Password needs at least one uppercase letter", "error"); return; }
+      if (!/[a-z]/.test(pw)) { showToast("Password needs at least one lowercase letter", "error"); return; }
+      if (!/[0-9]/.test(pw)) { showToast("Password needs at least one number", "error"); return; }
+    }
+    if (userForm.role === "driver" && (!userForm.pin || userForm.pin.length < 6)) {
+      showToast("Driver PIN must be 6 digits", "error"); return;
+    }
     if (editUser) {
       setSettings(prev => ({
         ...prev,
@@ -34978,6 +34990,7 @@ function SystemSettings({
       role: "warehouse",
       email: "",
       pin: "",
+      password: "",
       active: true
     });
   };
@@ -36366,13 +36379,14 @@ function SystemSettings({
         role: "warehouse",
         email: "",
         pin: "",
+        password: "",
         active: true
       });
       setEditUser(null);
       setShowAddUser(true);
     }
   }, "Add User")), /*#__PURE__*/React.createElement(Table, {
-    headers: ["User", "Role", "Email", "PIN", "Status", "Actions"],
+    headers: ["User", "Role", "Email", "Credential", "Status", "Actions"],
     rows: settings.users.map(u => [/*#__PURE__*/React.createElement("span", {
       style: {
         fontWeight: 600,
@@ -36390,9 +36404,9 @@ function SystemSettings({
       style: {
         fontFamily: "'DM Mono',monospace",
         fontSize: 11,
-        color: "#475569"
+        color: u.role === "driver" ? "#3b82f6" : "#22c55e"
       }
-    }, "●".repeat(6)), /*#__PURE__*/React.createElement(Badge, {
+    }, u.role === "driver" ? "🔑 PIN" : "🔒 Password"), /*#__PURE__*/React.createElement(Badge, {
       text: u.active ? "Active" : "Inactive",
       color: u.active ? "#22c55e" : "#ef4444"
     }), /*#__PURE__*/React.createElement("div", {
@@ -36423,7 +36437,18 @@ function SystemSettings({
         showToast(`User ${u.active ? "deactivated" : "activated"}`);
       }
     }, u.active ? "Disable" : "Enable"))])
-  }), /*#__PURE__*/React.createElement(SectionLabel, null, "Role Permissions Reference"), /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement(SectionLabel, null, "Security Policy"), React.createElement("div", {
+    style: { 
+      padding: 14, 
+      background: "#0f1a2e", 
+      borderRadius: 8, 
+      border: "1px solid #1e3a5f", 
+      marginBottom: 16,
+      fontSize: 12,
+      lineHeight: 1.7,
+      color: "#94a3b8"
+    }
+  }, React.createElement("div", { style: { fontWeight: 600, color: "#3b82f6", marginBottom: 6 } }, "Authentication Methods"), React.createElement("div", null, React.createElement("span", { style: { color: "#3b82f6" } }, "Drivers"), " use a 6-digit numeric PIN for quick mobile access during deliveries."), React.createElement("div", null, React.createElement("span", { style: { color: "#22c55e" } }, "All other roles"), " require a secure password (min 8 characters, with uppercase, lowercase, and a number).")), React.createElement(SectionLabel, null, "Role Permissions Reference"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
       gridTemplateColumns: "repeat(6,1fr)",
@@ -36488,16 +36513,38 @@ function SystemSettings({
       email: v
     })),
     placeholder: "user@freshtrade.com"
-  }), /*#__PURE__*/React.createElement(Field, {
+  }), /*#__PURE__*/userForm.role === "driver" ? React.createElement(Field, {
     label: "PIN (6 digits)",
     value: userForm.pin,
     onChange: v => setUserForm(f => ({
       ...f,
-      pin: v
+      pin: v.replace(/[^0-9]/g, "").slice(0, 6)
     })),
     placeholder: "123456",
-    type: "password"
-  })), /*#__PURE__*/React.createElement("div", {
+    type: "password",
+    hint: "Numeric PIN for quick driver access"
+  }) : React.createElement("div", null, React.createElement(Field, {
+    label: "Password",
+    value: userForm.password,
+    onChange: v => setUserForm(f => ({
+      ...f,
+      password: v
+    })),
+    placeholder: "Minimum 8 characters",
+    type: showPassword ? "text" : "password",
+    hint: "Min 8 chars, include uppercase, lowercase, and a number"
+  }), React.createElement("button", {
+    onClick: () => setShowPassword(!showPassword),
+    style: {
+      background: "none",
+      border: "none",
+      color: "#64748b",
+      fontSize: 11,
+      cursor: "pointer",
+      marginTop: 2,
+      padding: 0
+    }
+  }, showPassword ? "Hide password" : "Show password"))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       justifyContent: "flex-end",
@@ -36512,7 +36559,7 @@ function SystemSettings({
     }
   }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
     onClick: saveUser,
-    disabled: !userForm.name || !userForm.email,
+    disabled: !userForm.name || !userForm.email || (userForm.role === "driver" ? !userForm.pin || userForm.pin.length < 6 : (!editUser && (!userForm.password || userForm.password.length < 8))),
     icon: editUser ? "check" : "plus"
   }, editUser ? "Save Changes" : "Add User")))), tab === "email" && /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
     style: {
