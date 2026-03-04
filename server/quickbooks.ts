@@ -229,6 +229,61 @@ async function makeQBRequest(method: string, endpoint: string, body?: any): Prom
   return JSON.parse(response.text());
 }
 
+let _qbTermsCache: any[] | null = null;
+
+async function getQBTerms(): Promise<any[]> {
+  if (_qbTermsCache) return _qbTermsCache;
+  try {
+    const result = await makeQBRequest(
+      "GET",
+      `/query?query=${encodeURIComponent("SELECT * FROM Term MAXRESULTS 100")}&minorversion=65`
+    );
+    _qbTermsCache = result?.QueryResponse?.Term || [];
+    return _qbTermsCache;
+  } catch (e) {
+    console.warn("Could not fetch QB terms:", e);
+    return [];
+  }
+}
+
+async function findQBTermId(termsName: string): Promise<string | null> {
+  if (!termsName) return null;
+  const qbTerms = await getQBTerms();
+  const normalized = termsName.toLowerCase().replace(/\s+/g, " ").trim();
+  const match = qbTerms.find((t: any) => (t.Name || "").toLowerCase().replace(/\s+/g, " ").trim() === normalized);
+  if (match) return match.Id;
+  const numMatch = termsName.match(/\d+/);
+  if (numMatch) {
+    const days = parseInt(numMatch[0]);
+    const dayMatch = qbTerms.find((t: any) => t.DueDays === days);
+    if (dayMatch) return dayMatch.Id;
+  }
+  return null;
+}
+
+function buildQBCustomerBody(customer: any) {
+  const qbCustomer: any = {
+    DisplayName: customer.name,
+    CompanyName: customer.name,
+  };
+  if (customer.email) {
+    qbCustomer.PrimaryEmailAddr = { Address: customer.email };
+  }
+  if (customer.phone) {
+    qbCustomer.PrimaryPhone = { FreeFormNumber: customer.phone };
+  }
+  if (customer.address) {
+    const parts = customer.address.split(",").map((p: string) => p.trim());
+    qbCustomer.BillAddr = {
+      Line1: parts[0] || "",
+      City: parts[1] || "",
+      CountrySubDivisionCode: parts[2]?.split(" ")[0] || "",
+      PostalCode: parts[2]?.split(" ")[1] || "",
+    };
+  }
+  return qbCustomer;
+}
+
 export async function syncCustomerToQB(customer: any): Promise<{ success: boolean; qbId?: string; error?: string }> {
   try {
     const safeName = sanitizeForQBQuery(customer.name);
@@ -239,32 +294,44 @@ export async function syncCustomerToQB(customer: any): Promise<{ success: boolea
 
     const existing = queryResult?.QueryResponse?.Customer?.[0];
 
+    let termId: string | null = null;
+    if (customer.terms) {
+      termId = await findQBTermId(customer.terms);
+    }
+
     if (existing) {
+      const needsUpdate =
+        (customer.terms && termId && existing.SalesTermRef?.value !== termId) ||
+        (customer.email && existing.PrimaryEmailAddr?.Address !== customer.email) ||
+        (customer.phone && existing.PrimaryPhone?.FreeFormNumber !== customer.phone);
+
+      if (needsUpdate) {
+        const updateBody: any = {
+          Id: existing.Id,
+          SyncToken: existing.SyncToken,
+          DisplayName: existing.DisplayName,
+          sparse: true,
+        };
+        if (customer.email) updateBody.PrimaryEmailAddr = { Address: customer.email };
+        if (customer.phone) updateBody.PrimaryPhone = { FreeFormNumber: customer.phone };
+        if (termId) updateBody.SalesTermRef = { value: termId };
+        if (customer.address) {
+          const parts = customer.address.split(",").map((p: string) => p.trim());
+          updateBody.BillAddr = {
+            Line1: parts[0] || "",
+            City: parts[1] || "",
+            CountrySubDivisionCode: parts[2]?.split(" ")[0] || "",
+            PostalCode: parts[2]?.split(" ")[1] || "",
+          };
+        }
+        await makeQBRequest("POST", "/customer?minorversion=65", updateBody);
+      }
       return { success: true, qbId: existing.Id };
     }
 
-    const qbCustomer: any = {
-      DisplayName: customer.name,
-      CompanyName: customer.name,
-    };
-
-    if (customer.email) {
-      qbCustomer.PrimaryEmailAddr = { Address: customer.email };
-    }
-    if (customer.phone) {
-      qbCustomer.PrimaryPhone = { FreeFormNumber: customer.phone };
-    }
-    if (customer.address) {
-      const parts = customer.address.split(",").map((p: string) => p.trim());
-      qbCustomer.BillAddr = {
-        Line1: parts[0] || "",
-        City: parts[1] || "",
-        CountrySubDivisionCode: parts[2]?.split(" ")[0] || "",
-        PostalCode: parts[2]?.split(" ")[1] || "",
-      };
-    }
-    if (customer.terms) {
-      qbCustomer.Notes = `Terms: ${customer.terms}`;
+    const qbCustomer = buildQBCustomerBody(customer);
+    if (termId) {
+      qbCustomer.SalesTermRef = { value: termId };
     }
 
     const result = await makeQBRequest("POST", "/customer?minorversion=65", qbCustomer);
@@ -399,7 +466,7 @@ export async function syncPaymentToQB(invoice: any, customer: any): Promise<{ su
     );
     const qbInvoice = invoiceQuery?.QueryResponse?.Invoice?.[0];
     if (!qbInvoice) {
-      const syncResult = await syncInvoiceToQB(invoice, customer, []);
+      const syncResult = await syncInvoiceToQB(invoice, customer);
       if (!syncResult.success) {
         return { success: false, error: "Invoice not found in QB and failed to create: " + syncResult.error };
       }

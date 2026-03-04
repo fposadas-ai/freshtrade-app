@@ -23532,7 +23532,7 @@ function Customers({
       ...f,
       terms: e.target.value
     }))
-  }, ["Net 15", "Net 30", "Net 45", "COD", "Prepaid"].map(t => /*#__PURE__*/React.createElement("option", {
+  }, ["Net 15", "Net 30", "Net 45", "Net 60", "Net 90", "Due on Receipt", "COD", "Prepaid"].map(t => /*#__PURE__*/React.createElement("option", {
     key: t,
     value: t
   }, t))), /*#__PURE__*/React.createElement(Input, {
@@ -37298,7 +37298,7 @@ function SystemSettings({
     label: "Default Payment Terms",
     value: settings.preferences.defaultTerms,
     onChange: v => update("preferences", "defaultTerms", v),
-    options: ["Net 15", "Net 30", "Net 45", "COD", "Prepaid"]
+    options: ["Net 15", "Net 30", "Net 45", "Net 60", "Net 90", "Due on Receipt", "COD", "Prepaid"]
   }), /*#__PURE__*/React.createElement(Dropdown, {
     label: "Default Price Level",
     value: settings.preferences.defaultPriceLevel,
