@@ -158,7 +158,7 @@ export async function handleCallback(url: string): Promise<{ success: boolean; e
         method: "GET",
         headers: { Accept: "application/json" },
       });
-      const body = JSON.parse(companyInfo.text());
+      const body = companyInfo.json || (companyInfo.body ? (typeof companyInfo.body === "string" ? JSON.parse(companyInfo.body) : companyInfo.body) : (typeof companyInfo.text === "function" ? JSON.parse(companyInfo.text()) : companyInfo));
       companyName = body?.CompanyInfo?.CompanyName || "";
     } catch {
       companyName = "";
@@ -236,7 +236,10 @@ async function makeQBRequest(method: string, endpoint: string, body?: any): Prom
     body: body ? JSON.stringify(body) : undefined,
   });
 
-  return JSON.parse(response.text());
+  if (response.json) return response.json;
+  if (response.body) return typeof response.body === "string" ? JSON.parse(response.body) : response.body;
+  if (typeof response.text === "function") return JSON.parse(response.text());
+  return response;
 }
 
 let _qbTermsCache: any[] | null = null;
