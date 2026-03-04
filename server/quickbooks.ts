@@ -402,3 +402,171 @@ export async function syncAllInvoices(
 
   return { synced, errors, details };
 }
+
+export async function pullCustomersFromQB(): Promise<{ imported: number; skipped: number; errors: number; details: any[] }> {
+  const details: any[] = [];
+  let imported = 0;
+  let skipped = 0;
+  let errors = 0;
+
+  try {
+    let startPosition = 1;
+    const maxResults = 100;
+    let hasMore = true;
+    const allQBCustomers: any[] = [];
+
+    while (hasMore) {
+      const queryResult = await makeQBRequest(
+        "GET",
+        `/query?query=${encodeURIComponent(`SELECT * FROM Customer STARTPOSITION ${startPosition} MAXRESULTS ${maxResults}`)}&minorversion=65`
+      );
+      const customers = queryResult?.QueryResponse?.Customer || [];
+      allQBCustomers.push(...customers);
+      hasMore = customers.length === maxResults;
+      startPosition += maxResults;
+    }
+
+    const existingCustomers: any[] = await storage.getTableData("customers") || [];
+    const existingNames = new Set(existingCustomers.map((c: any) => (c.name || "").toLowerCase().trim()));
+
+    for (const qbCust of allQBCustomers) {
+      const displayName = qbCust.DisplayName || qbCust.CompanyName || "";
+      if (!displayName) continue;
+
+      if (existingNames.has(displayName.toLowerCase().trim())) {
+        skipped++;
+        details.push({ name: displayName, qbId: qbCust.Id, status: "skipped" });
+        continue;
+      }
+
+      try {
+        const addr = qbCust.BillAddr;
+        let address = "";
+        if (addr) {
+          const parts = [addr.Line1, addr.City, [addr.CountrySubDivisionCode, addr.PostalCode].filter(Boolean).join(" ")].filter(Boolean);
+          address = parts.join(", ");
+        }
+
+        const newCustomer: any = {
+          id: "C-" + Math.random().toString(36).substr(2, 6).toUpperCase(),
+          name: displayName,
+          email: qbCust.PrimaryEmailAddr?.Address || "",
+          phone: qbCust.PrimaryPhone?.FreeFormNumber || "",
+          address: address,
+          qbId: qbCust.Id,
+          terms: qbCust.SalesTermRef?.name || "",
+          balance: qbCust.Balance || 0,
+          active: qbCust.Active !== false,
+        };
+
+        existingCustomers.push(newCustomer);
+        existingNames.add(displayName.toLowerCase().trim());
+        imported++;
+        details.push({ name: displayName, qbId: qbCust.Id, id: newCustomer.id, status: "imported" });
+      } catch (e: any) {
+        errors++;
+        details.push({ name: displayName, qbId: qbCust.Id, error: e.message, status: "error" });
+      }
+    }
+
+    if (imported > 0) {
+      await storage.setTableData("customers", existingCustomers);
+    }
+
+    return { imported, skipped, errors, details };
+  } catch (e: any) {
+    console.error("Error pulling customers from QB:", e);
+    throw e;
+  }
+}
+
+export async function pullInvoicesFromQB(): Promise<{ imported: number; skipped: number; errors: number; details: any[] }> {
+  const details: any[] = [];
+  let imported = 0;
+  let skipped = 0;
+  let errors = 0;
+
+  try {
+    let startPosition = 1;
+    const maxResults = 100;
+    let hasMore = true;
+    const allQBInvoices: any[] = [];
+
+    while (hasMore) {
+      const queryResult = await makeQBRequest(
+        "GET",
+        `/query?query=${encodeURIComponent(`SELECT * FROM Invoice STARTPOSITION ${startPosition} MAXRESULTS ${maxResults}`)}&minorversion=65`
+      );
+      const invoices = queryResult?.QueryResponse?.Invoice || [];
+      allQBInvoices.push(...invoices);
+      hasMore = invoices.length === maxResults;
+      startPosition += maxResults;
+    }
+
+    const existingInvoices: any[] = await storage.getTableData("invoices") || [];
+    const existingCustomers: any[] = await storage.getTableData("customers") || [];
+    const existingDocNumbers = new Set(existingInvoices.map((i: any) => i.id));
+
+    for (const qbInv of allQBInvoices) {
+      const docNumber = qbInv.DocNumber || `QB-${qbInv.Id}`;
+
+      if (existingDocNumbers.has(docNumber)) {
+        skipped++;
+        details.push({ id: docNumber, qbId: qbInv.Id, status: "skipped" });
+        continue;
+      }
+
+      try {
+        const custRef = qbInv.CustomerRef;
+        let customerId = "";
+        if (custRef) {
+          const match = existingCustomers.find((c: any) => c.qbId === custRef.value || (c.name || "").toLowerCase() === (custRef.name || "").toLowerCase());
+          customerId = match?.id || "";
+        }
+
+        const items = (qbInv.Line || [])
+          .filter((line: any) => line.DetailType === "SalesItemLineDetail")
+          .map((line: any) => ({
+            description: line.Description || "",
+            qty: line.SalesItemLineDetail?.Qty || 1,
+            price: line.SalesItemLineDetail?.UnitPrice || 0,
+            total: line.Amount || 0,
+            productId: "",
+          }));
+
+        let status = "open";
+        if (qbInv.Balance === 0 && qbInv.TotalAmt > 0) status = "paid";
+        else if (qbInv.DueDate && new Date(qbInv.DueDate) < new Date()) status = "overdue";
+
+        const newInvoice: any = {
+          id: docNumber,
+          customerId: customerId,
+          date: qbInv.TxnDate || "",
+          dueDate: qbInv.DueDate || "",
+          items: items,
+          total: qbInv.TotalAmt || 0,
+          balance: qbInv.Balance || 0,
+          status: status,
+          qbId: qbInv.Id,
+        };
+
+        existingInvoices.push(newInvoice);
+        existingDocNumbers.add(docNumber);
+        imported++;
+        details.push({ id: docNumber, qbId: qbInv.Id, status: "imported" });
+      } catch (e: any) {
+        errors++;
+        details.push({ id: docNumber, qbId: qbInv.Id, error: e.message, status: "error" });
+      }
+    }
+
+    if (imported > 0) {
+      await storage.setTableData("invoices", existingInvoices);
+    }
+
+    return { imported, skipped, errors, details };
+  } catch (e: any) {
+    console.error("Error pulling invoices from QB:", e);
+    throw e;
+  }
+}

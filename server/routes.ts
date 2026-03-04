@@ -11,6 +11,8 @@ import {
   syncInvoiceToQB,
   syncAllCustomers,
   syncAllInvoices,
+  pullCustomersFromQB,
+  pullInvoicesFromQB,
 } from "./quickbooks";
 
 const VALID_TABLES = [
@@ -237,6 +239,26 @@ export async function registerRoutes(
       res.json(result);
     } catch (e: any) {
       console.error("QB all invoices sync error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/quickbooks/pull/customers", async (_req, res) => {
+    try {
+      const result = await pullCustomersFromQB();
+      res.json(result);
+    } catch (e: any) {
+      console.error("QB pull customers error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/quickbooks/pull/invoices", async (_req, res) => {
+    try {
+      const result = await pullInvoicesFromQB();
+      res.json(result);
+    } catch (e: any) {
+      console.error("QB pull invoices error:", e);
       res.status(500).json({ error: e.message });
     }
   });

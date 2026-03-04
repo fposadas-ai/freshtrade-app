@@ -28816,6 +28816,46 @@ function QuickBooks({
     setSyncing(false);
   };
 
+  const pullCustomersFromQB = async () => {
+    if (!qbStatus.connected) { showToast("Connect to QuickBooks first", "error"); return; }
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/quickbooks/pull/customers", { method: "POST" });
+      const data = await res.json();
+      if (data.imported !== undefined) {
+        showToast(data.imported + " customers imported from QuickBooks" + (data.skipped > 0 ? " (" + data.skipped + " already existed)" : ""), data.imported > 0 ? "success" : "info");
+        if (data.imported > 0) {
+          window.location.reload();
+        }
+      } else {
+        showToast("Pull failed: " + (data.error || "Unknown error"), "error");
+      }
+    } catch (e) {
+      showToast("Pull failed: " + e.message, "error");
+    }
+    setSyncing(false);
+  };
+
+  const pullInvoicesFromQB = async () => {
+    if (!qbStatus.connected) { showToast("Connect to QuickBooks first", "error"); return; }
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/quickbooks/pull/invoices", { method: "POST" });
+      const data = await res.json();
+      if (data.imported !== undefined) {
+        showToast(data.imported + " invoices imported from QuickBooks" + (data.skipped > 0 ? " (" + data.skipped + " already existed)" : ""), data.imported > 0 ? "success" : "info");
+        if (data.imported > 0) {
+          window.location.reload();
+        }
+      } else {
+        showToast("Pull failed: " + (data.error || "Unknown error"), "error");
+      }
+    } catch (e) {
+      showToast("Pull failed: " + e.message, "error");
+    }
+    setSyncing(false);
+  };
+
   const totalUnsynced = invoices.filter(i => !synced.has(i.id)).length;
   const totalSynced = invoices.filter(i => synced.has(i.id)).length;
 
@@ -29166,7 +29206,34 @@ function QuickBooks({
     onClick: syncAll,
     disabled: !qbStatus.connected || syncing,
     style: { width: "100%", justifyContent: "center" }
-  }, syncing ? "Syncing..." : "Sync All Invoices to QB"))))));
+  }, syncing ? "Syncing..." : "Sync All Invoices to QB"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#1a2030",
+      borderRadius: 10,
+      padding: 16,
+      gridColumn: "1 / -1"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 600,
+      marginBottom: 12,
+      fontSize: 13
+    }
+  }, "Import from QuickBooks"), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 13, color: "#94a3b8", marginBottom: 16 }
+  }, "Pull customers and invoices from QuickBooks Online into your app. Existing records with the same name will be skipped."), /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 10 } }, /*#__PURE__*/React.createElement(Btn, {
+    "data-testid": "button-pull-customers-from-qb",
+    icon: "download",
+    onClick: pullCustomersFromQB,
+    disabled: !qbStatus.connected || syncing,
+    style: { flex: 1, justifyContent: "center" }
+  }, syncing ? "Importing..." : "Import Customers from QB"), /*#__PURE__*/React.createElement(Btn, {
+    "data-testid": "button-pull-invoices-from-qb",
+    icon: "download",
+    onClick: pullInvoicesFromQB,
+    disabled: !qbStatus.connected || syncing,
+    style: { flex: 1, justifyContent: "center" }
+  }, syncing ? "Importing..." : "Import Invoices from QB")))));
 }
 
 // ============================================================
