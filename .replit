@@ -38,3 +38,9 @@ author = "agent"
 task = "shell.exec"
 args = "npm run dev"
 waitForPort = 5000
+
+[userenv]
+
+[userenv.shared]
+QB_REDIRECT_URI = "https://work.freshtrade.com/api/quickbooks/callback"
+QB_ENVIRONMENT = "production"
