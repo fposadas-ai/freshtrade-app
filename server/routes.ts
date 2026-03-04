@@ -2,7 +2,6 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import path from "path";
-import { fileURLToPath } from "url";
 import {
   getAuthUrl,
   handleCallback,
@@ -19,10 +18,10 @@ import {
   pullPaymentStatusFromQB,
 } from "./quickbooks";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-// freshtrade.html lives in client/public/ (relative to project root, one level up from server/)
-const FRESHTRADE_HTML = path.resolve(__dirname, "../client/public/freshtrade.html");
+const isProduction = process.env.NODE_ENV === "production";
+const FRESHTRADE_HTML = isProduction
+  ? path.resolve(process.cwd(), "dist", "public", "freshtrade.html")
+  : path.resolve(process.cwd(), "client", "public", "freshtrade.html");
 
 const VALID_TABLES = [
   "products", "customers", "invoices", "routes", "salesOrders",
