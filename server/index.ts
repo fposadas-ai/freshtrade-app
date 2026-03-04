@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { createServer } from "http";
+import { storage } from "./storage";
 
 const app = express();
 const httpServer = createServer(app);
@@ -71,6 +72,15 @@ app.use((req, res, next) => {
   const port = parseInt(process.env.PORT || "5000", 10);
 
   const isProduction = process.env.NODE_ENV === "production";
+
+  // Auto-create DB tables if they don't exist (safe on every startup)
+  try {
+    await storage.initDatabase();
+    log("Database tables ready");
+  } catch (e: any) {
+    console.error("FATAL: Could not initialize database tables:", e.message);
+    process.exit(1);
+  }
 
   if (isProduction) {
     const { serveStaticEarly } = await import("./static");

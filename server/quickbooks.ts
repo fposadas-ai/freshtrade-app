@@ -296,32 +296,16 @@ export async function syncInvoiceToQB(invoice: any, customer: any, products: any
       qbCustomerId = custResult.qbId;
     }
 
-    const lines = (invoice.items || []).map((item: any, index: number) => {
-      const product = products.find((p: any) => p.id === item.productId);
-      return {
-        DetailType: "SalesItemLineDetail",
-        Amount: item.total || (item.qty * item.price),
-        Description: product?.name || item.description || item.productId,
-        SalesItemLineDetail: {
-          Qty: item.qty || item.quantity || 1,
-          UnitPrice: item.price || 0,
-        },
-        LineNum: index + 1,
-      };
-    });
-
-    if (lines.length === 0) {
-      lines.push({
-        DetailType: "SalesItemLineDetail",
-        Amount: invoice.total || 0,
-        Description: `Invoice ${invoice.id}`,
-        SalesItemLineDetail: {
-          Qty: 1,
-          UnitPrice: invoice.total || 0,
-        },
-        LineNum: 1,
-      });
-    }
+    const lines = [{
+      DetailType: "SalesItemLineDetail",
+      Amount: invoice.total || 0,
+      Description: `Invoice ${invoice.id}`,
+      SalesItemLineDetail: {
+        Qty: 1,
+        UnitPrice: invoice.total || 0,
+      },
+      LineNum: 1,
+    }];
 
     const qbInvoice: any = {
       CustomerRef: { value: qbCustomerId },
@@ -397,204 +381,6 @@ export async function syncAllInvoices(
     } else {
       errors++;
       details.push({ id: inv.id, error: result.error, status: "error" });
-    }
-  }
-
-  return { synced, errors, details };
-}
-
-export async function syncSupplierToQB(supplier: any): Promise<{ success: boolean; qbId?: string; error?: string }> {
-  try {
-    const safeName = sanitizeForQBQuery(supplier.name);
-    const queryResult = await makeQBRequest(
-      "GET",
-      `/query?query=${encodeURIComponent("SELECT * FROM Vendor WHERE DisplayName = '" + safeName + "'")}&minorversion=65`
-    );
-
-    const existing = queryResult?.QueryResponse?.Vendor?.[0];
-    if (existing) {
-      return { success: true, qbId: existing.Id };
-    }
-
-    const qbVendor: any = {
-      DisplayName: supplier.name,
-      CompanyName: supplier.name,
-    };
-
-    if (supplier.email) {
-      qbVendor.PrimaryEmailAddr = { Address: supplier.email };
-    }
-    if (supplier.phone) {
-      qbVendor.PrimaryPhone = { FreeFormNumber: supplier.phone };
-    }
-    if (supplier.address) {
-      const parts = supplier.address.split(",").map((p: string) => p.trim());
-      qbVendor.BillAddr = {
-        Line1: parts[0] || "",
-        City: parts[1] || "",
-        CountrySubDivisionCode: parts[2]?.split(" ")[0] || "",
-        PostalCode: parts[2]?.split(" ")[1] || "",
-      };
-    }
-    if (supplier.terms) {
-      qbVendor.Notes = `Terms: ${supplier.terms}`;
-    }
-
-    const result = await makeQBRequest("POST", "/vendor?minorversion=65", qbVendor);
-    return { success: true, qbId: result?.Vendor?.Id };
-  } catch (e: any) {
-    console.error("Error syncing supplier to QB:", e);
-    return { success: false, error: e.message };
-  }
-}
-
-export async function syncAllSuppliers(suppliers: any[]): Promise<{ synced: number; errors: number; details: any[] }> {
-  const details: any[] = [];
-  let synced = 0;
-  let errors = 0;
-
-  for (const supplier of suppliers) {
-    const result = await syncSupplierToQB(supplier);
-    if (result.success) {
-      synced++;
-      details.push({ id: supplier.id, name: supplier.name, qbId: result.qbId, status: "synced" });
-    } else {
-      errors++;
-      details.push({ id: supplier.id, name: supplier.name, error: result.error, status: "error" });
-    }
-  }
-
-  return { synced, errors, details };
-}
-
-let cachedExpenseAccountId: string | null = null;
-
-async function getExpenseAccountId(): Promise<string> {
-  if (cachedExpenseAccountId) return cachedExpenseAccountId;
-  try {
-    const cogsQuery = await makeQBRequest(
-      "GET",
-      `/query?query=${encodeURIComponent("SELECT * FROM Account WHERE AccountType = 'Cost of Goods Sold' MAXRESULTS 1")}&minorversion=65`
-    );
-    const cogsAccount = cogsQuery?.QueryResponse?.Account?.[0];
-    if (cogsAccount) {
-      cachedExpenseAccountId = cogsAccount.Id;
-      return cogsAccount.Id;
-    }
-    const expenseQuery = await makeQBRequest(
-      "GET",
-      `/query?query=${encodeURIComponent("SELECT * FROM Account WHERE AccountType = 'Expense' MAXRESULTS 1")}&minorversion=65`
-    );
-    const expenseAccount = expenseQuery?.QueryResponse?.Account?.[0];
-    if (expenseAccount) {
-      cachedExpenseAccountId = expenseAccount.Id;
-      return expenseAccount.Id;
-    }
-  } catch (e) {
-    console.error("Error querying expense account:", e);
-  }
-  return "1";
-}
-
-export async function syncBillToQB(po: any, supplier: any): Promise<{ success: boolean; qbId?: string; error?: string }> {
-  try {
-    const safeDocNumber = sanitizeForQBQuery(po.id);
-    const existingQuery = await makeQBRequest(
-      "GET",
-      `/query?query=${encodeURIComponent("SELECT * FROM Bill WHERE DocNumber = '" + safeDocNumber + "'")}&minorversion=65`
-    );
-    const existingBill = existingQuery?.QueryResponse?.Bill?.[0];
-    if (existingBill) {
-      return { success: true, qbId: existingBill.Id };
-    }
-
-    let qbVendorId = supplier.qbId;
-    if (!qbVendorId) {
-      const vendResult = await syncSupplierToQB(supplier);
-      if (!vendResult.success) {
-        return { success: false, error: `Failed to sync vendor: ${vendResult.error}` };
-      }
-      qbVendorId = vendResult.qbId;
-    }
-
-    const expenseAccountId = await getExpenseAccountId();
-
-    const lines = (po.lines || []).map((line: any, index: number) => ({
-      DetailType: "AccountBasedExpenseLineDetail",
-      Amount: (line.qtyOrdered || line.qty || 1) * (line.costPerUnit || line.price || 0),
-      Description: line.description || line.productId || `Line ${index + 1}`,
-      AccountBasedExpenseLineDetail: {
-        AccountRef: { value: expenseAccountId },
-      },
-      LineNum: index + 1,
-    }));
-
-    if (lines.length === 0) {
-      lines.push({
-        DetailType: "AccountBasedExpenseLineDetail",
-        Amount: po.total || 0,
-        Description: `Purchase Order ${po.id}`,
-        AccountBasedExpenseLineDetail: {
-          AccountRef: { value: expenseAccountId },
-        },
-        LineNum: 1,
-      });
-    }
-
-    const qbBill: any = {
-      VendorRef: { value: qbVendorId },
-      Line: lines,
-      DocNumber: po.id,
-    };
-
-    if (po.date) {
-      qbBill.TxnDate = po.date;
-    }
-    if (po.expectedDate) {
-      qbBill.DueDate = po.expectedDate;
-    }
-
-    const result = await makeQBRequest("POST", "/bill?minorversion=65", qbBill);
-    return { success: true, qbId: result?.Bill?.Id };
-  } catch (e: any) {
-    console.error("Error syncing bill to QB:", e);
-    return { success: false, error: e.message };
-  }
-}
-
-export async function syncAllBills(
-  purchaseOrders: any[],
-  suppliers: any[]
-): Promise<{ synced: number; errors: number; details: any[] }> {
-  const details: any[] = [];
-  let synced = 0;
-  let errors = 0;
-
-  const supplierQbIds: Record<string, string> = {};
-
-  for (const po of purchaseOrders) {
-    const supplier = suppliers.find((s: any) => s.id === po.supplierId);
-    if (!supplier) {
-      errors++;
-      details.push({ id: po.id, error: "Supplier not found", status: "error" });
-      continue;
-    }
-
-    if (!supplierQbIds[supplier.id]) {
-      const vendResult = await syncSupplierToQB(supplier);
-      if (vendResult.success && vendResult.qbId) {
-        supplierQbIds[supplier.id] = vendResult.qbId;
-      }
-    }
-
-    const supplierWithQbId = { ...supplier, qbId: supplierQbIds[supplier.id] };
-    const result = await syncBillToQB(po, supplierWithQbId);
-    if (result.success) {
-      synced++;
-      details.push({ id: po.id, qbId: result.qbId, status: "synced" });
-    } else {
-      errors++;
-      details.push({ id: po.id, error: result.error, status: "error" });
     }
   }
 
@@ -692,29 +478,16 @@ export async function syncCreditMemoToQB(cm: any, customer: any): Promise<{ succ
       qbCustomerId = custResult.qbId;
     }
 
-    const lines = (cm.lines || []).map((line: any, index: number) => ({
+    const lines = [{
       DetailType: "SalesItemLineDetail",
-      Amount: line.total || 0,
-      Description: line.description || line.productId || `Credit line ${index + 1}`,
+      Amount: cm.total || 0,
+      Description: `Credit Memo ${cm.id}`,
       SalesItemLineDetail: {
-        Qty: line.qty || 1,
-        UnitPrice: line.priceEach || line.pricePerLb || 0,
+        Qty: 1,
+        UnitPrice: cm.total || 0,
       },
-      LineNum: index + 1,
-    }));
-
-    if (lines.length === 0) {
-      lines.push({
-        DetailType: "SalesItemLineDetail",
-        Amount: cm.total || 0,
-        Description: `Credit Memo ${cm.id}`,
-        SalesItemLineDetail: {
-          Qty: 1,
-          UnitPrice: cm.total || 0,
-        },
-        LineNum: 1,
-      });
-    }
+      LineNum: 1,
+    }];
 
     const qbCreditMemo: any = {
       CustomerRef: { value: qbCustomerId },
@@ -731,86 +504,6 @@ export async function syncCreditMemoToQB(cm: any, customer: any): Promise<{ succ
   } catch (e: any) {
     console.error("Error syncing credit memo to QB:", e);
     return { success: false, error: e.message };
-  }
-}
-
-export async function pullVendorsFromQB(): Promise<{ imported: number; skipped: number; errors: number; details: any[] }> {
-  const details: any[] = [];
-  let imported = 0;
-  let skipped = 0;
-  let errors = 0;
-
-  try {
-    let startPosition = 1;
-    const maxResults = 100;
-    let hasMore = true;
-    const allQBVendors: any[] = [];
-
-    while (hasMore) {
-      const queryResult = await makeQBRequest(
-        "GET",
-        `/query?query=${encodeURIComponent(`SELECT * FROM Vendor STARTPOSITION ${startPosition} MAXRESULTS ${maxResults}`)}&minorversion=65`
-      );
-      const vendors = queryResult?.QueryResponse?.Vendor || [];
-      allQBVendors.push(...vendors);
-      hasMore = vendors.length === maxResults;
-      startPosition += maxResults;
-    }
-
-    const existingSuppliers: any[] = await storage.getTableData("suppliers") || [];
-    const existingNames = new Set(existingSuppliers.map((s: any) => (s.name || "").toLowerCase().trim()));
-
-    for (const qbVendor of allQBVendors) {
-      const displayName = qbVendor.DisplayName || qbVendor.CompanyName || "";
-      if (!displayName) continue;
-
-      if (existingNames.has(displayName.toLowerCase().trim())) {
-        skipped++;
-        details.push({ name: displayName, qbId: qbVendor.Id, status: "skipped" });
-        continue;
-      }
-
-      try {
-        const addr = qbVendor.BillAddr;
-        let address = "";
-        if (addr) {
-          const parts = [addr.Line1, addr.City, [addr.CountrySubDivisionCode, addr.PostalCode].filter(Boolean).join(" ")].filter(Boolean);
-          address = parts.join(", ");
-        }
-
-        const newSupplier: any = {
-          id: "S-" + Math.random().toString(36).substr(2, 6).toUpperCase(),
-          name: displayName,
-          contact: qbVendor.GivenName ? `${qbVendor.GivenName} ${qbVendor.FamilyName || ""}`.trim() : "",
-          email: qbVendor.PrimaryEmailAddr?.Address || "",
-          phone: qbVendor.PrimaryPhone?.FreeFormNumber || "",
-          address: address,
-          qbId: qbVendor.Id,
-          terms: qbVendor.TermRef?.name || "Net 30",
-          categories: [],
-          notes: "",
-          productIds: [],
-          active: qbVendor.Active !== false,
-        };
-
-        existingSuppliers.push(newSupplier);
-        existingNames.add(displayName.toLowerCase().trim());
-        imported++;
-        details.push({ name: displayName, qbId: qbVendor.Id, id: newSupplier.id, status: "imported" });
-      } catch (e: any) {
-        errors++;
-        details.push({ name: displayName, qbId: qbVendor.Id, error: e.message, status: "error" });
-      }
-    }
-
-    if (imported > 0) {
-      await storage.setTableData("suppliers", existingSuppliers);
-    }
-
-    return { imported, skipped, errors, details };
-  } catch (e: any) {
-    console.error("Error pulling vendors from QB:", e);
-    throw e;
   }
 }
 
@@ -863,100 +556,6 @@ export async function pullPaymentStatusFromQB(): Promise<{ updated: number; deta
     return { updated, details };
   } catch (e: any) {
     console.error("Error pulling payment status from QB:", e);
-    throw e;
-  }
-}
-
-export async function pullBillsFromQB(): Promise<{ imported: number; skipped: number; errors: number; details: any[] }> {
-  const details: any[] = [];
-  let imported = 0;
-  let skipped = 0;
-  let errors = 0;
-
-  try {
-    let startPosition = 1;
-    const maxResults = 100;
-    let hasMore = true;
-    const allQBBills: any[] = [];
-
-    while (hasMore) {
-      const queryResult = await makeQBRequest(
-        "GET",
-        `/query?query=${encodeURIComponent(`SELECT * FROM Bill STARTPOSITION ${startPosition} MAXRESULTS ${maxResults}`)}&minorversion=65`
-      );
-      const bills = queryResult?.QueryResponse?.Bill || [];
-      allQBBills.push(...bills);
-      hasMore = bills.length === maxResults;
-      startPosition += maxResults;
-    }
-
-    const existingPOs: any[] = await storage.getTableData("purchaseOrders") || [];
-    const existingSuppliers: any[] = await storage.getTableData("suppliers") || [];
-    const existingDocNumbers = new Set(existingPOs.map((po: any) => po.id));
-
-    for (const qbBill of allQBBills) {
-      const docNumber = qbBill.DocNumber || `QB-BILL-${qbBill.Id}`;
-
-      if (existingDocNumbers.has(docNumber)) {
-        skipped++;
-        details.push({ id: docNumber, qbId: qbBill.Id, status: "skipped" });
-        continue;
-      }
-
-      try {
-        const vendorRef = qbBill.VendorRef;
-        let supplierId = "";
-        if (vendorRef) {
-          const match = existingSuppliers.find((s: any) => s.qbId === vendorRef.value || (s.name || "").toLowerCase() === (vendorRef.name || "").toLowerCase());
-          supplierId = match?.id || "";
-        }
-
-        const lines = (qbBill.Line || [])
-          .filter((line: any) => line.DetailType === "AccountBasedExpenseLineDetail" || line.DetailType === "ItemBasedExpenseLineDetail")
-          .map((line: any) => ({
-            description: line.Description || "",
-            productId: "",
-            qtyOrdered: line.ItemBasedExpenseLineDetail?.Qty || 1,
-            qtyReceived: 0,
-            costPerUnit: line.ItemBasedExpenseLineDetail?.UnitPrice || line.Amount || 0,
-            priceSet: true,
-          }));
-
-        let status = "pending";
-        if (qbBill.Balance === 0 && qbBill.TotalAmt > 0) status = "received";
-
-        const newPO: any = {
-          id: docNumber,
-          supplierId: supplierId,
-          date: qbBill.TxnDate || "",
-          expectedDate: qbBill.DueDate || "",
-          status: status,
-          notes: "",
-          lines: lines,
-          subtotal: qbBill.TotalAmt || 0,
-          tax: 0,
-          shippingCost: 0,
-          total: qbBill.TotalAmt || 0,
-          qbId: qbBill.Id,
-        };
-
-        existingPOs.push(newPO);
-        existingDocNumbers.add(docNumber);
-        imported++;
-        details.push({ id: docNumber, qbId: qbBill.Id, status: "imported" });
-      } catch (e: any) {
-        errors++;
-        details.push({ id: docNumber, qbId: qbBill.Id, error: e.message, status: "error" });
-      }
-    }
-
-    if (imported > 0) {
-      await storage.setTableData("purchaseOrders", existingPOs);
-    }
-
-    return { imported, skipped, errors, details };
-  } catch (e: any) {
-    console.error("Error pulling bills from QB:", e);
     throw e;
   }
 }

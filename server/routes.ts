@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import path from "path";
+import { fileURLToPath } from "url";
 import {
   getAuthUrl,
   handleCallback,
@@ -11,16 +12,17 @@ import {
   syncInvoiceToQB,
   syncAllCustomers,
   syncAllInvoices,
-  syncAllSuppliers,
-  syncAllBills,
   syncPaymentToQB,
   syncCreditMemoToQB,
   pullCustomersFromQB,
   pullInvoicesFromQB,
-  pullVendorsFromQB,
-  pullBillsFromQB,
   pullPaymentStatusFromQB,
 } from "./quickbooks";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+// freshtrade.html lives in client/public/ (relative to project root, one level up from server/)
+const FRESHTRADE_HTML = path.resolve(__dirname, "../client/public/freshtrade.html");
 
 const VALID_TABLES = [
   "products", "customers", "invoices", "routes", "salesOrders",
@@ -250,37 +252,6 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/quickbooks/sync/all-suppliers", async (_req, res) => {
-    try {
-      const suppliers = await storage.getTableData("suppliers");
-      if (!Array.isArray(suppliers) || suppliers.length === 0) {
-        return res.json({ synced: 0, errors: 0, details: [], message: "No suppliers to sync" });
-      }
-      const result = await syncAllSuppliers(suppliers);
-      res.json(result);
-    } catch (e: any) {
-      console.error("QB all suppliers sync error:", e);
-      res.status(500).json({ error: e.message });
-    }
-  });
-
-  app.post("/api/quickbooks/sync/all-bills", async (_req, res) => {
-    try {
-      const [purchaseOrders, suppliers] = await Promise.all([
-        storage.getTableData("purchaseOrders"),
-        storage.getTableData("suppliers"),
-      ]);
-      if (!Array.isArray(purchaseOrders) || purchaseOrders.length === 0) {
-        return res.json({ synced: 0, errors: 0, details: [], message: "No purchase orders to sync" });
-      }
-      const result = await syncAllBills(purchaseOrders, suppliers || []);
-      res.json(result);
-    } catch (e: any) {
-      console.error("QB all bills sync error:", e);
-      res.status(500).json({ error: e.message });
-    }
-  });
-
   app.post("/api/quickbooks/sync/payment", async (req, res) => {
     try {
       const { invoice, customer } = req.body;
@@ -369,26 +340,6 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/quickbooks/pull/vendors", async (_req, res) => {
-    try {
-      const result = await pullVendorsFromQB();
-      res.json(result);
-    } catch (e: any) {
-      console.error("QB pull vendors error:", e);
-      res.status(500).json({ error: e.message });
-    }
-  });
-
-  app.post("/api/quickbooks/pull/bills", async (_req, res) => {
-    try {
-      const result = await pullBillsFromQB();
-      res.json(result);
-    } catch (e: any) {
-      console.error("QB pull bills error:", e);
-      res.status(500).json({ error: e.message });
-    }
-  });
-
   app.post("/api/quickbooks/pull/payment-status", async (_req, res) => {
     try {
       const result = await pullPaymentStatusFromQB();
@@ -404,15 +355,11 @@ export async function registerRoutes(
       const results: Record<string, any> = {};
 
       results.pullCustomers = await pullCustomersFromQB();
-      results.pullVendors = await pullVendorsFromQB();
       results.pullInvoices = await pullInvoicesFromQB();
-      results.pullBills = await pullBillsFromQB();
 
-      const [customers, suppliers, invoices, purchaseOrders, creditMemos, products] = await Promise.all([
+      const [customers, invoices, creditMemos, products] = await Promise.all([
         storage.getTableData("customers"),
-        storage.getTableData("suppliers"),
         storage.getTableData("invoices"),
-        storage.getTableData("purchaseOrders"),
         storage.getTableData("creditMemos"),
         storage.getTableData("products"),
       ]);
@@ -420,14 +367,8 @@ export async function registerRoutes(
       if (Array.isArray(customers) && customers.length > 0) {
         results.pushCustomers = await syncAllCustomers(customers);
       }
-      if (Array.isArray(suppliers) && suppliers.length > 0) {
-        results.pushSuppliers = await syncAllSuppliers(suppliers);
-      }
       if (Array.isArray(invoices) && invoices.length > 0) {
         results.pushInvoices = await syncAllInvoices(invoices, customers || [], products || []);
-      }
-      if (Array.isArray(purchaseOrders) && purchaseOrders.length > 0) {
-        results.pushBills = await syncAllBills(purchaseOrders, suppliers || []);
       }
       if (Array.isArray(creditMemos) && creditMemos.length > 0) {
         const custArr = customers || [];
@@ -473,11 +414,11 @@ export async function registerRoutes(
   });
 
   app.get("/freshtrade", (_req, res) => {
-    res.sendFile(path.resolve("client/public/freshtrade.html"));
+    res.sendFile(FRESHTRADE_HTML);
   });
 
   app.get("/app", (_req, res) => {
-    res.sendFile(path.resolve("client/public/freshtrade.html"));
+    res.sendFile(FRESHTRADE_HTML);
   });
 
   return httpServer;

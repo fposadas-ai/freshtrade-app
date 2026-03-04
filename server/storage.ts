@@ -7,6 +7,7 @@ const pool = new pg.Pool({
 });
 
 export interface IStorage {
+  initDatabase(): Promise<void>;
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
@@ -21,6 +22,22 @@ export class DatabaseStorage implements IStorage {
 
   constructor() {
     this.pool = pool;
+  }
+
+  async initDatabase(): Promise<void> {
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        username TEXT NOT NULL UNIQUE,
+        password TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS data_store (
+        id SERIAL PRIMARY KEY,
+        table_name TEXT NOT NULL UNIQUE,
+        data JSONB NOT NULL DEFAULT '[]'::jsonb,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
   }
 
   async getUser(id: string): Promise<User | undefined> {
