@@ -29315,7 +29315,7 @@ function QuickBooks({
     onClick: fullSync,
     disabled: !qbStatus.connected || syncing,
     style: { width: "100%", justifyContent: "center", fontSize: 14, padding: "12px 20px", animation: syncing ? "spin 1s linear infinite" : undefined }
-  }, syncing ? "Running Full Sync..." : "Run Full Sync"))));
+  }, syncing ? "Running Full Sync..." : "Run Full Sync")))));
 }
 
 // ============================================================
