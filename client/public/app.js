@@ -2768,7 +2768,15 @@ function App() {
       alignItems: "center",
       gap: 10
     }
-  }, /*#__PURE__*/React.createElement("div", {
+  }, settings.company.logo ? /*#__PURE__*/React.createElement("img", {
+    src: settings.company.logo,
+    alt: settings.company.name || "Company Logo",
+    style: {
+      maxHeight: 40,
+      maxWidth: 160,
+      objectFit: "contain"
+    }
+  }) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     style: {
       width: 34,
       height: 34,
@@ -2788,13 +2796,13 @@ function App() {
       color: "#f1f5f9",
       letterSpacing: "0.5px"
     }
-  }, "FRESHTRADE"), /*#__PURE__*/React.createElement("div", {
+  }, (settings.company.name || "FRESHTRADE").toUpperCase()), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 10,
       color: "#64748b",
       letterSpacing: "1px"
     }
-  }, "DISTRIBUTION")))), /*#__PURE__*/React.createElement("nav", {
+  }, "DISTRIBUTION"))))), /*#__PURE__*/React.createElement("nav", {
     style: {
       flex: 1,
       padding: "12px 10px",
