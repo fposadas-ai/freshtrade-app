@@ -656,12 +656,17 @@ export async function pullCustomersFromQB(): Promise<{ imported: number; skipped
         "GET",
         `/query?query=${encodeURIComponent(`SELECT * FROM Customer STARTPOSITION ${startPosition} MAXRESULTS ${maxResults}`)}&minorversion=65`
       );
+      console.log("QB Customer query raw keys:", Object.keys(queryResult || {}));
+      console.log("QB Customer QueryResponse keys:", Object.keys(queryResult?.QueryResponse || {}));
+      console.log("QB Customer query sample:", JSON.stringify(queryResult).substring(0, 500));
       const customers = queryResult?.QueryResponse?.Customer || [];
+      console.log("QB Customers found:", customers.length);
       allQBCustomers.push(...customers);
       hasMore = customers.length === maxResults;
       startPosition += maxResults;
     }
 
+    console.log("Total QB customers to process:", allQBCustomers.length);
     const existingCustomers: any[] = await storage.getTableData("customers") || [];
     const existingNames = new Set(existingCustomers.map((c: any) => (c.name || "").toLowerCase().trim()));
 
