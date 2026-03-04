@@ -275,7 +275,7 @@ export async function syncCustomerToQB(customer: any): Promise<{ success: boolea
   }
 }
 
-export async function syncInvoiceToQB(invoice: any, customer: any, products: any[]): Promise<{ success: boolean; qbId?: string; error?: string }> {
+export async function syncInvoiceToQB(invoice: any, customer: any): Promise<{ success: boolean; qbId?: string; error?: string }> {
   try {
     const safeDocNumber = sanitizeForQBQuery(invoice.id);
     const existingQuery = await makeQBRequest(
@@ -349,8 +349,7 @@ export async function syncAllCustomers(customers: any[]): Promise<{ synced: numb
 
 export async function syncAllInvoices(
   invoices: any[],
-  customers: any[],
-  products: any[]
+  customers: any[]
 ): Promise<{ synced: number; errors: number; details: any[] }> {
   const details: any[] = [];
   let synced = 0;
@@ -374,7 +373,7 @@ export async function syncAllInvoices(
     }
 
     const customerWithQbId = { ...customer, qbId: customerQbIds[customer.id] };
-    const result = await syncInvoiceToQB(inv, customerWithQbId, products);
+    const result = await syncInvoiceToQB(inv, customerWithQbId);
     if (result.success) {
       synced++;
       details.push({ id: inv.id, qbId: result.qbId, status: "synced" });
@@ -681,16 +680,6 @@ export async function pullInvoicesFromQB(): Promise<{ imported: number; skipped:
           customerId = match?.id || "";
         }
 
-        const items = (qbInv.Line || [])
-          .filter((line: any) => line.DetailType === "SalesItemLineDetail")
-          .map((line: any) => ({
-            description: line.Description || "",
-            qty: line.SalesItemLineDetail?.Qty || 1,
-            price: line.SalesItemLineDetail?.UnitPrice || 0,
-            total: line.Amount || 0,
-            productId: "",
-          }));
-
         let status = "open";
         if (qbInv.Balance === 0 && qbInv.TotalAmt > 0) status = "paid";
         else if (qbInv.DueDate && new Date(qbInv.DueDate) < new Date()) status = "overdue";
@@ -700,7 +689,7 @@ export async function pullInvoicesFromQB(): Promise<{ imported: number; skipped:
           customerId: customerId,
           date: qbInv.TxnDate || "",
           dueDate: qbInv.DueDate || "",
-          items: items,
+          items: [],
           total: qbInv.TotalAmt || 0,
           balance: qbInv.Balance || 0,
           status: status,

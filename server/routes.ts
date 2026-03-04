@@ -209,9 +209,9 @@ export async function registerRoutes(
 
   app.post("/api/quickbooks/sync/invoice", async (req, res) => {
     try {
-      const { invoice, customer, products } = req.body;
+      const { invoice, customer } = req.body;
       if (!invoice || !customer) return res.status(400).json({ error: "Invoice and customer data required" });
-      const result = await syncInvoiceToQB(invoice, customer, products || []);
+      const result = await syncInvoiceToQB(invoice, customer);
       res.json(result);
     } catch (e: any) {
       console.error("QB invoice sync error:", e);
@@ -235,15 +235,14 @@ export async function registerRoutes(
 
   app.post("/api/quickbooks/sync/all-invoices", async (_req, res) => {
     try {
-      const [invoices, customers, products] = await Promise.all([
+      const [invoices, customers] = await Promise.all([
         storage.getTableData("invoices"),
         storage.getTableData("customers"),
-        storage.getTableData("products"),
       ]);
       if (!Array.isArray(invoices) || invoices.length === 0) {
         return res.json({ synced: 0, errors: 0, details: [], message: "No invoices to sync" });
       }
-      const result = await syncAllInvoices(invoices, customers || [], products || []);
+      const result = await syncAllInvoices(invoices, customers || []);
       res.json(result);
     } catch (e: any) {
       console.error("QB all invoices sync error:", e);
@@ -356,18 +355,17 @@ export async function registerRoutes(
       results.pullCustomers = await pullCustomersFromQB();
       results.pullInvoices = await pullInvoicesFromQB();
 
-      const [customers, invoices, creditMemos, products] = await Promise.all([
+      const [customers, invoices, creditMemos] = await Promise.all([
         storage.getTableData("customers"),
         storage.getTableData("invoices"),
         storage.getTableData("creditMemos"),
-        storage.getTableData("products"),
       ]);
 
       if (Array.isArray(customers) && customers.length > 0) {
         results.pushCustomers = await syncAllCustomers(customers);
       }
       if (Array.isArray(invoices) && invoices.length > 0) {
-        results.pushInvoices = await syncAllInvoices(invoices, customers || [], products || []);
+        results.pushInvoices = await syncAllInvoices(invoices, customers || []);
       }
       if (Array.isArray(creditMemos) && creditMemos.length > 0) {
         const custArr = customers || [];

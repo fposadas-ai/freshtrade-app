@@ -29309,7 +29309,7 @@ function QuickBooks({
     }
   }, "Full Two-Way Sync"), /*#__PURE__*/React.createElement("div", {
     style: { fontSize: 13, color: "#94a3b8", marginBottom: 16 }
-  }, "Run a complete bidirectional sync: imports customers, vendors, invoices, and bills from QB, pushes local records to QB, and updates all payment statuses."), /*#__PURE__*/React.createElement(Btn, {
+  }, "Run a complete two-way AR sync: imports customers and invoices from QB, pushes local customers, invoice totals, and credit memo totals to QB, and updates payment statuses."), /*#__PURE__*/React.createElement(Btn, {
     "data-testid": "button-full-sync",
     icon: "sync",
     onClick: fullSync,
