@@ -216,6 +216,28 @@ export async function disconnect(): Promise<void> {
   await storage.setTableData(QB_TOKEN_KEY, {});
 }
 
+async function normalizeQBResponse(data: any): Promise<any> {
+  if (!data || typeof data !== "object") return data;
+  if (data.QueryResponse !== undefined) return data;
+  if (data.queryResponse !== undefined || data.fault !== undefined) {
+    if (data.fault?.error?.length) {
+      const errMsg = data.fault.error.map((e: any) => e.message || e.detail || "Unknown QB error").join("; ");
+      if (errMsg.includes("AuthorizationFailed") || errMsg.includes("3100") || errMsg.includes("401") || errMsg.includes("3200")) {
+        await storage.setTableData(QB_TOKEN_KEY, {});
+        throw new Error("QuickBooks authorization expired — please disconnect and reconnect to QuickBooks");
+      }
+      throw new Error("QuickBooks API error: " + errMsg);
+    }
+    const normalized: any = {};
+    for (const [key, value] of Object.entries(data)) {
+      const pascalKey = key.charAt(0).toUpperCase() + key.slice(1);
+      normalized[pascalKey] = value;
+    }
+    return normalized;
+  }
+  return data;
+}
+
 async function makeQBRequest(method: string, endpoint: string, body?: any): Promise<any> {
   const result = await getValidClient();
   if (!result) throw new Error("Not connected to QuickBooks");
@@ -236,10 +258,13 @@ async function makeQBRequest(method: string, endpoint: string, body?: any): Prom
     body: body ? JSON.stringify(body) : undefined,
   });
 
-  if (response.json) return response.json;
-  if (response.body) return typeof response.body === "string" ? JSON.parse(response.body) : response.body;
-  if (typeof response.text === "function") return JSON.parse(response.text());
-  return response;
+  let parsed: any;
+  if (response.json) parsed = response.json;
+  else if (response.body) parsed = typeof response.body === "string" ? JSON.parse(response.body) : response.body;
+  else if (typeof response.text === "function") parsed = JSON.parse(response.text());
+  else parsed = response;
+
+  return await normalizeQBResponse(parsed);
 }
 
 let _qbTermsCache: any[] | null = null;
