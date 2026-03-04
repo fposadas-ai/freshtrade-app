@@ -113,17 +113,26 @@ export async function getAuthUrl(): Promise<string> {
 }
 
 export async function handleCallback(url: string): Promise<{ success: boolean; error?: string }> {
+  console.log("handleCallback called with url:", url);
   const parsedUrl = new URL(url, "http://localhost");
   const returnedState = parsedUrl.searchParams.get("state") || "";
+  const errorParam = parsedUrl.searchParams.get("error");
+  if (errorParam) {
+    const errorDesc = parsedUrl.searchParams.get("error_description") || errorParam;
+    console.error("QB OAuth returned error:", errorParam, errorDesc);
+    return { success: false, error: `QuickBooks denied access: ${errorDesc}` };
+  }
 
   const storedStateData = await storage.getTableData(QB_STATE_KEY);
   const storedState = storedStateData?.state;
   const stateCreatedAt = storedStateData?.createdAt || 0;
+  console.log("State check — returned:", returnedState?.substring(0, 10) + "...", "stored:", storedState?.substring(0, 10) + "...");
 
   await storage.setTableData(QB_STATE_KEY, {});
 
   if (!storedState || storedState !== returnedState) {
-    return { success: false, error: "Invalid OAuth state — possible CSRF attack" };
+    console.error("State mismatch! returned:", returnedState, "stored:", storedState);
+    return { success: false, error: "Invalid OAuth state — please try connecting again" };
   }
 
   if (Date.now() - stateCreatedAt > 10 * 60 * 1000) {
@@ -134,6 +143,7 @@ export async function handleCallback(url: string): Promise<{ success: boolean; e
   const callbackUrl = new URL(redirectUri);
   callbackUrl.search = parsedUrl.search;
   const fullUrl = callbackUrl.toString();
+  console.log("Token exchange URL:", fullUrl.substring(0, 80) + "...");
 
   const client = createOAuthClient();
   try {

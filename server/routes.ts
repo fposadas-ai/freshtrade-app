@@ -163,10 +163,13 @@ export async function registerRoutes(
   app.get("/api/quickbooks/callback", async (req, res) => {
     try {
       const fullUrl = `${req.protocol}://${req.get("host")}${req.originalUrl}`;
+      console.log("QB callback hit, protocol:", req.protocol, "host:", req.get("host"), "fullUrl:", fullUrl);
       const result = await handleCallback(fullUrl);
+      console.log("QB callback result:", JSON.stringify(result));
       if (result.success) {
         res.redirect("/freshtrade?qb=connected");
       } else {
+        console.error("QB callback failed:", result.error);
         res.redirect(`/freshtrade?qb=error&msg=${encodeURIComponent(result.error || "Unknown error")}`);
       }
     } catch (e: any) {

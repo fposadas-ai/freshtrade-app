@@ -4,6 +4,7 @@ import { createServer } from "http";
 import { storage } from "./storage";
 
 const app = express();
+app.set("trust proxy", true);
 const httpServer = createServer(app);
 
 declare module "http" {
