@@ -2,6 +2,16 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import path from "path";
+import {
+  getAuthUrl,
+  handleCallback,
+  getConnectionStatus,
+  disconnect,
+  syncCustomerToQB,
+  syncInvoiceToQB,
+  syncAllCustomers,
+  syncAllInvoices,
+} from "./quickbooks";
 
 const VALID_TABLES = [
   "products", "customers", "invoices", "routes", "salesOrders",
@@ -127,6 +137,107 @@ export async function registerRoutes(
     } catch (e: any) {
       console.error("Error resetting:", e);
       res.status(500).json({ error: "Failed to reset" });
+    }
+  });
+
+  app.get("/api/quickbooks/auth", async (_req, res) => {
+    try {
+      const authUrl = await getAuthUrl();
+      res.json({ url: authUrl });
+    } catch (e: any) {
+      console.error("QB auth error:", e);
+      res.status(500).json({ error: "Failed to generate auth URL" });
+    }
+  });
+
+  app.get("/api/quickbooks/callback", async (req, res) => {
+    try {
+      const fullUrl = `${req.protocol}://${req.get("host")}${req.originalUrl}`;
+      const result = await handleCallback(fullUrl);
+      if (result.success) {
+        res.redirect("/freshtrade?qb=connected");
+      } else {
+        res.redirect(`/freshtrade?qb=error&msg=${encodeURIComponent(result.error || "Unknown error")}`);
+      }
+    } catch (e: any) {
+      console.error("QB callback error:", e);
+      res.redirect(`/freshtrade?qb=error&msg=${encodeURIComponent(e.message)}`);
+    }
+  });
+
+  app.get("/api/quickbooks/status", async (_req, res) => {
+    try {
+      const status = await getConnectionStatus();
+      res.json(status);
+    } catch (e: any) {
+      console.error("QB status error:", e);
+      res.status(500).json({ error: "Failed to check QB status" });
+    }
+  });
+
+  app.post("/api/quickbooks/disconnect", async (_req, res) => {
+    try {
+      await disconnect();
+      res.json({ success: true });
+    } catch (e: any) {
+      console.error("QB disconnect error:", e);
+      res.status(500).json({ error: "Failed to disconnect" });
+    }
+  });
+
+  app.post("/api/quickbooks/sync/customer", async (req, res) => {
+    try {
+      const { customer } = req.body;
+      if (!customer) return res.status(400).json({ error: "Customer data required" });
+      const result = await syncCustomerToQB(customer);
+      res.json(result);
+    } catch (e: any) {
+      console.error("QB customer sync error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/quickbooks/sync/invoice", async (req, res) => {
+    try {
+      const { invoice, customer, products } = req.body;
+      if (!invoice || !customer) return res.status(400).json({ error: "Invoice and customer data required" });
+      const result = await syncInvoiceToQB(invoice, customer, products || []);
+      res.json(result);
+    } catch (e: any) {
+      console.error("QB invoice sync error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/quickbooks/sync/all-customers", async (_req, res) => {
+    try {
+      const customers = await storage.getTableData("customers");
+      if (!Array.isArray(customers) || customers.length === 0) {
+        return res.json({ synced: 0, errors: 0, details: [], message: "No customers to sync" });
+      }
+      const result = await syncAllCustomers(customers);
+      res.json(result);
+    } catch (e: any) {
+      console.error("QB all customers sync error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/quickbooks/sync/all-invoices", async (_req, res) => {
+    try {
+      const [invoices, customers, products] = await Promise.all([
+        storage.getTableData("invoices"),
+        storage.getTableData("customers"),
+        storage.getTableData("products"),
+      ]);
+      if (!Array.isArray(invoices) || invoices.length === 0) {
+        return res.json({ synced: 0, errors: 0, details: [], message: "No invoices to sync" });
+      }
+      const result = await syncAllInvoices(invoices, customers || [], products || []);
+      res.json(result);
+    } catch (e: any) {
+      console.error("QB all invoices sync error:", e);
+      res.status(500).json({ error: e.message });
     }
   });
 

@@ -84,6 +84,22 @@ Preferred communication style: Simple, everyday language.
 - **drizzle-kit** — migration tooling
 - **pg** (node-postgres) — raw PostgreSQL client for runtime queries
 
+### QuickBooks Online Integration
+- **intuit-oauth** — OAuth2 client for QuickBooks Online API
+- **Server module**: `server/quickbooks.ts` — handles OAuth flow, token management, and sync operations
+- **API Routes**:
+  - `GET /api/quickbooks/auth` — generates OAuth authorization URL
+  - `GET /api/quickbooks/callback` — handles OAuth callback and stores tokens
+  - `GET /api/quickbooks/status` — returns connection status
+  - `POST /api/quickbooks/disconnect` — revokes and clears tokens
+  - `POST /api/quickbooks/sync/customer` — sync a single customer
+  - `POST /api/quickbooks/sync/invoice` — sync a single invoice (auto-creates customer in QB)
+  - `POST /api/quickbooks/sync/all-customers` — batch sync all customers
+  - `POST /api/quickbooks/sync/all-invoices` — batch sync all invoices
+- **Token Storage**: OAuth tokens stored in `data_store` under key `qb_tokens`
+- **Environment Variables**: `QB_CLIENT_ID`, `QB_CLIENT_SECRET` (secrets); optional `QB_REDIRECT_URI`, `QB_ENVIRONMENT` (set to "production" for live)
+- **Frontend**: QuickBooks module in `client/public/app.js` connects to real API endpoints for auth, sync, and status
+
 ### Auth (configured, partially implemented)
 - **express-session** — session middleware
 - **connect-pg-simple** — PostgreSQL session store

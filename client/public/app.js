@@ -3058,6 +3058,7 @@ function App() {
     customers: customers,
     purchaseOrders: purchaseOrders,
     creditMemos: creditMemos,
+    products: products,
     showToast: showToast
   }), activeModule === "pricelist" && /*#__PURE__*/React.createElement(PriceList, {
     products: products,
@@ -28702,29 +28703,122 @@ function QuickBooks({
   customers,
   purchaseOrders,
   creditMemos,
+  products,
   showToast
 }) {
   const [synced, setSynced] = useState(new Set());
   const [syncing, setSyncing] = useState(false);
   const [activeTab, setActiveTab] = useState("ar");
-  const syncInvoice = id => {
-    setSyncing(true);
-    setTimeout(() => {
-      setSynced(prev => new Set([...prev, id]));
-      setSyncing(false);
-      showToast(`Invoice ${id} synced to QuickBooks AR`, "success");
-    }, 1500);
+  const [qbStatus, setQbStatus] = useState({ connected: false, companyName: "", environment: "sandbox", redirectUri: "" });
+  const [statusLoading, setStatusLoading] = useState(true);
+  const [connecting, setConnecting] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/quickbooks/status")
+      .then(r => r.json())
+      .then(data => { setQbStatus(data); setStatusLoading(false); })
+      .catch(() => setStatusLoading(false));
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("qb") === "connected") {
+      showToast("Successfully connected to QuickBooks Online!", "success");
+      window.history.replaceState({}, "", "/freshtrade");
+    } else if (params.get("qb") === "error") {
+      showToast("QuickBooks connection failed: " + (params.get("msg") || "Unknown error"), "error");
+      window.history.replaceState({}, "", "/freshtrade");
+    }
+  }, []);
+
+  const connectToQB = async () => {
+    setConnecting(true);
+    try {
+      const res = await fetch("/api/quickbooks/auth");
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        showToast("Failed to get authorization URL", "error");
+        setConnecting(false);
+      }
+    } catch (e) {
+      showToast("Failed to connect to QuickBooks", "error");
+      setConnecting(false);
+    }
   };
-  const syncAll = () => {
-    setSyncing(true);
-    setTimeout(() => {
-      setSynced(new Set(invoices.map(i => i.id)));
-      setSyncing(false);
-      showToast("All invoices synced to QuickBooks", "success");
-    }, 2000);
+
+  const disconnectQB = async () => {
+    try {
+      await fetch("/api/quickbooks/disconnect", { method: "POST" });
+      setQbStatus({ connected: false, companyName: "", environment: "sandbox", redirectUri: "" });
+      setSynced(new Set());
+      showToast("Disconnected from QuickBooks", "success");
+    } catch (e) {
+      showToast("Failed to disconnect", "error");
+    }
   };
+
+  const syncInvoice = async (id) => {
+    if (!qbStatus.connected) { showToast("Connect to QuickBooks first", "error"); return; }
+    setSyncing(true);
+    try {
+      const inv = invoices.find(i => i.id === id);
+      const cust = customers.find(c => c.id === (inv && inv.customerId));
+      const res = await fetch("/api/quickbooks/sync/invoice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invoice: inv, customer: cust, products: products || [] })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSynced(prev => new Set([...prev, id]));
+        showToast("Invoice " + id + " synced to QuickBooks AR", "success");
+      } else {
+        showToast("Sync failed: " + (data.error || "Unknown error"), "error");
+      }
+    } catch (e) {
+      showToast("Sync failed: " + e.message, "error");
+    }
+    setSyncing(false);
+  };
+
+  const syncAll = async () => {
+    if (!qbStatus.connected) { showToast("Connect to QuickBooks first", "error"); return; }
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/quickbooks/sync/all-invoices", { method: "POST" });
+      const data = await res.json();
+      if (data.synced !== undefined) {
+        const syncedIds = new Set((data.details || []).filter(d => d.status === "synced").map(d => d.id));
+        setSynced(prev => new Set([...prev, ...syncedIds]));
+        showToast(data.synced + " invoices synced to QuickBooks" + (data.errors > 0 ? " (" + data.errors + " errors)" : ""), data.errors > 0 ? "warning" : "success");
+      } else {
+        showToast("Sync failed: " + (data.error || "Unknown error"), "error");
+      }
+    } catch (e) {
+      showToast("Sync failed: " + e.message, "error");
+    }
+    setSyncing(false);
+  };
+
+  const syncAllCust = async () => {
+    if (!qbStatus.connected) { showToast("Connect to QuickBooks first", "error"); return; }
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/quickbooks/sync/all-customers", { method: "POST" });
+      const data = await res.json();
+      if (data.synced !== undefined) {
+        showToast(data.synced + " customers synced to QuickBooks" + (data.errors > 0 ? " (" + data.errors + " errors)" : ""), data.errors > 0 ? "warning" : "success");
+      } else {
+        showToast("Sync failed: " + (data.error || "Unknown error"), "error");
+      }
+    } catch (e) {
+      showToast("Sync failed: " + e.message, "error");
+    }
+    setSyncing(false);
+  };
+
   const totalUnsynced = invoices.filter(i => !synced.has(i.id)).length;
   const totalSynced = invoices.filter(i => synced.has(i.id)).length;
+
   return /*#__PURE__*/React.createElement("div", {
     style: {
       padding: 28
@@ -28733,9 +28827,10 @@ function QuickBooks({
     title: "QuickBooks Online",
     subtitle: "Sync invoices (AR) and bills (AP) with QuickBooks Online"
   }), /*#__PURE__*/React.createElement(Card, {
+    "data-testid": "qb-connection-card",
     style: {
       marginBottom: 20,
-      borderColor: "#22c55e44"
+      borderColor: qbStatus.connected ? "#22c55e44" : "#f59e0b44"
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -28754,38 +28849,48 @@ function QuickBooks({
       width: 44,
       height: 44,
       borderRadius: 10,
-      background: "#22c55e22",
+      background: qbStatus.connected ? "#22c55e22" : "#f59e0b22",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      color: "#22c55e"
+      color: qbStatus.connected ? "#22c55e" : "#f59e0b"
     }
   }, /*#__PURE__*/React.createElement(Icon, {
     name: "qb",
     size: 24
   })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    "data-testid": "qb-connection-status",
     style: {
       fontWeight: 700,
-      color: "#22c55e"
+      color: qbStatus.connected ? "#22c55e" : "#f59e0b"
     }
-  }, "\u25CF Connected to QuickBooks Online"), /*#__PURE__*/React.createElement("div", {
+  }, statusLoading ? "Checking connection..." : qbStatus.connected ? "\u25CF Connected to QuickBooks Online" : "\u25CB Not Connected"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 12,
       color: "#64748b"
     }
-  }, "Company: FreshTrade \xB7 Sandbox Mode"))), /*#__PURE__*/React.createElement("div", {
+  }, qbStatus.connected ? "Company: " + (qbStatus.companyName || "QuickBooks") + " \xB7 " + (qbStatus.environment === "production" ? "Production" : "Sandbox") + " Mode" : "Click Connect to link your QuickBooks account"))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 10
     }
-  }, /*#__PURE__*/React.createElement(Btn, {
+  }, qbStatus.connected ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Btn, {
+    "data-testid": "button-qb-reconnect",
     variant: "secondary",
     size: "sm",
-    icon: "sync"
+    icon: "sync",
+    onClick: connectToQB
   }, "Reconnect"), /*#__PURE__*/React.createElement(Btn, {
+    "data-testid": "button-qb-disconnect",
     variant: "secondary",
-    size: "sm"
-  }, "View in QB \u2192")))), /*#__PURE__*/React.createElement("div", {
+    size: "sm",
+    onClick: disconnectQB
+  }, "Disconnect")) : /*#__PURE__*/React.createElement(Btn, {
+    "data-testid": "button-qb-connect",
+    icon: "sync",
+    onClick: connectToQB,
+    disabled: connecting
+  }, connecting ? "Connecting..." : "Connect to QuickBooks")))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
       gridTemplateColumns: "repeat(4,1fr)",
@@ -28827,6 +28932,7 @@ function QuickBooks({
     }
   }, ["ar", "ap", "settings"].map(t => /*#__PURE__*/React.createElement("button", {
     key: t,
+    "data-testid": "tab-qb-" + t,
     onClick: () => setActiveTab(t),
     style: {
       padding: "8px 20px",
@@ -28854,12 +28960,14 @@ function QuickBooks({
       color: "#f1f5f9"
     }
   }, "Accounts Receivable \u2014 Invoice Sync"), /*#__PURE__*/React.createElement(Btn, {
+    "data-testid": "button-sync-all-invoices",
     icon: "sync",
     onClick: syncAll,
+    disabled: !qbStatus.connected || syncing,
     style: {
       animation: syncing ? "spin 1s linear infinite" : undefined
     }
-  }, syncing ? "Syncing..." : `Sync All (${totalUnsynced} pending)`)), /*#__PURE__*/React.createElement(Table, {
+  }, syncing ? "Syncing..." : "Sync All (" + totalUnsynced + " pending)")), /*#__PURE__*/React.createElement(Table, {
     headers: ["Invoice", "Customer", "Date", "Total", "Status", "QB Status", "Action"],
     rows: invoices.map(inv => {
       const cust = customers.find(c => c.id === inv.customerId);
@@ -28870,7 +28978,7 @@ function QuickBooks({
           color: "#22c55e",
           fontSize: 12
         }
-      }, inv.id), (cust === null || cust === void 0 ? void 0 : cust.name) || "—", inv.date, /*#__PURE__*/React.createElement("span", {
+      }, inv.id), (cust === null || cust === void 0 ? void 0 : cust.name) || "\u2014", inv.date, /*#__PURE__*/React.createElement("span", {
         style: {
           fontFamily: "'DM Mono',monospace",
           fontWeight: 700
@@ -28890,9 +28998,11 @@ function QuickBooks({
           color: "#22c55e"
         }
       }, "Synced \u2713") : /*#__PURE__*/React.createElement(Btn, {
+        "data-testid": "button-sync-invoice-" + inv.id,
         variant: "secondary",
         size: "sm",
         icon: "sync",
+        disabled: !qbStatus.connected || syncing,
         onClick: () => syncInvoice(inv.id)
       }, "Push to QB")];
     })
@@ -28953,23 +29063,38 @@ function QuickBooks({
       marginBottom: 12,
       fontSize: 13
     }
-  }, "OAuth Credentials"), /*#__PURE__*/React.createElement(Input, {
-    label: "Client ID",
-    placeholder: "QuickBooks Client ID"
-  }), /*#__PURE__*/React.createElement(Input, {
-    label: "Client Secret",
-    type: "password",
-    placeholder: "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
-  }), /*#__PURE__*/React.createElement(Input, {
-    label: "Redirect URI",
-    defaultValue: "https://yourapp.com/qb/callback"
-  }), /*#__PURE__*/React.createElement(Btn, {
+  }, "Connection"), qbStatus.connected ? /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 13, color: "#94a3b8", marginBottom: 8 }
+  }, "Status: ", /*#__PURE__*/React.createElement("span", { style: { color: "#22c55e", fontWeight: 600 } }, "Connected")), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 13, color: "#94a3b8", marginBottom: 8 }
+  }, "Company: ", /*#__PURE__*/React.createElement("span", { style: { color: "#f1f5f9" } }, qbStatus.companyName || "N/A")), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 13, color: "#94a3b8", marginBottom: 8 }
+  }, "Environment: ", /*#__PURE__*/React.createElement("span", { style: { color: "#f1f5f9" } }, qbStatus.environment === "production" ? "Production" : "Sandbox")), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 13, color: "#94a3b8", marginBottom: 8 }
+  }, "Realm ID: ", /*#__PURE__*/React.createElement("span", { style: { color: "#f1f5f9", fontFamily: "'DM Mono',monospace", fontSize: 11 } }, qbStatus.realmId || "N/A")), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 13, color: "#94a3b8", marginBottom: 16 }
+  }, "Redirect URI: ", /*#__PURE__*/React.createElement("span", { style: { color: "#f1f5f9", fontFamily: "'DM Mono',monospace", fontSize: 11, wordBreak: "break-all" } }, qbStatus.redirectUri || "N/A")), /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 10 } }, /*#__PURE__*/React.createElement(Btn, {
+    "data-testid": "button-settings-reconnect",
+    variant: "secondary",
     icon: "sync",
-    style: {
-      width: "100%",
-      justifyContent: "center"
-    }
-  }, "Connect to QuickBooks")), /*#__PURE__*/React.createElement("div", {
+    onClick: connectToQB,
+    style: { flex: 1, justifyContent: "center" }
+  }, "Reconnect"), /*#__PURE__*/React.createElement(Btn, {
+    "data-testid": "button-settings-disconnect",
+    variant: "secondary",
+    onClick: disconnectQB,
+    style: { flex: 1, justifyContent: "center" }
+  }, "Disconnect"))) : /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 13, color: "#94a3b8", marginBottom: 12 }
+  }, "Credentials are configured server-side. Click below to authorize your QuickBooks account."), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 12, color: "#64748b", marginBottom: 16 }
+  }, "Redirect URI: ", /*#__PURE__*/React.createElement("span", { style: { fontFamily: "'DM Mono',monospace", fontSize: 11 } }, qbStatus.redirectUri || "Loading...")), /*#__PURE__*/React.createElement(Btn, {
+    "data-testid": "button-settings-connect",
+    icon: "sync",
+    onClick: connectToQB,
+    disabled: connecting,
+    style: { width: "100%", justifyContent: "center" }
+  }, connecting ? "Connecting..." : "Connect to QuickBooks"))), /*#__PURE__*/React.createElement("div", {
     style: {
       background: "#1a2030",
       borderRadius: 10,
@@ -29025,7 +29150,23 @@ function QuickBooks({
       left: s.val ? 18 : 3,
       transition: "left 0.2s"
     }
-  }))))))));
+  })))), /*#__PURE__*/React.createElement("div", {
+    style: { marginTop: 16, borderTop: "1px solid #2d3748", paddingTop: 16 }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    "data-testid": "button-sync-all-customers",
+    variant: "secondary",
+    icon: "sync",
+    onClick: syncAllCust,
+    disabled: !qbStatus.connected || syncing,
+    style: { width: "100%", justifyContent: "center", marginBottom: 10 }
+  }, syncing ? "Syncing..." : "Sync All Customers to QB"), /*#__PURE__*/React.createElement(Btn, {
+    "data-testid": "button-sync-all-invoices-settings",
+    variant: "secondary",
+    icon: "sync",
+    onClick: syncAll,
+    disabled: !qbStatus.connected || syncing,
+    style: { width: "100%", justifyContent: "center" }
+  }, syncing ? "Syncing..." : "Sync All Invoices to QB"))))));
 }
 
 // ============================================================
