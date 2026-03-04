@@ -36751,7 +36751,21 @@ function SystemSettings({
         }));
         showToast(`User ${u.active ? "deactivated" : "activated"}`);
       }
-    }, u.active ? "Disable" : "Enable"))])
+    }, u.active ? "Disable" : "Enable"), /*#__PURE__*/React.createElement(Btn, {
+      "data-testid": "button-delete-user-" + u.id,
+      variant: "secondary",
+      size: "sm",
+      icon: "trash",
+      onClick: () => {
+        if (confirm("Delete user " + u.name + "? This cannot be undone.")) {
+          setSettings(prev => ({
+            ...prev,
+            users: prev.users.filter(x => x.id !== u.id)
+          }));
+          showToast("User " + u.name + " deleted");
+        }
+      }
+    }, "Delete"))])
   }), /*#__PURE__*/React.createElement(SectionLabel, null, "Security Policy"), React.createElement("div", {
     style: { 
       padding: 14, 
