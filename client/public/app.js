@@ -3056,6 +3056,7 @@ function App() {
   }), activeModule === "quickbooks" && /*#__PURE__*/React.createElement(QuickBooks, {
     invoices: invoices,
     customers: customers,
+    suppliers: suppliers,
     purchaseOrders: purchaseOrders,
     creditMemos: creditMemos,
     products: products,
@@ -28701,6 +28702,7 @@ function PortalManager({
 function QuickBooks({
   invoices,
   customers,
+  suppliers,
   purchaseOrders,
   creditMemos,
   products,
@@ -28856,6 +28858,144 @@ function QuickBooks({
     setSyncing(false);
   };
 
+  const [apSynced, setApSynced] = useState(new Set());
+
+  const pullVendorsFromQB = async () => {
+    if (!qbStatus.connected) { showToast("Connect to QuickBooks first", "error"); return; }
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/quickbooks/pull/vendors", { method: "POST" });
+      const data = await res.json();
+      if (data.imported !== undefined) {
+        showToast(data.imported + " vendors imported from QuickBooks" + (data.skipped > 0 ? " (" + data.skipped + " already existed)" : ""), data.imported > 0 ? "success" : "info");
+        if (data.imported > 0) window.location.reload();
+      } else {
+        showToast("Pull failed: " + (data.error || "Unknown error"), "error");
+      }
+    } catch (e) { showToast("Pull failed: " + e.message, "error"); }
+    setSyncing(false);
+  };
+
+  const pullBillsFromQB = async () => {
+    if (!qbStatus.connected) { showToast("Connect to QuickBooks first", "error"); return; }
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/quickbooks/pull/bills", { method: "POST" });
+      const data = await res.json();
+      if (data.imported !== undefined) {
+        showToast(data.imported + " bills imported from QuickBooks" + (data.skipped > 0 ? " (" + data.skipped + " already existed)" : ""), data.imported > 0 ? "success" : "info");
+        if (data.imported > 0) window.location.reload();
+      } else {
+        showToast("Pull failed: " + (data.error || "Unknown error"), "error");
+      }
+    } catch (e) { showToast("Pull failed: " + e.message, "error"); }
+    setSyncing(false);
+  };
+
+  const syncAllVendors = async () => {
+    if (!qbStatus.connected) { showToast("Connect to QuickBooks first", "error"); return; }
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/quickbooks/sync/all-suppliers", { method: "POST" });
+      const data = await res.json();
+      if (data.synced !== undefined) {
+        showToast(data.synced + " vendors synced to QuickBooks" + (data.errors > 0 ? " (" + data.errors + " errors)" : ""), data.errors > 0 ? "warning" : "success");
+      } else {
+        showToast("Sync failed: " + (data.error || "Unknown error"), "error");
+      }
+    } catch (e) { showToast("Sync failed: " + e.message, "error"); }
+    setSyncing(false);
+  };
+
+  const syncAllBillsToQB = async () => {
+    if (!qbStatus.connected) { showToast("Connect to QuickBooks first", "error"); return; }
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/quickbooks/sync/all-bills", { method: "POST" });
+      const data = await res.json();
+      if (data.synced !== undefined) {
+        const syncedIds = new Set((data.details || []).filter(function(d) { return d.status === "synced"; }).map(function(d) { return d.id; }));
+        setApSynced(function(prev) { return new Set([...prev, ...syncedIds]); });
+        showToast(data.synced + " bills synced to QuickBooks" + (data.errors > 0 ? " (" + data.errors + " errors)" : ""), data.errors > 0 ? "warning" : "success");
+      } else {
+        showToast("Sync failed: " + (data.error || "Unknown error"), "error");
+      }
+    } catch (e) { showToast("Sync failed: " + e.message, "error"); }
+    setSyncing(false);
+  };
+
+  const syncAllPayments = async () => {
+    if (!qbStatus.connected) { showToast("Connect to QuickBooks first", "error"); return; }
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/quickbooks/sync/all-payments", { method: "POST" });
+      const data = await res.json();
+      if (data.synced !== undefined) {
+        showToast(data.synced + " payments synced to QuickBooks" + (data.errors > 0 ? " (" + data.errors + " errors)" : ""), data.errors > 0 ? "warning" : "success");
+      } else {
+        showToast("Sync failed: " + (data.error || "Unknown error"), "error");
+      }
+    } catch (e) { showToast("Sync failed: " + e.message, "error"); }
+    setSyncing(false);
+  };
+
+  const syncAllCreditMemos = async () => {
+    if (!qbStatus.connected) { showToast("Connect to QuickBooks first", "error"); return; }
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/quickbooks/sync/all-credit-memos", { method: "POST" });
+      const data = await res.json();
+      if (data.synced !== undefined) {
+        showToast(data.synced + " credit memos synced to QuickBooks" + (data.errors > 0 ? " (" + data.errors + " errors)" : ""), data.errors > 0 ? "warning" : "success");
+      } else {
+        showToast("Sync failed: " + (data.error || "Unknown error"), "error");
+      }
+    } catch (e) { showToast("Sync failed: " + e.message, "error"); }
+    setSyncing(false);
+  };
+
+  const pullPaymentStatus = async () => {
+    if (!qbStatus.connected) { showToast("Connect to QuickBooks first", "error"); return; }
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/quickbooks/pull/payment-status", { method: "POST" });
+      const data = await res.json();
+      if (data.updated !== undefined) {
+        showToast(data.updated + " invoice statuses updated from QuickBooks", data.updated > 0 ? "success" : "info");
+        if (data.updated > 0) window.location.reload();
+      } else {
+        showToast("Pull failed: " + (data.error || "Unknown error"), "error");
+      }
+    } catch (e) { showToast("Pull failed: " + e.message, "error"); }
+    setSyncing(false);
+  };
+
+  const fullSync = async () => {
+    if (!qbStatus.connected) { showToast("Connect to QuickBooks first", "error"); return; }
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/quickbooks/sync/full", { method: "POST" });
+      const data = await res.json();
+      if (data.error) {
+        showToast("Full sync failed: " + data.error, "error");
+      } else {
+        var summary = [];
+        if (data.pullCustomers && data.pullCustomers.imported > 0) summary.push(data.pullCustomers.imported + " customers imported");
+        if (data.pullVendors && data.pullVendors.imported > 0) summary.push(data.pullVendors.imported + " vendors imported");
+        if (data.pullInvoices && data.pullInvoices.imported > 0) summary.push(data.pullInvoices.imported + " invoices imported");
+        if (data.pullBills && data.pullBills.imported > 0) summary.push(data.pullBills.imported + " bills imported");
+        if (data.pushCustomers && data.pushCustomers.synced > 0) summary.push(data.pushCustomers.synced + " customers pushed");
+        if (data.pushSuppliers && data.pushSuppliers.synced > 0) summary.push(data.pushSuppliers.synced + " vendors pushed");
+        if (data.pushInvoices && data.pushInvoices.synced > 0) summary.push(data.pushInvoices.synced + " invoices pushed");
+        if (data.pushBills && data.pushBills.synced > 0) summary.push(data.pushBills.synced + " bills pushed");
+        if (data.paymentStatus && data.paymentStatus.updated > 0) summary.push(data.paymentStatus.updated + " payment statuses updated");
+        showToast(summary.length > 0 ? "Full sync complete: " + summary.join(", ") : "Full sync complete — everything is up to date", "success");
+        window.location.reload();
+      }
+    } catch (e) { showToast("Full sync failed: " + e.message, "error"); }
+    setSyncing(false);
+  };
+
   const totalUnsynced = invoices.filter(i => !synced.has(i.id)).length;
   const totalSynced = invoices.filter(i => synced.has(i.id)).length;
 
@@ -28956,10 +29096,22 @@ function QuickBooks({
     color: "#f59e0b"
   }), /*#__PURE__*/React.createElement(StatCard, {
     label: "Open AR",
-    value: fmt(invoices.filter(i => i.status === "open").reduce((s, i) => s + i.total, 0)),
-    sub: "In QuickBooks",
+    value: fmt(invoices.filter(i => i.status === "open").reduce((s, i) => s + (i.total || 0), 0)),
+    sub: "Receivables",
     icon: "dollar",
     color: "#a855f7"
+  }), /*#__PURE__*/React.createElement(StatCard, {
+    label: "Vendors",
+    value: (suppliers || []).length,
+    sub: "In System",
+    icon: "users",
+    color: "#f97316"
+  }), /*#__PURE__*/React.createElement(StatCard, {
+    label: "Open AP",
+    value: fmt(purchaseOrders.filter(function(po) { return po.status !== "received"; }).reduce(function(s, po) { return s + (po.total || 0); }, 0)),
+    sub: "Payables",
+    icon: "dollar",
+    color: "#ef4444"
   })), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -29048,11 +29200,30 @@ function QuickBooks({
     })
   })), activeTab === "ap" && /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
     style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
       fontWeight: 600,
-      marginBottom: 16,
       color: "#f1f5f9"
     }
-  }, "Accounts Payable \u2014 Vendor Bills"), /*#__PURE__*/React.createElement("div", {
+  }, "Accounts Payable \u2014 Vendor Bills"), /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 8 } }, /*#__PURE__*/React.createElement(Btn, {
+    "data-testid": "button-sync-all-vendors",
+    icon: "sync",
+    variant: "secondary",
+    onClick: syncAllVendors,
+    disabled: !qbStatus.connected || syncing,
+    size: "sm"
+  }, syncing ? "Syncing..." : "Push Vendors"), /*#__PURE__*/React.createElement(Btn, {
+    "data-testid": "button-sync-all-bills",
+    icon: "sync",
+    onClick: syncAllBillsToQB,
+    disabled: !qbStatus.connected || syncing,
+    size: "sm"
+  }, syncing ? "Syncing..." : "Push All Bills"))), purchaseOrders.length === 0 ? /*#__PURE__*/React.createElement("div", {
     style: {
       background: "#1a2030",
       borderRadius: 10,
@@ -29064,22 +29235,39 @@ function QuickBooks({
     name: "invoice",
     size: 40
   }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: 12,
-      fontWeight: 600
-    }
-  }, "Vendor Bill Sync"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 13,
-      marginTop: 4
-    }
-  }, "Connect your vendor accounts to sync purchase orders and bills directly to QuickBooks AP"), /*#__PURE__*/React.createElement(Btn, {
-    variant: "secondary",
-    style: {
-      marginTop: 16
-    },
-    icon: "plus"
-  }, "Configure Vendors"))), activeTab === "settings" && /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
+    style: { marginTop: 12, fontWeight: 600 }
+  }, "No Purchase Orders"), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 13, marginTop: 4 }
+  }, "Create purchase orders in the Suppliers module, or import bills from QuickBooks")) : /*#__PURE__*/React.createElement(Table, {
+    headers: ["PO #", "Supplier", "Date", "Total", "Status", "QB Status", "Action"],
+    rows: purchaseOrders.map(function(po) {
+      var supplier = (suppliers || []).find(function(s) { return s.id === po.supplierId; });
+      var isSynced = apSynced.has(po.id);
+      return [/*#__PURE__*/React.createElement("span", {
+        style: { fontFamily: "'DM Mono',monospace", color: "#22c55e", fontSize: 12 }
+      }, po.id), (supplier && supplier.name) || "\u2014", po.date || "\u2014", /*#__PURE__*/React.createElement("span", {
+        style: { fontFamily: "'DM Mono',monospace", fontWeight: 700 }
+      }, fmt(po.total || 0)), /*#__PURE__*/React.createElement(Badge, {
+        text: po.status || "draft",
+        color: STATUS_COLORS[po.status] || "#64748b"
+      }), isSynced ? /*#__PURE__*/React.createElement(Badge, {
+        text: "\u2713 Synced",
+        color: "#22c55e"
+      }) : /*#__PURE__*/React.createElement(Badge, {
+        text: "\u23F3 Pending",
+        color: "#f59e0b"
+      }), isSynced ? /*#__PURE__*/React.createElement("span", {
+        style: { fontSize: 12, color: "#22c55e" }
+      }, "Synced \u2713") : /*#__PURE__*/React.createElement(Btn, {
+        "data-testid": "button-sync-bill-" + po.id,
+        variant: "secondary",
+        size: "sm",
+        icon: "sync",
+        disabled: !qbStatus.connected || syncing,
+        onClick: function() { syncAllBillsToQB(); }
+      }, "Push to QB")];
+    })
+  })), activeTab === "settings" && /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
     style: {
       fontWeight: 600,
       marginBottom: 20,
@@ -29206,7 +29394,35 @@ function QuickBooks({
     onClick: syncAll,
     disabled: !qbStatus.connected || syncing,
     style: { width: "100%", justifyContent: "center" }
-  }, syncing ? "Syncing..." : "Sync All Invoices to QB"))), /*#__PURE__*/React.createElement("div", {
+  }, syncing ? "Syncing..." : "Sync All Invoices to QB"), /*#__PURE__*/React.createElement(Btn, {
+    "data-testid": "button-sync-all-vendors-settings",
+    variant: "secondary",
+    icon: "sync",
+    onClick: syncAllVendors,
+    disabled: !qbStatus.connected || syncing,
+    style: { width: "100%", justifyContent: "center", marginTop: 10 }
+  }, syncing ? "Syncing..." : "Sync All Vendors to QB"), /*#__PURE__*/React.createElement(Btn, {
+    "data-testid": "button-sync-all-bills-settings",
+    variant: "secondary",
+    icon: "sync",
+    onClick: syncAllBillsToQB,
+    disabled: !qbStatus.connected || syncing,
+    style: { width: "100%", justifyContent: "center", marginTop: 10 }
+  }, syncing ? "Syncing..." : "Sync All Bills (POs) to QB"), /*#__PURE__*/React.createElement(Btn, {
+    "data-testid": "button-sync-all-payments-settings",
+    variant: "secondary",
+    icon: "sync",
+    onClick: syncAllPayments,
+    disabled: !qbStatus.connected || syncing,
+    style: { width: "100%", justifyContent: "center", marginTop: 10 }
+  }, syncing ? "Syncing..." : "Sync All Payments to QB"), /*#__PURE__*/React.createElement(Btn, {
+    "data-testid": "button-sync-all-credit-memos-settings",
+    variant: "secondary",
+    icon: "sync",
+    onClick: syncAllCreditMemos,
+    disabled: !qbStatus.connected || syncing,
+    style: { width: "100%", justifyContent: "center", marginTop: 10 }
+  }, syncing ? "Syncing..." : "Sync All Credit Memos to QB"))), /*#__PURE__*/React.createElement("div", {
     style: {
       background: "#1a2030",
       borderRadius: 10,
@@ -29221,19 +29437,61 @@ function QuickBooks({
     }
   }, "Import from QuickBooks"), /*#__PURE__*/React.createElement("div", {
     style: { fontSize: 13, color: "#94a3b8", marginBottom: 16 }
-  }, "Pull customers and invoices from QuickBooks Online into your app. Existing records with the same name will be skipped."), /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 10 } }, /*#__PURE__*/React.createElement(Btn, {
+  }, "Pull data from QuickBooks Online into your app. Existing records with the same name/ID will be skipped."), /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 } }, /*#__PURE__*/React.createElement(Btn, {
     "data-testid": "button-pull-customers-from-qb",
     icon: "download",
     onClick: pullCustomersFromQB,
     disabled: !qbStatus.connected || syncing,
-    style: { flex: 1, justifyContent: "center" }
-  }, syncing ? "Importing..." : "Import Customers from QB"), /*#__PURE__*/React.createElement(Btn, {
+    style: { justifyContent: "center" }
+  }, syncing ? "Importing..." : "Import Customers"), /*#__PURE__*/React.createElement(Btn, {
     "data-testid": "button-pull-invoices-from-qb",
     icon: "download",
     onClick: pullInvoicesFromQB,
     disabled: !qbStatus.connected || syncing,
-    style: { flex: 1, justifyContent: "center" }
-  }, syncing ? "Importing..." : "Import Invoices from QB")))));
+    style: { justifyContent: "center" }
+  }, syncing ? "Importing..." : "Import Invoices"), /*#__PURE__*/React.createElement(Btn, {
+    "data-testid": "button-pull-vendors-from-qb",
+    icon: "download",
+    onClick: pullVendorsFromQB,
+    disabled: !qbStatus.connected || syncing,
+    style: { justifyContent: "center" }
+  }, syncing ? "Importing..." : "Import Vendors"), /*#__PURE__*/React.createElement(Btn, {
+    "data-testid": "button-pull-bills-from-qb",
+    icon: "download",
+    onClick: pullBillsFromQB,
+    disabled: !qbStatus.connected || syncing,
+    style: { justifyContent: "center" }
+  }, syncing ? "Importing..." : "Import Bills"), /*#__PURE__*/React.createElement(Btn, {
+    "data-testid": "button-pull-payment-status",
+    variant: "secondary",
+    icon: "download",
+    onClick: pullPaymentStatus,
+    disabled: !qbStatus.connected || syncing,
+    style: { justifyContent: "center", gridColumn: "1 / -1" }
+  }, syncing ? "Updating..." : "Update Payment Statuses from QB"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#0f172a",
+      borderRadius: 10,
+      padding: 16,
+      gridColumn: "1 / -1",
+      border: "1px solid #22c55e33"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 600,
+      marginBottom: 8,
+      fontSize: 14,
+      color: "#22c55e"
+    }
+  }, "Full Two-Way Sync"), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 13, color: "#94a3b8", marginBottom: 16 }
+  }, "Run a complete bidirectional sync: imports customers, vendors, invoices, and bills from QB, pushes local records to QB, and updates all payment statuses."), /*#__PURE__*/React.createElement(Btn, {
+    "data-testid": "button-full-sync",
+    icon: "sync",
+    onClick: fullSync,
+    disabled: !qbStatus.connected || syncing,
+    style: { width: "100%", justifyContent: "center", fontSize: 14, padding: "12px 20px", animation: syncing ? "spin 1s linear infinite" : undefined }
+  }, syncing ? "Running Full Sync..." : "Run Full Sync"))));
 }
 
 // ============================================================
@@ -34024,6 +34282,23 @@ function DriverPortal({
     } : x));
     setCompletedStops(prev => new Set([...prev, inv.id]));
     showToast(`✅ ${inv.id} delivered — ${(_customers$find7 = customers.find(c => c.id === inv.customerId)) === null || _customers$find7 === void 0 ? void 0 : _customers$find7.name}`);
+
+    if (deliveryForm.paymentMethod && deliveryForm.paymentMethod !== "none" && Number(deliveryForm.paymentAmount) > 0) {
+      const payInv = { ...inv, ...updates, paymentMethod: deliveryForm.paymentMethod, paymentAmount: Number(deliveryForm.paymentAmount), checkNumber: deliveryForm.checkNumber };
+      const cust = customers.find(c => c.id === inv.customerId);
+      if (cust) {
+        fetch("/api/quickbooks/sync/payment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ invoice: payInv, customer: cust })
+        }).then(r => r.json()).then(data => {
+          if (data.success) {
+            showToast("Payment synced to QuickBooks", "success");
+          }
+        }).catch(() => {});
+      }
+    }
+
     setActiveStop(null);
     setPhotoCapture(null);
     setDeliveryForm({

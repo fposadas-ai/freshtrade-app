@@ -86,19 +86,34 @@ Preferred communication style: Simple, everyday language.
 
 ### QuickBooks Online Integration
 - **intuit-oauth** — OAuth2 client for QuickBooks Online API
-- **Server module**: `server/quickbooks.ts` — handles OAuth flow, token management, and sync operations
+- **Server module**: `server/quickbooks.ts` — handles OAuth flow, token management, and full bidirectional sync
 - **API Routes**:
   - `GET /api/quickbooks/auth` — generates OAuth authorization URL
   - `GET /api/quickbooks/callback` — handles OAuth callback and stores tokens
   - `GET /api/quickbooks/status` — returns connection status
   - `POST /api/quickbooks/disconnect` — revokes and clears tokens
-  - `POST /api/quickbooks/sync/customer` — sync a single customer
-  - `POST /api/quickbooks/sync/invoice` — sync a single invoice (auto-creates customer in QB)
-  - `POST /api/quickbooks/sync/all-customers` — batch sync all customers
-  - `POST /api/quickbooks/sync/all-invoices` — batch sync all invoices
+  - **AR (Accounts Receivable)**:
+    - `POST /api/quickbooks/sync/customer` — sync a single customer
+    - `POST /api/quickbooks/sync/invoice` — sync a single invoice (auto-creates customer in QB)
+    - `POST /api/quickbooks/sync/all-customers` — batch sync all customers
+    - `POST /api/quickbooks/sync/all-invoices` — batch sync all invoices
+    - `POST /api/quickbooks/sync/all-payments` — batch sync all recorded payments to QB
+    - `POST /api/quickbooks/sync/payment` — sync a single payment (called automatically on delivery)
+    - `POST /api/quickbooks/sync/all-credit-memos` — batch sync all credit memos to QB
+    - `POST /api/quickbooks/pull/customers` — import customers from QB
+    - `POST /api/quickbooks/pull/invoices` — import invoices from QB
+    - `POST /api/quickbooks/pull/payment-status` — update local invoice statuses from QB payment data
+  - **AP (Accounts Payable)**:
+    - `POST /api/quickbooks/sync/all-suppliers` — batch sync all suppliers/vendors to QB
+    - `POST /api/quickbooks/sync/all-bills` — batch sync purchase orders as bills to QB
+    - `POST /api/quickbooks/pull/vendors` — import vendors from QB into suppliers
+    - `POST /api/quickbooks/pull/bills` — import bills from QB as purchase orders
+  - **Full Sync**:
+    - `POST /api/quickbooks/sync/full` — complete bidirectional sync (pull + push all data types + update payment statuses)
+- **Auto-sync**: Payments are automatically pushed to QB when a driver records payment during delivery
 - **Token Storage**: OAuth tokens stored in `data_store` under key `qb_tokens`
 - **Environment Variables**: `QB_CLIENT_ID`, `QB_CLIENT_SECRET` (secrets); optional `QB_REDIRECT_URI`, `QB_ENVIRONMENT` (set to "production" for live)
-- **Frontend**: QuickBooks module in `client/public/app.js` connects to real API endpoints for auth, sync, and status
+- **Frontend**: QuickBooks module in `client/public/app.js` has AR tab, AP tab (vendor bills), and Settings tab with full sync controls
 
 ### Auth (configured, partially implemented)
 - **express-session** — session middleware

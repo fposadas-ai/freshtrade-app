@@ -11,8 +11,15 @@ import {
   syncInvoiceToQB,
   syncAllCustomers,
   syncAllInvoices,
+  syncAllSuppliers,
+  syncAllBills,
+  syncPaymentToQB,
+  syncCreditMemoToQB,
   pullCustomersFromQB,
   pullInvoicesFromQB,
+  pullVendorsFromQB,
+  pullBillsFromQB,
+  pullPaymentStatusFromQB,
 } from "./quickbooks";
 
 const VALID_TABLES = [
@@ -239,6 +246,208 @@ export async function registerRoutes(
       res.json(result);
     } catch (e: any) {
       console.error("QB all invoices sync error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/quickbooks/sync/all-suppliers", async (_req, res) => {
+    try {
+      const suppliers = await storage.getTableData("suppliers");
+      if (!Array.isArray(suppliers) || suppliers.length === 0) {
+        return res.json({ synced: 0, errors: 0, details: [], message: "No suppliers to sync" });
+      }
+      const result = await syncAllSuppliers(suppliers);
+      res.json(result);
+    } catch (e: any) {
+      console.error("QB all suppliers sync error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/quickbooks/sync/all-bills", async (_req, res) => {
+    try {
+      const [purchaseOrders, suppliers] = await Promise.all([
+        storage.getTableData("purchaseOrders"),
+        storage.getTableData("suppliers"),
+      ]);
+      if (!Array.isArray(purchaseOrders) || purchaseOrders.length === 0) {
+        return res.json({ synced: 0, errors: 0, details: [], message: "No purchase orders to sync" });
+      }
+      const result = await syncAllBills(purchaseOrders, suppliers || []);
+      res.json(result);
+    } catch (e: any) {
+      console.error("QB all bills sync error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/quickbooks/sync/payment", async (req, res) => {
+    try {
+      const { invoice, customer } = req.body;
+      if (!invoice || !customer) return res.status(400).json({ error: "Invoice and customer data required" });
+      const result = await syncPaymentToQB(invoice, customer);
+      res.json(result);
+    } catch (e: any) {
+      console.error("QB payment sync error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/quickbooks/sync/all-payments", async (_req, res) => {
+    try {
+      const [invoices, customers] = await Promise.all([
+        storage.getTableData("invoices"),
+        storage.getTableData("customers"),
+      ]);
+      const paidInvoices = (invoices || []).filter((i: any) => i.paymentAmount && i.paymentAmount > 0);
+      if (paidInvoices.length === 0) {
+        return res.json({ synced: 0, errors: 0, details: [], message: "No payments to sync" });
+      }
+      const details: any[] = [];
+      let synced = 0;
+      let errors = 0;
+      for (const inv of paidInvoices) {
+        const customer = (customers || []).find((c: any) => c.id === inv.customerId);
+        if (!customer) {
+          errors++;
+          details.push({ id: inv.id, error: "Customer not found", status: "error" });
+          continue;
+        }
+        try {
+          const result = await syncPaymentToQB(inv, customer);
+          if (result.success) {
+            synced++;
+            details.push({ id: inv.id, qbId: result.qbId, status: "synced" });
+          } else {
+            errors++;
+            details.push({ id: inv.id, error: result.error, status: "error" });
+          }
+        } catch (e: any) {
+          errors++;
+          details.push({ id: inv.id, error: e.message, status: "error" });
+        }
+      }
+      res.json({ synced, errors, details });
+    } catch (e: any) {
+      console.error("QB all payments sync error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/quickbooks/sync/all-credit-memos", async (_req, res) => {
+    try {
+      const [creditMemos, customers] = await Promise.all([
+        storage.getTableData("creditMemos"),
+        storage.getTableData("customers"),
+      ]);
+      if (!Array.isArray(creditMemos) || creditMemos.length === 0) {
+        return res.json({ synced: 0, errors: 0, details: [], message: "No credit memos to sync" });
+      }
+      const details: any[] = [];
+      let synced = 0;
+      let errors = 0;
+      for (const cm of creditMemos) {
+        const customer = (customers || []).find((c: any) => c.id === cm.customerId);
+        if (!customer) {
+          errors++;
+          details.push({ id: cm.id, error: "Customer not found", status: "error" });
+          continue;
+        }
+        const result = await syncCreditMemoToQB(cm, customer);
+        if (result.success) {
+          synced++;
+          details.push({ id: cm.id, qbId: result.qbId, status: "synced" });
+        } else {
+          errors++;
+          details.push({ id: cm.id, error: result.error, status: "error" });
+        }
+      }
+      res.json({ synced, errors, details });
+    } catch (e: any) {
+      console.error("QB all credit memos sync error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/quickbooks/pull/vendors", async (_req, res) => {
+    try {
+      const result = await pullVendorsFromQB();
+      res.json(result);
+    } catch (e: any) {
+      console.error("QB pull vendors error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/quickbooks/pull/bills", async (_req, res) => {
+    try {
+      const result = await pullBillsFromQB();
+      res.json(result);
+    } catch (e: any) {
+      console.error("QB pull bills error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/quickbooks/pull/payment-status", async (_req, res) => {
+    try {
+      const result = await pullPaymentStatusFromQB();
+      res.json(result);
+    } catch (e: any) {
+      console.error("QB pull payment status error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/quickbooks/sync/full", async (_req, res) => {
+    try {
+      const results: Record<string, any> = {};
+
+      results.pullCustomers = await pullCustomersFromQB();
+      results.pullVendors = await pullVendorsFromQB();
+      results.pullInvoices = await pullInvoicesFromQB();
+      results.pullBills = await pullBillsFromQB();
+
+      const [customers, suppliers, invoices, purchaseOrders, creditMemos, products] = await Promise.all([
+        storage.getTableData("customers"),
+        storage.getTableData("suppliers"),
+        storage.getTableData("invoices"),
+        storage.getTableData("purchaseOrders"),
+        storage.getTableData("creditMemos"),
+        storage.getTableData("products"),
+      ]);
+
+      if (Array.isArray(customers) && customers.length > 0) {
+        results.pushCustomers = await syncAllCustomers(customers);
+      }
+      if (Array.isArray(suppliers) && suppliers.length > 0) {
+        results.pushSuppliers = await syncAllSuppliers(suppliers);
+      }
+      if (Array.isArray(invoices) && invoices.length > 0) {
+        results.pushInvoices = await syncAllInvoices(invoices, customers || [], products || []);
+      }
+      if (Array.isArray(purchaseOrders) && purchaseOrders.length > 0) {
+        results.pushBills = await syncAllBills(purchaseOrders, suppliers || []);
+      }
+      if (Array.isArray(creditMemos) && creditMemos.length > 0) {
+        const custArr = customers || [];
+        const cmDetails: any[] = [];
+        let cmSynced = 0, cmErrors = 0;
+        for (const cm of creditMemos) {
+          const cust = custArr.find((c: any) => c.id === cm.customerId);
+          if (!cust) { cmErrors++; continue; }
+          const r = await syncCreditMemoToQB(cm, cust);
+          if (r.success) cmSynced++; else cmErrors++;
+          cmDetails.push({ id: cm.id, status: r.success ? "synced" : "error" });
+        }
+        results.pushCreditMemos = { synced: cmSynced, errors: cmErrors, details: cmDetails };
+      }
+
+      results.paymentStatus = await pullPaymentStatusFromQB();
+
+      res.json(results);
+    } catch (e: any) {
+      console.error("QB full sync error:", e);
       res.status(500).json({ error: e.message });
     }
   });
