@@ -2487,6 +2487,13 @@ function App() {
   const [receipts, setReceipts] = useState(init("receipts", []));
   const [settings, setSettings] = useState(init("settings", defaultSettings));
   const [dbStatus, setDbStatus] = useState(saved ? "loaded" : "new");
+  const [qbConnected, setQbConnected] = useState(false);
+  const [loggedInUser, setLoggedInUser] = useState(null);
+  const [loginError, setLoginError] = useState("");
+
+  useEffect(() => {
+    fetch("/api/quickbooks/status").then(r => r.json()).then(d => setQbConnected(!!d.connected)).catch(() => {});
+  }, []);
 
   // Derived pricing levels from settings — used throughout all modules
   const priceLevels = Object.entries((settings === null || settings === void 0 || (_settings$preferences = settings.preferences) === null || _settings$preferences === void 0 ? void 0 : _settings$preferences.pricingLevels) || {}).map(([key, val]) => ({
@@ -2705,6 +2712,69 @@ function App() {
     label: "QuickBooks",
     icon: "qb"
   }];
+  const handleLogin = (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const email = form.loginEmail.value.trim();
+    const credential = form.loginCredential.value.trim();
+    setLoginError("");
+    const users = settings.users || [];
+    const user = users.find(u => u.email && u.email.toLowerCase() === email.toLowerCase() && u.active);
+    if (!user) { setLoginError("No active user found with that email"); return; }
+    if (user.role === "driver") {
+      if (user.pin && user.pin === credential) { setLoggedInUser(user); return; }
+      setLoginError("Invalid PIN"); return;
+    }
+    if (user.password && user.password === credential) { setLoggedInUser(user); return; }
+    setLoginError("Invalid password");
+  };
+
+  if (!loggedInUser) {
+    return /*#__PURE__*/React.createElement("div", {
+      style: { minHeight: "100vh", background: "#0a0e17", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans', sans-serif" }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: { width: 380, padding: 40, background: "#131827", borderRadius: 16, border: "1px solid #1e2535" }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: { textAlign: "center", marginBottom: 32 }
+    }, settings.company.logo ? /*#__PURE__*/React.createElement("img", {
+      src: settings.company.logo,
+      alt: settings.company.name || "Logo",
+      style: { maxHeight: 50, maxWidth: 200, objectFit: "contain", marginBottom: 12 }
+    }) : /*#__PURE__*/React.createElement("div", {
+      style: { fontSize: 22, fontWeight: 800, color: "#f1f5f9", letterSpacing: 1 }
+    }, settings.company.name || "FreshTrade"), /*#__PURE__*/React.createElement("div", {
+      style: { fontSize: 13, color: "#64748b", marginTop: 4 }
+    }, "Sign in to continue")), /*#__PURE__*/React.createElement("form", {
+      onSubmit: handleLogin
+    }, /*#__PURE__*/React.createElement("div", { style: { marginBottom: 16 } },
+      /*#__PURE__*/React.createElement("label", { style: { fontSize: 12, color: "#94a3b8", display: "block", marginBottom: 6 } }, "Email"),
+      /*#__PURE__*/React.createElement("input", {
+        name: "loginEmail",
+        type: "email",
+        "data-testid": "input-login-email",
+        required: true,
+        autoFocus: true,
+        style: { width: "100%", padding: "10px 14px", background: "#0a0e17", border: "1px solid #2d3748", borderRadius: 8, color: "#f1f5f9", fontSize: 14, outline: "none", boxSizing: "border-box" }
+      })
+    ), /*#__PURE__*/React.createElement("div", { style: { marginBottom: 20 } },
+      /*#__PURE__*/React.createElement("label", { style: { fontSize: 12, color: "#94a3b8", display: "block", marginBottom: 6 } }, "Password / PIN"),
+      /*#__PURE__*/React.createElement("input", {
+        name: "loginCredential",
+        type: "password",
+        "data-testid": "input-login-password",
+        required: true,
+        style: { width: "100%", padding: "10px 14px", background: "#0a0e17", border: "1px solid #2d3748", borderRadius: 8, color: "#f1f5f9", fontSize: 14, outline: "none", boxSizing: "border-box" }
+      })
+    ), loginError && /*#__PURE__*/React.createElement("div", {
+      "data-testid": "text-login-error",
+      style: { color: "#ef4444", fontSize: 13, marginBottom: 14, textAlign: "center" }
+    }, loginError), /*#__PURE__*/React.createElement("button", {
+      type: "submit",
+      "data-testid": "button-login",
+      style: { width: "100%", padding: "11px 0", background: "linear-gradient(135deg,#22c55e,#16a34a)", color: "#fff", fontWeight: 700, fontSize: 14, border: "none", borderRadius: 8, cursor: "pointer" }
+    }, "Sign In"))));
+  }
+
   return /*#__PURE__*/React.createElement("div", null, driverMode ? /*#__PURE__*/React.createElement("div", {
     style: {
       height: "100vh",
@@ -2866,24 +2936,26 @@ function App() {
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      marginBottom: 4
-    }
-  }, "Version 2.2.0 \u2014 Entr\xE9e Edition"), /*#__PURE__*/React.createElement("div", {
-    style: {
       display: "flex",
       justifyContent: "space-between",
       alignItems: "center"
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      color: "#22c55e"
+      color: qbConnected ? "#22c55e" : "#64748b"
     }
-  }, "\u25CF QB Online Connected"), /*#__PURE__*/React.createElement("div", {
+  }, qbConnected ? "\u25CF QB Online Connected" : "\u25CB QB Not Connected"), /*#__PURE__*/React.createElement("div", {
     style: {
       color: dbStatus === "saved" || dbStatus === "loaded" ? "#22c55e" : "#f59e0b",
       fontSize: 10
     }
-  }, "\uD83D\uDCBE ", dbStatus === "saved" ? "Saved" : dbStatus === "loaded" ? "DB Loaded" : dbStatus === "imported" ? "Imported" : "Unsaved")))), /*#__PURE__*/React.createElement("main", {
+  }, "\uD83D\uDCBE ", dbStatus === "saved" ? "Saved" : dbStatus === "loaded" ? "DB Loaded" : dbStatus === "imported" ? "Imported" : "Unsaved")), loggedInUser && /*#__PURE__*/React.createElement("div", {
+    style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, paddingTop: 6, borderTop: "1px solid #1e2535" }
+  }, /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, color: "#94a3b8" } }, "\uD83D\uDC64 ", loggedInUser.name), /*#__PURE__*/React.createElement("button", {
+    "data-testid": "button-logout",
+    onClick: () => setLoggedInUser(null),
+    style: { background: "none", border: "none", color: "#ef4444", fontSize: 11, cursor: "pointer", padding: "2px 6px" }
+  }, "Sign Out")))), /*#__PURE__*/React.createElement("main", {
     style: {
       flex: 1,
       overflowY: "auto",
