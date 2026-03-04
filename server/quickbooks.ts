@@ -206,10 +206,19 @@ export async function getConnectionStatus(): Promise<{
 }
 
 export async function disconnect(): Promise<void> {
-  const result = await getValidClient();
-  if (result) {
+  const tokens = await loadTokens();
+  if (tokens) {
     try {
-      await result.client.revoke({ access_token: result.client.getToken().access_token });
+      const client = createOAuthClient();
+      client.setToken({
+        access_token: tokens.accessToken,
+        refresh_token: tokens.refreshToken,
+        token_type: "bearer",
+        expires_in: 3600,
+        x_refresh_token_expires_in: 86400,
+        realmId: tokens.realmId,
+      });
+      await client.revoke({ access_token: tokens.accessToken });
     } catch {
     }
   }
@@ -238,33 +247,85 @@ async function normalizeQBResponse(data: any): Promise<any> {
   return data;
 }
 
+async function getValidTokens(): Promise<{ accessToken: string; realmId: string } | null> {
+  const tokens = await loadTokens();
+  if (!tokens) return null;
+
+  if (Date.now() >= tokens.refreshExpiresAt) {
+    await storage.setTableData(QB_TOKEN_KEY, {});
+    return null;
+  }
+
+  if (Date.now() >= tokens.expiresAt - 60000) {
+    try {
+      const client = createOAuthClient();
+      client.setToken({
+        access_token: tokens.accessToken,
+        refresh_token: tokens.refreshToken,
+        token_type: "bearer",
+        expires_in: Math.floor((tokens.expiresAt - Date.now()) / 1000),
+        x_refresh_token_expires_in: Math.floor((tokens.refreshExpiresAt - Date.now()) / 1000),
+        realmId: tokens.realmId,
+      });
+      const authResponse = await client.refresh();
+      const newToken = authResponse.getJson();
+      const updatedTokens: QBTokens = {
+        accessToken: newToken.access_token,
+        refreshToken: newToken.refresh_token,
+        realmId: tokens.realmId,
+        expiresAt: Date.now() + newToken.expires_in * 1000,
+        refreshExpiresAt: Date.now() + newToken.x_refresh_token_expires_in * 1000,
+        companyName: tokens.companyName,
+      };
+      await saveTokens(updatedTokens);
+      return { accessToken: newToken.access_token, realmId: tokens.realmId };
+    } catch (e) {
+      console.error("Failed to refresh QB token:", e);
+      await storage.setTableData(QB_TOKEN_KEY, {});
+      return null;
+    }
+  }
+
+  return { accessToken: tokens.accessToken, realmId: tokens.realmId };
+}
+
 async function makeQBRequest(method: string, endpoint: string, body?: any): Promise<any> {
-  const result = await getValidClient();
-  if (!result) throw new Error("Not connected to QuickBooks");
+  const tokenInfo = await getValidTokens();
+  if (!tokenInfo) throw new Error("Not connected to QuickBooks");
 
   const baseUrl = getEnvironment() === "production"
     ? "https://quickbooks.api.intuit.com"
     : "https://sandbox-quickbooks.api.intuit.com";
 
-  const url = `${baseUrl}/v3/company/${result.realmId}${endpoint}`;
+  const url = `${baseUrl}/v3/company/${tokenInfo.realmId}${endpoint}`;
 
-  const response = await result.client.makeApiCall({
-    url,
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  const headers: Record<string, string> = {
+    "Authorization": `Bearer ${tokenInfo.accessToken}`,
+    "Accept": "application/json",
+    "Content-Type": "application/json",
+  };
 
-  let parsed: any;
-  if (response.json) parsed = response.json;
-  else if (response.body) parsed = typeof response.body === "string" ? JSON.parse(response.body) : response.body;
-  else if (typeof response.text === "function") parsed = JSON.parse(response.text());
-  else parsed = response;
+  const fetchOptions: RequestInit = { method, headers };
+  if (body) fetchOptions.body = JSON.stringify(body);
 
-  return await normalizeQBResponse(parsed);
+  const response = await fetch(url, fetchOptions);
+  const parsed = await response.json();
+
+  if (!response.ok) {
+    const fault = parsed?.Fault || parsed?.fault;
+    if (fault?.Error?.length || fault?.error?.length) {
+      const errors = fault.Error || fault.error;
+      const errMsg = errors.map((e: any) => e.Message || e.message || e.Detail || e.detail || "Unknown QB error").join("; ");
+      if (response.status === 401 || response.status === 403) {
+        await storage.setTableData(QB_TOKEN_KEY, {});
+        throw new Error("QuickBooks authorization expired — please disconnect and reconnect to QuickBooks");
+      }
+      throw new Error("QuickBooks API error: " + errMsg);
+    }
+    throw new Error(`QuickBooks API error (${response.status}): ${response.statusText}`);
+  }
+
+  return parsed;
 }
 
 let _qbTermsCache: any[] | null = null;
