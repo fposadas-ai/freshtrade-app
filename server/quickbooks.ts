@@ -298,6 +298,8 @@ async function makeQBRequest(method: string, endpoint: string, body?: any): Prom
     : "https://sandbox-quickbooks.api.intuit.com";
 
   const url = `${baseUrl}/v3/company/${tokenInfo.realmId}${endpoint}`;
+  console.log("QB API request:", method, url);
+  console.log("QB token (first 20 chars):", tokenInfo.accessToken.substring(0, 20) + "...");
 
   const headers: Record<string, string> = {
     "Authorization": `Bearer ${tokenInfo.accessToken}`,
@@ -309,20 +311,30 @@ async function makeQBRequest(method: string, endpoint: string, body?: any): Prom
   if (body) fetchOptions.body = JSON.stringify(body);
 
   const response = await fetch(url, fetchOptions);
-  const parsed = await response.json();
+  const responseText = await response.text();
+  console.log("QB API response status:", response.status, response.statusText);
+  console.log("QB API response body (first 500):", responseText.substring(0, 500));
+
+  let parsed: any;
+  try {
+    parsed = JSON.parse(responseText);
+  } catch {
+    throw new Error(`QuickBooks API returned non-JSON (${response.status}): ${responseText.substring(0, 200)}`);
+  }
 
   if (!response.ok) {
     const fault = parsed?.Fault || parsed?.fault;
     if (fault?.Error?.length || fault?.error?.length) {
       const errors = fault.Error || fault.error;
       const errMsg = errors.map((e: any) => e.Message || e.message || e.Detail || e.detail || "Unknown QB error").join("; ");
+      console.error("QB API fault:", JSON.stringify(fault));
       if (response.status === 401 || response.status === 403) {
         await storage.setTableData(QB_TOKEN_KEY, {});
         throw new Error("QuickBooks authorization expired — please disconnect and reconnect to QuickBooks");
       }
       throw new Error("QuickBooks API error: " + errMsg);
     }
-    throw new Error(`QuickBooks API error (${response.status}): ${response.statusText}`);
+    throw new Error(`QuickBooks API error (${response.status}): ${responseText.substring(0, 300)}`);
   }
 
   return parsed;
