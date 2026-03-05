@@ -5257,57 +5257,49 @@ function Dashboard({
   const readySOs = salesOrders.filter(so => so.status === "ready");
 
   const [qpcProduct, setQpcProduct] = useState("");
-  const [qpcNewPrice, setQpcNewPrice] = useState("");
   const [qpcNewCost, setQpcNewCost] = useState("");
-  const [qpcApplied, setQpcApplied] = useState(false);
 
   const qpcProd = products.find(p => p.id === qpcProduct);
   const qpcIsWeight = qpcProd ? (qpcProd.catchWeight || qpcProd.fixedWeight) : false;
-  const todaySOs = salesOrders.filter(so => so.date === today() && so.status !== "cancelled" && so.lines && so.lines.some(l => l.productId === qpcProduct));
-  const todayInvs = invoices.filter(inv => inv.date === today() && inv.status !== "voided" && inv.lines && inv.lines.some(l => l.productId === qpcProduct));
+  const qpcTodaySOs = salesOrders.filter(so => so.date === today() && so.status !== "cancelled" && so.lines && so.lines.some(l => l.productId === qpcProduct));
+  const qpcTodayInvs = invoices.filter(inv => inv.date === today() && inv.status !== "voided" && inv.lines && inv.lines.some(l => l.productId === qpcProduct));
 
-  const applyQuickPriceChange = () => {
-    const newPrice = Number(qpcNewPrice);
-    const newCost = Number(qpcNewCost);
-    if (!qpcProduct || (!newPrice && !newCost)) { showToast("Enter a new price or cost"); return; }
-    let soCount = 0, invCount = 0;
-    if (newPrice > 0) {
-      setSalesOrders(prev => prev.map(so => {
-        if (so.date !== today() || so.status === "cancelled" || !so.lines) return so;
-        const hasProduct = so.lines.some(l => l.productId === qpcProduct);
-        if (!hasProduct) return so;
-        soCount++;
-        const updatedLines = so.lines.map(l => {
-          if (l.productId !== qpcProduct) return l;
-          const isWB = l.pricePerLb !== undefined && l.pricePerLb !== null;
-          const lineTotal = isWB ? Math.round((l.weight || 0) * newPrice * 100) / 100 : Math.round((l.qty || 0) * newPrice * 100) / 100;
-          return { ...l, pricePerLb: isWB ? newPrice : l.pricePerLb, priceEach: !isWB ? newPrice : l.priceEach, total: lineTotal };
-        });
-        const subtotal = updatedLines.reduce((s, l) => s + (Number(l.total) || 0), 0);
-        return { ...so, lines: updatedLines, subtotal: Math.round(subtotal * 100) / 100, total: Math.round(subtotal * 100) / 100 };
-      }));
-      setInvoices(prev => prev.map(inv => {
-        if (inv.date !== today() || inv.status === "voided" || !inv.lines) return inv;
-        const hasProduct = inv.lines.some(l => l.productId === qpcProduct);
-        if (!hasProduct) return inv;
-        invCount++;
-        const updatedLines = inv.lines.map(l => {
-          if (l.productId !== qpcProduct) return l;
-          const isWB = l.pricePerLb !== undefined && l.pricePerLb !== null;
-          const lineTotal = isWB ? Math.round((l.weight || 0) * newPrice * 100) / 100 : Math.round((l.qty || 0) * newPrice * 100) / 100;
-          return { ...l, pricePerLb: isWB ? newPrice : l.pricePerLb, priceEach: !isWB ? newPrice : l.priceEach, total: lineTotal };
-        });
-        const subtotal = updatedLines.reduce((s, l) => s + (Number(l.total) || 0), 0);
+  const qpcUpdateLinePrice = (docType, docId, lineIdx, newPrice) => {
+    const price = Number(newPrice);
+    if (isNaN(price) || price < 0) return;
+    const updateDoc = doc => {
+      const updatedLines = doc.lines.map((l, i) => {
+        if (i !== lineIdx) return l;
+        const isWB = l.pricePerLb !== undefined && l.pricePerLb !== null;
+        const lineTotal = isWB ? Math.round((l.weight || 0) * price * 100) / 100 : Math.round((l.qty || 0) * price * 100) / 100;
+        return { ...l, pricePerLb: isWB ? price : l.pricePerLb, priceEach: !isWB ? price : l.priceEach, total: lineTotal };
+      });
+      const subtotal = updatedLines.reduce((s, l) => s + (Number(l.total) || 0), 0);
+      if (docType === "INV") {
         const taxRate = (settings && settings.preferences && settings.preferences.taxEnabled) ? (settings.preferences.taxRate || 0) : 0;
-        const tax = inv.taxAmount !== undefined ? Math.round(subtotal * (taxRate / 100) * 100) / 100 : 0;
-        return { ...inv, lines: updatedLines, subtotal: Math.round(subtotal * 100) / 100, total: Math.round((subtotal + tax) * 100) / 100, taxAmount: inv.taxAmount !== undefined ? tax : undefined };
-      }));
-    }
-    if (newCost > 0 && qpcProd) {
-      setProducts(prev => prev.map(p => p.id === qpcProduct ? { ...p, pricing: { ...p.pricing, cost: newCost } } : p));
-    }
-    setQpcApplied(true);
-    showToast(`Price updated — ${soCount} sales order${soCount !== 1 ? "s" : ""}, ${invCount} invoice${invCount !== 1 ? "s" : ""} changed`);
+        const tax = doc.taxAmount !== undefined ? Math.round(subtotal * (taxRate / 100) * 100) / 100 : 0;
+        return { ...doc, lines: updatedLines, subtotal: Math.round(subtotal * 100) / 100, total: Math.round((subtotal + tax) * 100) / 100, taxAmount: doc.taxAmount !== undefined ? tax : undefined };
+      }
+      return { ...doc, lines: updatedLines, subtotal: Math.round(subtotal * 100) / 100, total: Math.round(subtotal * 100) / 100 };
+    };
+    if (docType === "SO") setSalesOrders(prev => prev.map(so => so.id === docId ? updateDoc(so) : so));
+    if (docType === "INV") setInvoices(prev => prev.map(inv => inv.id === docId ? updateDoc(inv) : inv));
+  };
+
+  const qpcApplyToAll = () => {
+    const firstLine = [...qpcTodaySOs, ...qpcTodayInvs].flatMap(d => d.lines).find(l => l.productId === qpcProduct);
+    if (!firstLine) return;
+    const currentPrice = firstLine.pricePerLb !== undefined && firstLine.pricePerLb !== null ? firstLine.pricePerLb : firstLine.priceEach;
+    qpcTodaySOs.forEach(so => { so.lines.forEach((l, i) => { if (l.productId === qpcProduct) qpcUpdateLinePrice("SO", so.id, i, currentPrice); }); });
+    qpcTodayInvs.forEach(inv => { inv.lines.forEach((l, i) => { if (l.productId === qpcProduct) qpcUpdateLinePrice("INV", inv.id, i, currentPrice); }); });
+    showToast("Price applied to all today's documents");
+  };
+
+  const qpcSaveCost = () => {
+    const cost = Number(qpcNewCost);
+    if (!qpcProduct || isNaN(cost) || cost < 0) return;
+    setProducts(prev => prev.map(p => p.id === qpcProduct ? { ...p, pricing: { ...p.pricing, cost } } : p));
+    showToast(`Cost updated to ${fmt(cost)} for ${qpcProd ? qpcProd.name : ""}`);
   };
 
   return /*#__PURE__*/React.createElement("div", {
@@ -5356,71 +5348,63 @@ function Dashboard({
   })), /*#__PURE__*/React.createElement(Card, {
     title: "\u26A1 Quick Price Change"
   }, /*#__PURE__*/React.createElement("div", {
-    style: { display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap", marginBottom: qpcProduct ? 16 : 0 }
-  }, /*#__PURE__*/React.createElement("div", { style: { flex: 2, minWidth: 200 } }, /*#__PURE__*/React.createElement("label", {
+    style: { display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 16 }
+  }, /*#__PURE__*/React.createElement("div", { style: { flex: 2, minWidth: 220 } }, /*#__PURE__*/React.createElement("label", {
     style: { display: "block", fontSize: 11, color: "#94a3b8", fontWeight: 600, marginBottom: 4 }
   }, "Product"), /*#__PURE__*/React.createElement("select", {
     value: qpcProduct,
     "data-testid": "select-qpc-product",
-    onChange: e => { setQpcProduct(e.target.value); setQpcNewPrice(""); setQpcNewCost(""); setQpcApplied(false); const p = products.find(pp => pp.id === e.target.value); if (p && p.pricing) setQpcNewCost(String(p.pricing.cost || "")); },
+    onChange: e => { setQpcProduct(e.target.value); const p = products.find(pp => pp.id === e.target.value); setQpcNewCost(p && p.pricing ? String(p.pricing.cost || "") : ""); },
     style: { width: "100%", background: "#0f1117", border: "1px solid #2d3748", borderRadius: 6, padding: "8px 10px", color: "#e2e8f0", fontSize: 13 }
-  }, /*#__PURE__*/React.createElement("option", { value: "" }, "Select product..."), products.sort((a, b) => (a.name || "").localeCompare(b.name || "")).map(p => /*#__PURE__*/React.createElement("option", { key: p.id, value: p.id }, p.name)))), /*#__PURE__*/React.createElement("div", { style: { flex: 1, minWidth: 120 } }, /*#__PURE__*/React.createElement("label", {
+  }, /*#__PURE__*/React.createElement("option", { value: "" }, "Select product..."), products.sort((a, b) => (a.name || "").localeCompare(b.name || "")).map(p => /*#__PURE__*/React.createElement("option", { key: p.id, value: p.id }, p.name)))), /*#__PURE__*/React.createElement("div", { style: { flex: 1, minWidth: 130 } }, /*#__PURE__*/React.createElement("label", {
     style: { display: "block", fontSize: 11, color: "#94a3b8", fontWeight: 600, marginBottom: 4 }
-  }, "New Sell Price", qpcIsWeight ? " (per lb)" : " (each)"), /*#__PURE__*/React.createElement("input", {
-    type: "number",
-    step: "0.01",
-    value: qpcNewPrice,
-    "data-testid": "input-qpc-price",
-    onChange: e => { setQpcNewPrice(e.target.value); setQpcApplied(false); },
-    placeholder: "0.00",
-    style: { width: "100%", background: "#0f1117", border: "1px solid #2d3748", borderRadius: 6, padding: "8px 10px", color: "#e2e8f0", fontSize: 13 }
-  })), /*#__PURE__*/React.createElement("div", { style: { flex: 1, minWidth: 120 } }, /*#__PURE__*/React.createElement("label", {
-    style: { display: "block", fontSize: 11, color: "#94a3b8", fontWeight: 600, marginBottom: 4 }
-  }, "Cost Price", qpcIsWeight ? " (per lb)" : " (each)"), /*#__PURE__*/React.createElement("input", {
+  }, "Cost Price", qpcIsWeight ? " (per lb)" : ""), /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 6 } }, /*#__PURE__*/React.createElement("input", {
     type: "number",
     step: "0.01",
     value: qpcNewCost,
     "data-testid": "input-qpc-cost",
-    onChange: e => { setQpcNewCost(e.target.value); setQpcApplied(false); },
+    onChange: e => setQpcNewCost(e.target.value),
     placeholder: "0.00",
-    style: { width: "100%", background: "#0f1117", border: "1px solid #2d3748", borderRadius: 6, padding: "8px 10px", color: "#e2e8f0", fontSize: 13 }
-  })), /*#__PURE__*/React.createElement(Btn, {
-    icon: "check",
-    onClick: applyQuickPriceChange,
-    disabled: !qpcProduct || (!qpcNewPrice && !qpcNewCost),
-    "data-testid": "button-qpc-apply"
-  }, "Apply")), qpcProduct && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: { display: "flex", gap: 12, marginBottom: 10, flexWrap: "wrap" }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: { background: "#1a2030", borderRadius: 8, padding: "10px 14px", fontSize: 12 }
-  }, /*#__PURE__*/React.createElement("span", { style: { color: "#64748b" } }, "Current Cost: "), /*#__PURE__*/React.createElement("span", {
-    style: { color: "#f59e0b", fontWeight: 700, fontFamily: "'DM Mono',monospace" }
-  }, fmt((qpcProd && qpcProd.pricing ? qpcProd.pricing.cost : 0) || 0), qpcIsWeight ? "/lb" : "")), /*#__PURE__*/React.createElement("div", {
-    style: { background: "#1a2030", borderRadius: 8, padding: "10px 14px", fontSize: 12 }
-  }, /*#__PURE__*/React.createElement("span", { style: { color: "#64748b" } }, "Today\u2019s SOs: "), /*#__PURE__*/React.createElement("span", {
-    style: { color: "#3b82f6", fontWeight: 700 }
-  }, todaySOs.length)), /*#__PURE__*/React.createElement("div", {
-    style: { background: "#1a2030", borderRadius: 8, padding: "10px 14px", fontSize: 12 }
-  }, /*#__PURE__*/React.createElement("span", { style: { color: "#64748b" } }, "Today\u2019s Invoices: "), /*#__PURE__*/React.createElement("span", {
-    style: { color: "#a855f7", fontWeight: 700 }
-  }, todayInvs.length))), (todaySOs.length > 0 || todayInvs.length > 0) && /*#__PURE__*/React.createElement(DataTable, {
-    headers: ["Type", "Doc #", "Customer", "Qty", qpcIsWeight ? "Weight" : "", "Current Price", "Line Total"].filter(Boolean),
-    rows: [...todaySOs.map(so => {
-      const cust = customers.find(c => c.id === so.customerId);
-      return so.lines.filter(l => l.productId === qpcProduct).map(l => {
-        const isWB = l.pricePerLb !== undefined && l.pricePerLb !== null;
-        return [/*#__PURE__*/React.createElement(Badge, { text: "SO", color: "#3b82f6" }), so.id, (cust ? cust.name : so.customerId) || "\u2014", l.qty || 0, qpcIsWeight ? ((l.weight || 0).toFixed(2) + " lb") : null, /*#__PURE__*/React.createElement("span", { style: { fontFamily: "'DM Mono',monospace" } }, fmt(isWB ? l.pricePerLb : l.priceEach)), /*#__PURE__*/React.createElement("span", { style: { fontFamily: "'DM Mono',monospace", fontWeight: 600 } }, fmt(l.total))].filter(x => x !== null);
-      });
-    }).flat(), ...todayInvs.map(inv => {
-      const cust = customers.find(c => c.id === inv.customerId);
-      return inv.lines.filter(l => l.productId === qpcProduct).map(l => {
-        const isWB = l.pricePerLb !== undefined && l.pricePerLb !== null;
-        return [/*#__PURE__*/React.createElement(Badge, { text: "INV", color: "#a855f7" }), inv.id, (cust ? cust.name : inv.customerId) || "\u2014", l.qty || 0, qpcIsWeight ? ((l.weight || 0).toFixed(2) + " lb") : null, /*#__PURE__*/React.createElement("span", { style: { fontFamily: "'DM Mono',monospace" } }, fmt(isWB ? l.pricePerLb : l.priceEach)), /*#__PURE__*/React.createElement("span", { style: { fontFamily: "'DM Mono',monospace", fontWeight: 600 } }, fmt(l.total))].filter(x => x !== null);
-      });
-    }).flat()]
-  }), qpcApplied && /*#__PURE__*/React.createElement("div", {
-    style: { marginTop: 10, padding: "8px 14px", background: "#16a34a22", borderRadius: 6, color: "#22c55e", fontSize: 12, fontWeight: 600 }
-  }, "\u2705 Prices updated successfully"))), /*#__PURE__*/React.createElement("div", {
+    style: { flex: 1, background: "#0f1117", border: "1px solid #2d3748", borderRadius: 6, padding: "8px 10px", color: "#e2e8f0", fontSize: 13 }
+  }), /*#__PURE__*/React.createElement(Btn, {
+    size: "sm",
+    onClick: qpcSaveCost,
+    disabled: !qpcProduct || !qpcNewCost,
+    "data-testid": "button-qpc-save-cost"
+  }, "Save Cost")))),
+  qpcProduct && (qpcTodaySOs.length > 0 || qpcTodayInvs.length > 0) ? /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }
+  }, /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, color: "#94a3b8" } }, /*#__PURE__*/React.createElement("span", { style: { fontWeight: 700, color: "#3b82f6" } }, qpcTodaySOs.length), " sales order", qpcTodaySOs.length !== 1 ? "s" : "", " \xB7 ", /*#__PURE__*/React.createElement("span", { style: { fontWeight: 700, color: "#a855f7" } }, qpcTodayInvs.length), " invoice", qpcTodayInvs.length !== 1 ? "s" : "", " today with this product")), /*#__PURE__*/React.createElement("div", {
+    style: { overflowX: "auto" }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: { width: "100%", borderCollapse: "collapse", fontSize: 12 }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Type", "Doc #", "Customer", "Qty", qpcIsWeight ? "Weight" : null, "Price " + (qpcIsWeight ? "(/lb)" : "(ea)"), "Line Total", "Printed"].filter(Boolean).map((h, i) => /*#__PURE__*/React.createElement("th", {
+    key: i,
+    style: { textAlign: h === "Price " + (qpcIsWeight ? "(/lb)" : "(ea)") || h === "Line Total" ? "right" : "left", padding: "8px 10px", color: "#94a3b8", fontWeight: 600, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #1e2535", whiteSpace: "nowrap" }
+  }, h)))), /*#__PURE__*/React.createElement("tbody", null, [...qpcTodaySOs.map(so => {
+    const cust = customers.find(c => c.id === so.customerId);
+    return so.lines.map((l, li) => l.productId === qpcProduct ? { docType: "SO", doc: so, line: l, lineIdx: li, cust } : null).filter(Boolean);
+  }).flat(), ...qpcTodayInvs.map(inv => {
+    const cust = customers.find(c => c.id === inv.customerId);
+    return inv.lines.map((l, li) => l.productId === qpcProduct ? { docType: "INV", doc: inv, line: l, lineIdx: li, cust } : null).filter(Boolean);
+  }).flat()].map((row, ri) => {
+    const isWB = row.line.pricePerLb !== undefined && row.line.pricePerLb !== null;
+    const curPrice = isWB ? row.line.pricePerLb : row.line.priceEach;
+    const isPrinted = row.docType === "INV" && row.doc.printed;
+    return /*#__PURE__*/React.createElement("tr", {
+      key: ri,
+      style: { borderBottom: "1px solid #1e2535", background: isPrinted ? "#f59e0b08" : "transparent" }
+    }, /*#__PURE__*/React.createElement("td", { style: { padding: "6px 10px" } }, /*#__PURE__*/React.createElement(Badge, { text: row.docType, color: row.docType === "SO" ? "#3b82f6" : "#a855f7" })), /*#__PURE__*/React.createElement("td", { style: { padding: "6px 10px", fontFamily: "'DM Mono',monospace", fontSize: 11 } }, row.doc.id), /*#__PURE__*/React.createElement("td", { style: { padding: "6px 10px", fontWeight: 600 } }, row.cust ? row.cust.name : row.doc.customerId || "\u2014"), /*#__PURE__*/React.createElement("td", { style: { padding: "6px 10px", fontFamily: "'DM Mono',monospace" } }, row.line.qty || 0), qpcIsWeight ? /*#__PURE__*/React.createElement("td", { style: { padding: "6px 10px", fontFamily: "'DM Mono',monospace" } }, (row.line.weight || 0).toFixed(2), " lb") : null, /*#__PURE__*/React.createElement("td", { style: { padding: "6px 10px", textAlign: "right" } }, /*#__PURE__*/React.createElement("input", {
+      type: "number",
+      step: "0.01",
+      value: curPrice || "",
+      "data-testid": "input-qpc-line-price-" + ri,
+      onChange: e => qpcUpdateLinePrice(row.docType, row.doc.id, row.lineIdx, e.target.value),
+      style: { width: 90, background: "#0f1117", border: "1px solid #2d3748", borderRadius: 4, padding: "4px 8px", color: "#f59e0b", fontSize: 12, fontFamily: "'DM Mono',monospace", fontWeight: 700, textAlign: "right" }
+    })), /*#__PURE__*/React.createElement("td", { style: { padding: "6px 10px", textAlign: "right", fontFamily: "'DM Mono',monospace", fontWeight: 600 } }, fmt(row.line.total)), /*#__PURE__*/React.createElement("td", { style: { padding: "6px 10px", textAlign: "center" } }, row.docType === "SO" ? /*#__PURE__*/React.createElement("span", { style: { fontSize: 10, color: "#475569" } }, "\u2014") : isPrinted ? /*#__PURE__*/React.createElement("span", { style: { color: "#f59e0b", fontWeight: 700, fontSize: 11 } }, "\uD83D\uDDA8\uFE0F Printed") : /*#__PURE__*/React.createElement("span", { style: { color: "#475569", fontSize: 11 } }, "Not printed")));
+  }))))) : qpcProduct ? /*#__PURE__*/React.createElement("div", {
+    style: { textAlign: "center", padding: 20, color: "#64748b", fontSize: 13 }
+  }, "No sales orders or invoices today with this product") : null), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
       gridTemplateColumns: "1fr 1fr",
