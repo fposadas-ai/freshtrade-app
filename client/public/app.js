@@ -9851,6 +9851,10 @@ function Invoices({
   const [editingReceipt, setEditingReceipt] = useState(null);
   const [voidRcptTarget, setVoidRcptTarget] = useState(null);
   const [voidRcptReturnStock, setVoidRcptReturnStock] = useState(true);
+  const [showRcptStmt, setShowRcptStmt] = useState(false);
+  const [rcptStmtName, setRcptStmtName] = useState("");
+  const [rcptStmtFrom, setRcptStmtFrom] = useState("");
+  const [rcptStmtTo, setRcptStmtTo] = useState(today());
 
   // Document locks
   useLock("INV", editingInv === null || editingInv === void 0 ? void 0 : editingInv.id, !!editingInv, "User");
@@ -10047,6 +10051,69 @@ function Invoices({
     setShowNewReceipt(false);
     showToast(`Receipt ${rcpt.id} created — $${rcpt.total.toFixed(2)}`);
   };
+  const printReceiptStatement = () => {
+    if (!rcptStmtName) { showToast("Select a customer"); return; }
+    const custReceipts = receipts.filter(r => r.customerName === rcptStmtName && r.status !== "voided" && (!rcptStmtFrom || r.date >= rcptStmtFrom) && (!rcptStmtTo || r.date <= rcptStmtTo)).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+    if (custReceipts.length === 0) { showToast("No receipts found for this customer in the selected date range"); return; }
+    const grandTotal = custReceipts.reduce((s, r) => s + (r.total || 0), 0);
+    const co = settings.company || {};
+    let rowsHtml = "";
+    custReceipts.forEach((r, idx) => {
+      const bg = idx % 2 === 0 ? "#ffffff" : "#f8faf9";
+      const payLabel = r.paymentMethod === "cash" ? "Cash" : r.paymentMethod === "card" ? "Card" : "Check";
+      const itemsSummary = r.lines.map(l => { const p = products.find(pp => pp.id === l.productId); return (p ? p.name : l.productId) + " x" + l.qty; }).join(", ");
+      rowsHtml += `<tr style="background:${bg};">
+        <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;color:#374151;">${r.date}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;font-family:'DM Mono',monospace;color:#f59e0b;">${r.id}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;color:#374151;">${r.lines.length} items</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;color:#6b7280;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${itemsSummary}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;color:#374151;">${payLabel}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;font-weight:700;text-align:right;font-family:'DM Mono',monospace;color:#111827;">$${Number(r.total).toFixed(2)}</td>
+      </tr>`;
+    });
+    const dateRange = rcptStmtFrom ? `${rcptStmtFrom} to ${rcptStmtTo}` : `Through ${rcptStmtTo}`;
+    const html = `<html><head><title>Receipt Statement — ${rcptStmtName}</title><style>*{margin:0;padding:0;box-sizing:border-box;font-family:'DM Sans',Arial,sans-serif;}body{background:#fff;padding:40px;}table{width:100%;border-collapse:collapse;}@media print{body{padding:20px;}}</style></head><body>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+        <div>
+          ${co.logo ? `<img src="${co.logo}" style="max-height:45px;max-width:200px;object-fit:contain;margin-bottom:6px;" />` : `<div style="font-size:20px;font-weight:800;color:#111827;">${co.name || "FreshTrade Distribution"}</div>`}
+          <div style="font-size:10px;color:#6b7280;">${co.address || ""}</div>
+          <div style="font-size:10px;color:#6b7280;">${co.phone || ""} ${co.email ? "· " + co.email : ""}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:22px;font-weight:800;color:#f59e0b;letter-spacing:1px;">RECEIPT STATEMENT</div>
+          <div style="font-size:12px;color:#6b7280;margin-top:4px;">Date: ${today()}</div>
+          <div style="font-size:12px;color:#6b7280;">Period: ${dateRange}</div>
+        </div>
+      </div>
+      <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:14px 18px;margin-bottom:20px;">
+        <div style="font-size:8px;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:2px;margin-bottom:4px;">Customer</div>
+        <div style="font-size:16px;font-weight:700;color:#111827;">${rcptStmtName}</div>
+        <div style="font-size:11px;color:#6b7280;margin-top:2px;">${custReceipts.length} receipt${custReceipts.length !== 1 ? "s" : ""} · Total: $${grandTotal.toFixed(2)}</div>
+      </div>
+      <table>
+        <thead><tr>
+          <th style="padding:8px 10px;font-size:9px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:1px;text-align:left;background:linear-gradient(135deg,#f59e0b,#d97706);">Date</th>
+          <th style="padding:8px 10px;font-size:9px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:1px;text-align:left;background:linear-gradient(135deg,#f59e0b,#d97706);">Receipt #</th>
+          <th style="padding:8px 10px;font-size:9px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:1px;text-align:left;background:linear-gradient(135deg,#f59e0b,#d97706);">Items</th>
+          <th style="padding:8px 10px;font-size:9px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:1px;text-align:left;background:linear-gradient(135deg,#f59e0b,#d97706);">Details</th>
+          <th style="padding:8px 10px;font-size:9px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:1px;text-align:left;background:linear-gradient(135deg,#f59e0b,#d97706);">Payment</th>
+          <th style="padding:8px 10px;font-size:9px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:1px;text-align:right;background:linear-gradient(135deg,#f59e0b,#d97706);">Amount</th>
+        </tr></thead>
+        <tbody>${rowsHtml}</tbody>
+        <tfoot><tr>
+          <td colspan="5" style="padding:12px 10px;font-size:13px;font-weight:800;color:#111827;text-align:right;border-top:2px solid #f59e0b;">TOTAL</td>
+          <td style="padding:12px 10px;font-size:15px;font-weight:800;color:#111827;text-align:right;border-top:2px solid #f59e0b;font-family:'DM Mono',monospace;">$${grandTotal.toFixed(2)}</td>
+        </tr></tfoot>
+      </table>
+      <div style="margin-top:30px;text-align:center;font-size:10px;color:#9ca3af;">${co.name || "FreshTrade Distribution"} · ${co.address || ""} · ${co.phone || ""}</div>
+    </body></html>`;
+    const w = window.open("", "_blank", "width=900,height=700");
+    w.document.write(html);
+    w.document.close();
+    setTimeout(() => w.print(), 400);
+    setShowRcptStmt(false);
+  };
+
   const confirmVoidReceipt = () => {
     if (!voidRcptTarget) return;
     const rcpt = receipts.find(r => r.id === voidRcptTarget);
@@ -10129,7 +10196,16 @@ function Invoices({
         });
         setShowNewReceipt(true);
       }
-    }, "New Retail Receipt"))
+    }, "New Retail Receipt"), /*#__PURE__*/React.createElement(Btn, {
+      icon: "print",
+      variant: "secondary",
+      onClick: () => {
+        setRcptStmtName("");
+        setRcptStmtFrom("");
+        setRcptStmtTo(today());
+        setShowRcptStmt(true);
+      }
+    }, "Receipt Statement"))
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -13571,7 +13647,57 @@ function Invoices({
       },
       onClick: confirmVoidReceipt
     }, "Void Receipt")));
-  })()), viewReceipt && /*#__PURE__*/React.createElement(Modal, {
+  })()), showRcptStmt && /*#__PURE__*/React.createElement(Modal, {
+    title: "Receipt Statement",
+    onClose: () => setShowRcptStmt(false),
+    width: 500
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { display: "flex", flexDirection: "column", gap: 16 }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    style: { display: "block", fontSize: 11, color: "#94a3b8", fontWeight: 600, marginBottom: 4 }
+  }, "Customer"), /*#__PURE__*/React.createElement("select", {
+    value: rcptStmtName,
+    onChange: e => setRcptStmtName(e.target.value),
+    "data-testid": "select-rcpt-stmt-customer",
+    style: { width: "100%", background: "#0f1117", border: "1px solid #2d3748", borderRadius: 6, padding: "8px 10px", color: "#e2e8f0", fontSize: 13 }
+  }, /*#__PURE__*/React.createElement("option", { value: "" }, "Select customer..."), [...new Set(receipts.filter(r => r.status !== "voided" && r.customerName).map(r => r.customerName))].sort().map(name => /*#__PURE__*/React.createElement("option", {
+    key: name,
+    value: name
+  }, name, " \u2014 ", receipts.filter(r => r.customerName === name && r.status !== "voided").length, " receipts")))), /*#__PURE__*/React.createElement("div", {
+    style: { display: "flex", gap: 12 }
+  }, /*#__PURE__*/React.createElement("div", { style: { flex: 1 } }, /*#__PURE__*/React.createElement("label", {
+    style: { display: "block", fontSize: 11, color: "#94a3b8", fontWeight: 600, marginBottom: 4 }
+  }, "From Date (optional)"), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    value: rcptStmtFrom,
+    onChange: e => setRcptStmtFrom(e.target.value),
+    "data-testid": "input-rcpt-stmt-from",
+    style: { width: "100%", background: "#0f1117", border: "1px solid #2d3748", borderRadius: 6, padding: "8px 10px", color: "#e2e8f0", fontSize: 13 }
+  })), /*#__PURE__*/React.createElement("div", { style: { flex: 1 } }, /*#__PURE__*/React.createElement("label", {
+    style: { display: "block", fontSize: 11, color: "#94a3b8", fontWeight: 600, marginBottom: 4 }
+  }, "To Date"), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    value: rcptStmtTo,
+    onChange: e => setRcptStmtTo(e.target.value),
+    "data-testid": "input-rcpt-stmt-to",
+    style: { width: "100%", background: "#0f1117", border: "1px solid #2d3748", borderRadius: 6, padding: "8px 10px", color: "#e2e8f0", fontSize: 13 }
+  }))), rcptStmtName && /*#__PURE__*/React.createElement("div", {
+    style: { background: "#1a2030", borderRadius: 8, padding: 14 }
+  }, (() => {
+    const matched = receipts.filter(r => r.customerName === rcptStmtName && r.status !== "voided" && (!rcptStmtFrom || r.date >= rcptStmtFrom) && (!rcptStmtTo || r.date <= rcptStmtTo));
+    const total = matched.reduce((s, r) => s + (r.total || 0), 0);
+    return /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, color: "#e2e8f0" } }, /*#__PURE__*/React.createElement("span", { style: { fontWeight: 700 } }, matched.length), " receipts found \u2014 Total: ", /*#__PURE__*/React.createElement("span", { style: { fontWeight: 700, color: "#f59e0b", fontFamily: "'DM Mono',monospace" } }, fmt(total)));
+  })()), /*#__PURE__*/React.createElement("div", {
+    style: { display: "flex", gap: 10, justifyContent: "flex-end" }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "secondary",
+    onClick: () => setShowRcptStmt(false)
+  }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
+    icon: "print",
+    onClick: printReceiptStatement,
+    disabled: !rcptStmtName,
+    "data-testid": "button-print-rcpt-stmt"
+  }, "Print Statement")))), viewReceipt && /*#__PURE__*/React.createElement(Modal, {
     title: `🧾 Receipt ${viewReceipt.id}${editingReceipt ? " — Editing" : ""}`,
     onClose: () => {
       if (editingReceipt) releaseLock("RCT", editingReceipt.id);
