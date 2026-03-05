@@ -753,7 +753,7 @@ const genId = prefix => `${prefix}-${Date.now().toString().slice(-6)}`;
 const pName = (prod, line) => {
   if (!prod && !(line !== null && line !== void 0 && line.customName)) return (line === null || line === void 0 ? void 0 : line.productId) || "—";
   const baseName = (line === null || line === void 0 ? void 0 : line.customName) || (prod === null || prod === void 0 ? void 0 : prod.name) || "—";
-  const unit = (line === null || line === void 0 ? void 0 : line.unit) || ((prod === null || prod === void 0 ? void 0 : prod.billedBy) === "CASE" ? "CS" : "PCS");
+  const unit = (line === null || line === void 0 ? void 0 : line.unit) || "CS";
   return unit === "CS" ? baseName : baseName.toLowerCase();
 };
 
@@ -3821,7 +3821,7 @@ const SpreadsheetGrid = ({
       }
       if ((field === "qty" || field === "qtyOrdered") && isWB) {
         const qty = Number(value) || 0;
-        const unit = l.unit || ((prod === null || prod === void 0 ? void 0 : prod.billedBy) === "CASE" ? "CS" : "PCS");
+        const unit = l.unit || "CS";
         const wPer = prod.fixedWeight ? unit === "CS" ? prod.caseWeightLbs || 0 : prod.weightPerPack || 0 : unit === "CS" ? prod.avgWeightPerCase || 0 : prod.avgWeightPerPiece || 0;
         updated[idx].estWeight = Math.round(wPer * qty * 100) / 100;
         if (mode === "invoice") updated[idx].nominalWeight = updated[idx].estWeight;
@@ -3853,7 +3853,7 @@ const SpreadsheetGrid = ({
       const prod = products.find(p => p.id === pid);
       if (!prod) return;
       const price = mode === "po" ? null : getPrice(prod);
-      const defaultUnit = prod.billedBy === "CASE" ? "CS" : "PCS";
+      const defaultUnit = "CS";
       const isWeightBased = prod.catchWeight || prod.fixedWeight;
       const getWeightPer = unit => {
         if (prod.fixedWeight) return unit === "CS" ? prod.caseWeightLbs || 0 : prod.weightPerPack || 0;
@@ -3945,7 +3945,7 @@ const SpreadsheetGrid = ({
     if (!prod) return;
     const qty = Number(addQty) || 1;
     const price = mode === "po" ? null : getPrice(prod);
-    const defaultUnit = prod.billedBy === "CASE" ? "CS" : "PCS";
+    const defaultUnit = "CS";
     const isWB = prod.catchWeight || prod.fixedWeight;
     const getWPer = u => {
       if (prod.fixedWeight) return u === "CS" ? prod.caseWeightLbs || 0 : prod.weightPerPack || 0;
@@ -4537,7 +4537,7 @@ const SpreadsheetGrid = ({
         gap: 4
       }
     }, (() => {
-      const u = getLineVal(p.id, "unit") || (p.billedBy === "CASE" ? "CS" : "PCS");
+      const u = getLineVal(p.id, "unit") || "CS";
       const cn = getLineVal(p.id, "customName");
       const base = cn || p.name;
       return u === "CS" ? base : base.toLowerCase();
@@ -4658,7 +4658,7 @@ const SpreadsheetGrid = ({
         padding: "4px 2px"
       }
     }, (() => {
-      const curUnit = getLineVal(p.id, "unit") || (p.billedBy === "CASE" ? "CS" : "PCS");
+      const curUnit = getLineVal(p.id, "unit") || "CS";
       const toggle = () => updateLine(p.id, "unit", curUnit === "PCS" ? "CS" : "PCS");
       return /*#__PURE__*/React.createElement("button", {
         onClick: toggle,
@@ -4764,7 +4764,7 @@ const SpreadsheetGrid = ({
       step: "0.1",
       value: getLineVal(p.id, "estWeight") || "",
       placeholder: qty > 0 ? (() => {
-        const u = getLineVal(p.id, "unit") || (p.billedBy === "CASE" ? "CS" : "PCS");
+        const u = getLineVal(p.id, "unit") || "CS";
         return (u === "CS" ? p.fixedWeight ? p.caseWeightLbs : p.avgWeightPerCase : p.fixedWeight ? p.weightPerPack || 0 : p.avgWeightPerPiece || 0) * qty;
       })().toFixed(1) : "—",
       onChange: e => updateLine(p.id, "estWeight", e.target.value ? Number(e.target.value) : null),
@@ -4792,7 +4792,7 @@ const SpreadsheetGrid = ({
       step: "0.01",
       value: getLineVal(p.id, "nominalWeight") || "",
       placeholder: qty > 0 ? (() => {
-        const u = getLineVal(p.id, "unit") || (p.billedBy === "CASE" ? "CS" : "PCS");
+        const u = getLineVal(p.id, "unit") || "CS";
         return (u === "CS" ? p.fixedWeight ? p.caseWeightLbs : p.avgWeightPerCase : p.fixedWeight ? p.weightPerPack || 0 : p.avgWeightPerPiece || 0) * qty;
       })().toFixed(1) : "—",
       onChange: e => updateLine(p.id, "nominalWeight", e.target.value ? Number(e.target.value) : null),
