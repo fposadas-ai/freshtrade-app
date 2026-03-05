@@ -1428,7 +1428,7 @@ function LabelPrinterChooser({
 }
 
 // Build HTML for a professional invoice (8.5" × 11" letter)
-function renderInvoicePrintHTML(inv, customer, products, categoryOrder) {
+function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStatement) {
   const subtotal = inv.subtotal || inv.lines.reduce((s, l) => s + (l.total || 0), 0);
   const deliveryCharge = Number(inv.deliveryCharge) || 0;
   const gasCharge = Number(inv.gasCharge) || 0;
@@ -1700,7 +1700,11 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder) {
         <span style="font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Terms:</span> Late payments are subject to a 1.5% monthly finance charge. Buyer is responsible for all collection and attorney fees. All claims for quality or weight shortages must be made within 24 hours of delivery. All sales are final.
       </div>
     </div>`;
+  const coolLine = coolStatement ? `<div style="font-size:8px;color:#6b7280;font-style:italic;margin-top:4px;text-align:center;">${coolStatement}</div>` : '';
+  const nonUsaProducts = inv.lines.filter(l => { const pr = products.find(pp => pp.id === l.productId); return pr && pr.countryOfOrigin && pr.countryOfOrigin !== "USA"; }).map(l => { const pr = products.find(pp => pp.id === l.productId); return pr.name + ': Product of ' + pr.countryOfOrigin; });
+  const coolPerProduct = nonUsaProducts.length > 0 ? `<div style="font-size:7px;color:#6b7280;margin-top:2px;text-align:center;">${nonUsaProducts.join(' · ')}</div>` : '';
   const pageFooter = pageNum => `
+    ${coolLine}${coolPerProduct}
     <div style="margin-top:6px;padding:4px 0;border-top:1px solid #e5e7eb;">
       <table style="width:100%;border-collapse:collapse;">
         <tr>
@@ -13258,7 +13262,7 @@ function Invoices({
       icon: "print",
       onClick: () => {
         const cust = customers.find(c => c.id === inv.customerId);
-        const html = renderInvoicePrintHTML(inv, cust, products, settings.preferences.categoryOrder);
+        const html = renderInvoicePrintHTML(inv, cust, products, settings.preferences.categoryOrder, (settings.invoice && settings.invoice.coolStatement) || '');
         printLetterDocument(html, `Invoice ${inv.id}`);
       }
     }, "Print Invoice")))));
@@ -20369,7 +20373,7 @@ function Inventory({
       color: catColors[p.category] || "#6b7280"
     }), p.countryOfOrigin && /*#__PURE__*/React.createElement("span", {
       style: { fontSize: 9, color: "#94a3b8", background: "#1e293b", padding: "1px 4px", borderRadius: 3, fontWeight: 600 }
-    }, "\uD83C\uDF0D", p.countryOfOrigin === "Other" ? (p.countryOfOriginOther || "Other") : p.countryOfOrigin), /*#__PURE__*/React.createElement(Badge, {
+    }, "\uD83C\uDF0D", p.countryOfOrigin), /*#__PURE__*/React.createElement(Badge, {
       text: p.billedBy,
       color: p.billedBy === "LBS" ? "#3b82f6" : p.billedBy === "PIECE" ? "#22c55e" : "#a855f7"
     }), p.catchWeight && /*#__PURE__*/React.createElement("span", {
@@ -21364,25 +21368,34 @@ function Inventory({
       gap: 12,
       marginBottom: 14
     }
-  }, /*#__PURE__*/React.createElement(Select, {
-    label: "Sub-Category",
-    value: form.subCategory || "",
-    onChange: e => setForm(f => ({ ...f, subCategory: e.target.value })),
-    "data-testid": "select-sub-category"
-  }, /*#__PURE__*/React.createElement("option", { value: "" }, "— None —"), (SUB_CATEGORIES[form.category] || []).map(sc => /*#__PURE__*/React.createElement("option", { key: sc, value: sc }, sc))),
-  /*#__PURE__*/React.createElement(Select, {
-    label: "Country of Origin (COOL)",
-    value: form.countryOfOrigin || "",
-    onChange: e => setForm(f => ({ ...f, countryOfOrigin: e.target.value })),
-    "data-testid": "select-cool"
-  }, /*#__PURE__*/React.createElement("option", { value: "" }, "— Select —"), COUNTRIES_OF_ORIGIN.map(co => /*#__PURE__*/React.createElement("option", { key: co, value: co }, co))),
-  form.countryOfOrigin === "Other" && /*#__PURE__*/React.createElement(Input, {
-    label: "Specify Country",
-    value: form.countryOfOriginOther || "",
-    onChange: e => setForm(f => ({ ...f, countryOfOriginOther: e.target.value })),
-    placeholder: "Enter country name",
-    "data-testid": "input-cool-other"
-  })), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", null,
+    /*#__PURE__*/React.createElement("label", { style: { fontSize: 11, color: "#94a3b8", fontWeight: 600, marginBottom: 4, display: "block" } }, "Sub-Category"),
+    /*#__PURE__*/React.createElement("input", {
+      list: "subcat-list-" + form.category,
+      value: form.subCategory || "",
+      onChange: e => setForm(f => ({ ...f, subCategory: e.target.value })),
+      placeholder: "Select or type custom",
+      "data-testid": "input-sub-category",
+      style: { width: "100%", background: "#1a2030", border: "1px solid #2d3748", borderRadius: 6, padding: "8px 10px", color: "#e2e8f0", fontSize: 13, boxSizing: "border-box" }
+    }),
+    /*#__PURE__*/React.createElement("datalist", { id: "subcat-list-" + form.category },
+      (SUB_CATEGORIES[form.category] || []).map(sc => /*#__PURE__*/React.createElement("option", { key: sc, value: sc }))
+    )
+  ),
+  /*#__PURE__*/React.createElement("div", null,
+    /*#__PURE__*/React.createElement("label", { style: { fontSize: 11, color: "#94a3b8", fontWeight: 600, marginBottom: 4, display: "block" } }, "Country of Origin (COOL)"),
+    /*#__PURE__*/React.createElement("input", {
+      list: "cool-list",
+      value: form.countryOfOrigin || "",
+      onChange: e => setForm(f => ({ ...f, countryOfOrigin: e.target.value })),
+      placeholder: "Select or type custom",
+      "data-testid": "input-cool",
+      style: { width: "100%", background: "#1a2030", border: "1px solid #2d3748", borderRadius: 6, padding: "8px 10px", color: "#e2e8f0", fontSize: 13, boxSizing: "border-box" }
+    }),
+    /*#__PURE__*/React.createElement("datalist", { id: "cool-list" },
+      COUNTRIES_OF_ORIGIN.map(co => /*#__PURE__*/React.createElement("option", { key: co, value: co }))
+    )
+  )), /*#__PURE__*/React.createElement("div", {
     style: {
       background: "#1a2030",
       borderRadius: 8,
@@ -26350,7 +26363,7 @@ function Routes({
           return /*#__PURE__*/React.createElement("div", {
             key: inv.id,
             dangerouslySetInnerHTML: {
-              __html: renderInvoicePrintHTML(inv, c, products, settings === null || settings === void 0 || (_settings$preferences5 = settings.preferences) === null || _settings$preferences5 === void 0 ? void 0 : _settings$preferences5.categoryOrder)
+              __html: renderInvoicePrintHTML(inv, c, products, settings === null || settings === void 0 || (_settings$preferences5 = settings.preferences) === null || _settings$preferences5 === void 0 ? void 0 : _settings$preferences5.categoryOrder, (settings === null || settings === void 0 ? void 0 : (settings.invoice && settings.invoice.coolStatement)) || '')
             },
             style: {
               marginBottom: 30,
@@ -37338,6 +37351,11 @@ function SystemSettings({
     label: "Footer Text",
     value: settings.invoice.footerText,
     onChange: v => update("invoice", "footerText", v)
+  }), /*#__PURE__*/React.createElement(Field, {
+    label: "COOL Statement (Country of Origin)",
+    value: settings.invoice.coolStatement || "",
+    onChange: v => update("invoice", "coolStatement", v),
+    hint: "Printed on all invoices, e.g. 'Product of USA unless otherwise stated.'"
   })), /*#__PURE__*/React.createElement(Toggle, {
     label: "Duplex Printing (double-sided)",
     value: settings.invoice.duplex,
