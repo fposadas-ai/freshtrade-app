@@ -16203,6 +16203,8 @@ function Purchasing({
       avgWeightPerPiece: newProdForm.catchWeight ? Number(newProdForm.avgWeightPerPiece) || 0 : null,
       caseWeightLbs: newProdForm.fixedWeight ? Number(newProdForm.caseWeightLbs) || 0 : null,
       billedBy: newProdForm.billedBy || "PIECE",
+      tempZone: newProdForm.tempZone || "refrigerated",
+      active: true,
       stockCases: 0,
       stockPieces: 0,
       totalWeight: null,
@@ -17478,7 +17480,7 @@ function Purchasing({
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
-      gridTemplateColumns: "2fr 1fr 1fr",
+      gridTemplateColumns: "2fr 1fr 1fr 1fr",
       gap: 10,
       marginBottom: 10
     }
@@ -17545,7 +17547,18 @@ function Purchasing({
     value: "LBS"
   }, "Per Pound"), /*#__PURE__*/React.createElement("option", {
     value: "CS"
-  }, "Per Case")))), /*#__PURE__*/React.createElement("div", {
+  }, "Per Case"))),
+  /*#__PURE__*/React.createElement("div", null,
+    /*#__PURE__*/React.createElement("label", { style: { display: "block", fontSize: 12, color: "#94a3b8", marginBottom: 6, fontWeight: 500 } }, "Temp Zone"),
+    /*#__PURE__*/React.createElement("select", {
+      value: newProdForm.tempZone || "refrigerated",
+      onChange: e => setNewProdForm(f => ({ ...f, tempZone: e.target.value })),
+      "data-testid": "select-temp-zone-new",
+      style: { width: "100%", background: "#1a2030", border: "1px solid #2d3748", borderRadius: 8, padding: "9px 12px", color: "#e2e8f0", fontSize: 13 }
+    }, /*#__PURE__*/React.createElement("option", { value: "dry" }, "\uD83D\uDCE6 Dry"),
+      /*#__PURE__*/React.createElement("option", { value: "refrigerated" }, "\u2744\uFE0F Refrigerated"),
+      /*#__PURE__*/React.createElement("option", { value: "frozen" }, "\uD83E\uDDCA Frozen")))
+  ), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
       gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr",
@@ -19400,6 +19413,8 @@ function Inventory({
       subCategory: prod.subCategory || "",
       countryOfOrigin: prod.countryOfOrigin || "",
       countryOfOriginOther: prod.countryOfOriginOther || "",
+      tempZone: prod.tempZone || "refrigerated",
+      active: prod.active !== false,
       fixedWeight: prod.fixedWeight || false,
       caseWeightLbs: prod.caseWeightLbs || "",
       innerPacks: prod.innerPacks || "",
@@ -20199,6 +20214,12 @@ function Inventory({
         style: { background: "none", border: "1px solid #2d3748", borderRadius: 4, color: "#3b82f6", cursor: "pointer", padding: "4px 6px", fontSize: 13 }
       }, "\u2398"),
       /*#__PURE__*/React.createElement("button", {
+        onClick: () => setProducts(prev => prev.map(pr => pr.id === p.id ? { ...pr, active: pr.active === false ? true : false } : pr)),
+        title: p.active === false ? "Activate" : "Deactivate",
+        "data-testid": "btn-toggle-active-" + p.id,
+        style: { background: "none", border: "1px solid #2d3748", borderRadius: 4, color: p.active === false ? "#f59e0b" : "#22c55e", cursor: "pointer", padding: "4px 6px", fontSize: 13 }
+      }, p.active === false ? "\u25CB" : "\u25CF"),
+      /*#__PURE__*/React.createElement("button", {
         onClick: () => { if (confirm("Delete \"" + p.name + "\"?")) setProducts(prev => prev.filter(pr => pr.id !== p.id)); },
         title: "Delete",
         "data-testid": "btn-delete-product-" + p.id,
@@ -20371,9 +20392,15 @@ function Inventory({
     }, /*#__PURE__*/React.createElement(Badge, {
       text: p.subCategory ? p.category + " › " + p.subCategory : p.category,
       color: catColors[p.category] || "#6b7280"
+    }), p.active === false && /*#__PURE__*/React.createElement(Badge, {
+      text: "INACTIVE",
+      color: "#ef4444"
     }), p.countryOfOrigin && /*#__PURE__*/React.createElement("span", {
       style: { fontSize: 9, color: "#94a3b8", background: "#1e293b", padding: "1px 4px", borderRadius: 3, fontWeight: 600 }
-    }, "\uD83C\uDF0D", p.countryOfOrigin), /*#__PURE__*/React.createElement(Badge, {
+    }, "\uD83C\uDF0D", p.countryOfOrigin), /*#__PURE__*/React.createElement("span", {
+      style: { fontSize: 9, color: p.tempZone === "frozen" ? "#38bdf8" : p.tempZone === "dry" ? "#a3a3a3" : "#22d3ee", background: "#1e293b", padding: "1px 4px", borderRadius: 3, fontWeight: 600 }
+    }, p.tempZone === "frozen" ? "\uD83E\uDDCA" : p.tempZone === "dry" ? "\uD83D\uDCE6" : "\u2744\uFE0F", " ", (p.tempZone || "refrigerated").charAt(0).toUpperCase() + (p.tempZone || "refrigerated").slice(1)),
+    /*#__PURE__*/React.createElement(Badge, {
       text: p.billedBy,
       color: p.billedBy === "LBS" ? "#3b82f6" : p.billedBy === "PIECE" ? "#22c55e" : "#a855f7"
     }), p.catchWeight && /*#__PURE__*/React.createElement("span", {
@@ -20521,6 +20548,12 @@ function Inventory({
         "data-testid": "btn-copy-product-grid-" + p.id,
         style: { background: "none", border: "1px solid #2d3748", borderRadius: 4, color: "#3b82f6", cursor: "pointer", padding: "4px 6px", fontSize: 13 }
       }, "\u2398"),
+      /*#__PURE__*/React.createElement("button", {
+        onClick: () => setProducts(prev => prev.map(pr => pr.id === p.id ? { ...pr, active: pr.active === false ? true : false } : pr)),
+        title: p.active === false ? "Activate" : "Deactivate",
+        "data-testid": "btn-toggle-active-grid-" + p.id,
+        style: { background: "none", border: "1px solid #2d3748", borderRadius: 4, color: p.active === false ? "#f59e0b" : "#22c55e", cursor: "pointer", padding: "4px 6px", fontSize: 13 }
+      }, p.active === false ? "\u25CB" : "\u25CF"),
       /*#__PURE__*/React.createElement("button", {
         onClick: () => { if (confirm("Delete \"" + p.name + "\"?")) setProducts(prev => prev.filter(pr => pr.id !== p.id)); },
         title: "Delete",
@@ -21468,7 +21501,15 @@ function Inventory({
     value: "PIECE"
   }, "Piece"), /*#__PURE__*/React.createElement("option", {
     value: "LBS"
-  }, "LBS (Weight)")))), /*#__PURE__*/React.createElement("div", {
+  }, "LBS (Weight)")),
+  /*#__PURE__*/React.createElement(Select, {
+    label: "Temp Zone",
+    value: form.tempZone || "refrigerated",
+    onChange: e => setForm(f => ({ ...f, tempZone: e.target.value })),
+    "data-testid": "select-temp-zone"
+  }, /*#__PURE__*/React.createElement("option", { value: "dry" }, "\uD83D\uDCE6 Dry"),
+    /*#__PURE__*/React.createElement("option", { value: "refrigerated" }, "\u2744\uFE0F Refrigerated"),
+    /*#__PURE__*/React.createElement("option", { value: "frozen" }, "\uD83E\uDDCA Frozen")))), /*#__PURE__*/React.createElement("div", {
     style: {
       background: "#1a2030",
       borderRadius: 8,
