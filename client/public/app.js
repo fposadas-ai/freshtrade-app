@@ -712,27 +712,11 @@ const Icon = ({
 const fmt = n => `$${Number(n || 0).toFixed(2)}`;
 const fmtW = n => `${Number(n || 0).toFixed(2)} lbs`;
 const today = () => new Date().toISOString().split("T")[0];
-const dueDate = (days = 7) => {
+const dueDate = (days = 30) => {
   const d = new Date();
   d.setDate(d.getDate() + days);
   return d.toISOString().split("T")[0];
 };
-const TERMS_OPTIONS = ["COD", "Bill to Bill", "1 Week", "2 Weeks", "3 Weeks", "4 Weeks"];
-const termsToDays = terms => {
-  if (!terms) return 7;
-  const t = terms.toLowerCase();
-  if (t === "cod") return 0;
-  if (t === "bill to bill") return 7; // due following week if customer doesn't buy again
-  if (t === "1 week") return 7;
-  if (t === "2 weeks") return 14;
-  if (t === "3 weeks") return 21;
-  if (t === "4 weeks") return 28;
-  // Legacy support
-  const m = t.match(/net\s*(\d+)/);
-  if (m) return Number(m[1]);
-  return 7;
-};
-const dueDateFromTerms = terms => dueDate(termsToDays(terms));
 const genId = prefix => `${prefix}-${Date.now().toString().slice(-6)}`;
 
 // Product display name: lowercase when sold by piece, normal case when sold by case
@@ -743,13 +727,6 @@ const pName = (prod, line) => {
   const unit = (line === null || line === void 0 ? void 0 : line.unit) || ((prod === null || prod === void 0 ? void 0 : prod.billedBy) === "CASE" ? "CS" : "PCS");
   return unit === "CS" ? baseName : baseName.toLowerCase();
 };
-
-// ── Global AR Balance Helpers ──
-// These are used across multiple modules for consistent balance calculation
-const arGetInvPaid = (invId, arPayments) => (arPayments || []).filter(p => p.status !== "void" && p.status !== "returned").reduce((s, p) => s + (p.appliedTo || []).filter(a => a.invoiceId === invId).reduce((ss, a) => ss + a.amount, 0), 0);
-const arGetInvCredits = (invId, creditMemos) => (creditMemos || []).filter(cm => cm.invoiceId === invId && cm.status !== "void").reduce((s, cm) => s + (cm.total || 0), 0);
-const arGetInvBalance = (inv, arPayments, creditMemos) => Math.round(((inv.total || 0) - arGetInvPaid(inv.id, arPayments) - arGetInvCredits(inv.id, creditMemos)) * 100) / 100;
-const arGetCustBalance = (custId, invoices, arPayments, creditMemos) => (invoices || []).filter(i => i.customerId === custId && i.status === "open").reduce((s, i) => s + Math.max(0, arGetInvBalance(i, arPayments, creditMemos)), 0);
 
 // ── DOCUMENT LOCK SYSTEM (cross-tab editing protection) ──
 const TAB_ID = `tab_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -2352,7 +2329,7 @@ const defaultSettings = {
     currency: "USD",
     timezone: "America/New_York",
     weightUnit: "lbs",
-    defaultTerms: "1 Week",
+    defaultTerms: "Net 30",
     defaultPriceLevel: "level3",
     taxRate: 0,
     taxEnabled: false,
@@ -2412,7 +2389,7 @@ const defaultSettings = {
 // ============================================================
 const DB_KEY = "freshtrade_db";
 const DB_VERSION = "v4_6pin";
-const DB_TABLES = ["products", "customers", "invoices", "routes", "salesOrders", "suppliers", "purchaseOrders", "salespeople", "creditMemos", "deliveries", "productionRuns", "receipts", "arPayments", "arDeposits", "settings"];
+const DB_TABLES = ["products", "customers", "invoices", "routes", "salesOrders", "suppliers", "purchaseOrders", "salespeople", "creditMemos", "deliveries", "productionRuns", "receipts", "settings"];
 
 // Load data from server API
 const dbLoadAsync = async () => {
@@ -2439,14 +2416,10 @@ const dbSave = state => {
   _saveTimer = setTimeout(async () => {
     try {
       const data = {};
-      DB_TABLES.forEach(k => {
-        data[k] = state[k];
-      });
+      DB_TABLES.forEach(k => { data[k] = state[k]; });
       await fetch("/api/data", {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data)
       });
     } catch (e) {
@@ -2454,18 +2427,11 @@ const dbSave = state => {
     }
   }, 800);
 };
+
 const dbExport = state => {
-  const data = {
-    _v: DB_VERSION,
-    _exported: new Date().toISOString(),
-    _app: "FreshTrade"
-  };
-  DB_TABLES.forEach(k => {
-    data[k] = state[k];
-  });
-  const blob = new Blob([JSON.stringify(data, null, 2)], {
-    type: "application/json"
-  });
+  const data = { _v: DB_VERSION, _exported: new Date().toISOString(), _app: "FreshTrade" };
+  DB_TABLES.forEach(k => { data[k] = state[k]; });
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -2473,11 +2439,10 @@ const dbExport = state => {
   a.click();
   URL.revokeObjectURL(url);
 };
+
 const dbClear = async () => {
   try {
-    await fetch("/api/reset", {
-      method: "POST"
-    });
+    await fetch("/api/reset", { method: "POST" });
   } catch (e) {}
 };
 
@@ -2488,7 +2453,22 @@ function App() {
   var _settings$preferences;
   // Load saved data or use demo defaults
   const saved = useRef(dbLoad()).current;
-  const init = (key, fallback) => saved && saved[key] !== undefined ? saved[key] : fallback;
+  const init = (key, fallback) => {
+    if (!saved || saved[key] === undefined) return fallback;
+    // Deep merge settings with defaults to ensure all sections exist
+    if (key === "settings" && typeof fallback === "object" && typeof saved[key] === "object") {
+      const merged = { ...fallback };
+      for (const [k, v] of Object.entries(saved[key])) {
+        if (typeof v === "object" && v !== null && !Array.isArray(v) && typeof merged[k] === "object" && merged[k] !== null && !Array.isArray(merged[k])) {
+          merged[k] = { ...merged[k], ...v };
+        } else {
+          merged[k] = v;
+        }
+      }
+      return merged;
+    }
+    return saved[key];
+  };
   const [activeModule, setActiveModule] = useState("dashboard");
   const [driverMode, setDriverMode] = useState(null); // null = normal, {user} = locked driver portal
   const [pendingCustomer, setPendingCustomer] = useState(null); // for cross-module customer handoff
@@ -2505,10 +2485,13 @@ function App() {
   const [deliveries, setDeliveries] = useState(init("deliveries", initialDeliveries));
   const [productionRuns, setProductionRuns] = useState(init("productionRuns", []));
   const [receipts, setReceipts] = useState(init("receipts", []));
-  const [arPayments, setArPayments] = useState(init("arPayments", []));
-  const [arDeposits, setArDeposits] = useState(init("arDeposits", []));
   const [settings, setSettings] = useState(init("settings", defaultSettings));
   const [dbStatus, setDbStatus] = useState(saved ? "loaded" : "new");
+  const [loggedInUser, setLoggedInUser] = useState(null);
+  const [loginError, setLoginError] = useState("");
+
+  useEffect(() => {
+  }, []);
 
   // Derived pricing levels from settings — used throughout all modules
   const priceLevels = Object.entries((settings === null || settings === void 0 || (_settings$preferences = settings.preferences) === null || _settings$preferences === void 0 ? void 0 : _settings$preferences.pricingLevels) || {}).map(([key, val]) => ({
@@ -2523,7 +2506,7 @@ function App() {
     markupValue: val.markupValue || 0
   }));
 
-  // ── AUTO-SAVE: persist all data to PostgreSQL on every change ──
+  // ── AUTO-SAVE: persist all data to localStorage on every change ──
   const saveTimer = useRef(null);
   useEffect(() => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -2541,8 +2524,6 @@ function App() {
         deliveries,
         productionRuns,
         receipts,
-        arPayments,
-        arDeposits,
         settings
       });
       setDbStatus("saved");
@@ -2550,7 +2531,7 @@ function App() {
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
-  }, [products, customers, invoices, routes, salesOrders, suppliers, purchaseOrders, salespeople, creditMemos, deliveries, productionRuns, receipts, arPayments, arDeposits, settings]);
+  }, [products, customers, invoices, routes, salesOrders, suppliers, purchaseOrders, salespeople, creditMemos, deliveries, productionRuns, receipts, settings]);
 
   // ── DB MANAGEMENT FUNCTIONS ──
   const dbGetState = () => ({
@@ -2565,9 +2546,6 @@ function App() {
     creditMemos,
     deliveries,
     productionRuns,
-    receipts,
-    arPayments,
-    arDeposits,
     settings
   });
   const handleExportDB = () => {
@@ -2594,8 +2572,6 @@ function App() {
         if (data.creditMemos) setCreditMemos(data.creditMemos);
         if (data.deliveries) setDeliveries(data.deliveries);
         if (data.productionRuns) setProductionRuns(data.productionRuns);
-        if (data.arPayments) setArPayments(data.arPayments);
-        if (data.arDeposits) setArDeposits(data.arDeposits);
         if (data.settings) setSettings(data.settings);
         setDbStatus("imported");
         showToast(`Database restored from backup (${data._exported || data._saved || "unknown date"})`);
@@ -2618,37 +2594,19 @@ function App() {
     setCreditMemos(initialCreditMemos);
     setDeliveries(initialDeliveries);
     setProductionRuns([]);
-    setArPayments([]);
-    setArDeposits([]);
     setSettings(defaultSettings);
     setDbStatus("reset");
     showToast("Database reset to demo data");
   };
   const dbSizeKB = (() => {
     try {
-      const state = {
-        products,
-        customers,
-        invoices,
-        routes,
-        salesOrders,
-        suppliers,
-        purchaseOrders,
-        salespeople,
-        creditMemos,
-        deliveries,
-        productionRuns,
-        receipts,
-        arPayments,
-        arDeposits,
-        settings
-      };
-      return (new Blob([JSON.stringify(state)]).size / 1024).toFixed(1);
+      const raw = localStorage.getItem(DB_KEY);
+      return raw ? (new Blob([raw]).size / 1024).toFixed(1) : "0";
     } catch (e) {
       return "?";
     }
   })();
-  const dbRecordCount = products.length + customers.length + invoices.length + salesOrders.length + purchaseOrders.length + creditMemos.length + deliveries.length + productionRuns.length + routes.length + suppliers.length + salespeople.length + arPayments.length + arDeposits.length;
+  const dbRecordCount = products.length + customers.length + invoices.length + salesOrders.length + purchaseOrders.length + creditMemos.length + deliveries.length + productionRuns.length + routes.length + suppliers.length + salespeople.length;
   const showToast = (msg, type = "success") => {
     setToast({
       msg,
@@ -2691,10 +2649,6 @@ function App() {
     id: "creditmemos",
     label: "Credit Memos",
     icon: "convert"
-  }, {
-    id: "ar",
-    label: "Accounts Receivable",
-    icon: "dollar"
   }, {
     id: "catchweight",
     label: "Catch Weight",
@@ -2752,6 +2706,69 @@ function App() {
     label: "Price List",
     icon: "list"
   }];
+  const handleLogin = (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const email = form.loginEmail.value.trim();
+    const credential = form.loginCredential.value.trim();
+    setLoginError("");
+    const users = settings.users || [];
+    const user = users.find(u => u.email && u.email.toLowerCase() === email.toLowerCase() && u.active);
+    if (!user) { setLoginError("No active user found with that email"); return; }
+    if (user.role === "driver") {
+      if (user.pin && user.pin === credential) { setLoggedInUser(user); return; }
+      setLoginError("Invalid PIN"); return;
+    }
+    if (user.password && user.password === credential) { setLoggedInUser(user); return; }
+    setLoginError("Invalid password");
+  };
+
+  if (!loggedInUser) {
+    return /*#__PURE__*/React.createElement("div", {
+      style: { minHeight: "100vh", background: "#0a0e17", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans', sans-serif" }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: { width: 380, padding: 40, background: "#131827", borderRadius: 16, border: "1px solid #1e2535" }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: { textAlign: "center", marginBottom: 32 }
+    }, settings.company.logo ? /*#__PURE__*/React.createElement("img", {
+      src: settings.company.logo,
+      alt: settings.company.name || "Logo",
+      style: { maxHeight: 50, maxWidth: 200, objectFit: "contain", marginBottom: 12 }
+    }) : /*#__PURE__*/React.createElement("div", {
+      style: { fontSize: 22, fontWeight: 800, color: "#f1f5f9", letterSpacing: 1 }
+    }, settings.company.name || "FreshTrade"), /*#__PURE__*/React.createElement("div", {
+      style: { fontSize: 13, color: "#64748b", marginTop: 4 }
+    }, "Sign in to continue")), /*#__PURE__*/React.createElement("form", {
+      onSubmit: handleLogin
+    }, /*#__PURE__*/React.createElement("div", { style: { marginBottom: 16 } },
+      /*#__PURE__*/React.createElement("label", { style: { fontSize: 12, color: "#94a3b8", display: "block", marginBottom: 6 } }, "Email"),
+      /*#__PURE__*/React.createElement("input", {
+        name: "loginEmail",
+        type: "email",
+        "data-testid": "input-login-email",
+        required: true,
+        autoFocus: true,
+        style: { width: "100%", padding: "10px 14px", background: "#0a0e17", border: "1px solid #2d3748", borderRadius: 8, color: "#f1f5f9", fontSize: 14, outline: "none", boxSizing: "border-box" }
+      })
+    ), /*#__PURE__*/React.createElement("div", { style: { marginBottom: 20 } },
+      /*#__PURE__*/React.createElement("label", { style: { fontSize: 12, color: "#94a3b8", display: "block", marginBottom: 6 } }, "Password / PIN"),
+      /*#__PURE__*/React.createElement("input", {
+        name: "loginCredential",
+        type: "password",
+        "data-testid": "input-login-password",
+        required: true,
+        style: { width: "100%", padding: "10px 14px", background: "#0a0e17", border: "1px solid #2d3748", borderRadius: 8, color: "#f1f5f9", fontSize: 14, outline: "none", boxSizing: "border-box" }
+      })
+    ), loginError && /*#__PURE__*/React.createElement("div", {
+      "data-testid": "text-login-error",
+      style: { color: "#ef4444", fontSize: 13, marginBottom: 14, textAlign: "center" }
+    }, loginError), /*#__PURE__*/React.createElement("button", {
+      type: "submit",
+      "data-testid": "button-login",
+      style: { width: "100%", padding: "11px 0", background: "linear-gradient(135deg,#22c55e,#16a34a)", color: "#fff", fontWeight: 700, fontSize: 14, border: "none", borderRadius: 8, cursor: "pointer" }
+    }, "Sign In"))));
+  }
+
   return /*#__PURE__*/React.createElement("div", null, driverMode ? /*#__PURE__*/React.createElement("div", {
     style: {
       height: "100vh",
@@ -2815,7 +2832,15 @@ function App() {
       alignItems: "center",
       gap: 10
     }
-  }, /*#__PURE__*/React.createElement("div", {
+  }, settings.company.logo ? /*#__PURE__*/React.createElement("img", {
+    src: settings.company.logo,
+    alt: settings.company.name || "Company Logo",
+    style: {
+      maxHeight: 40,
+      maxWidth: 160,
+      objectFit: "contain"
+    }
+  }) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     style: {
       width: 34,
       height: 34,
@@ -2835,13 +2860,13 @@ function App() {
       color: "#f1f5f9",
       letterSpacing: "0.5px"
     }
-  }, "FRESHTRADE"), /*#__PURE__*/React.createElement("div", {
+  }, (settings.company.name || "FRESHTRADE").toUpperCase()), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 10,
       color: "#64748b",
       letterSpacing: "1px"
     }
-  }, "DISTRIBUTION")))), /*#__PURE__*/React.createElement("nav", {
+  }, "DISTRIBUTION"))))), /*#__PURE__*/React.createElement("nav", {
     style: {
       flex: 1,
       padding: "12px 10px",
@@ -2905,24 +2930,22 @@ function App() {
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      marginBottom: 4
-    }
-  }, "Version 2.2.0 \u2014 Entr\xE9e Edition"), /*#__PURE__*/React.createElement("div", {
-    style: {
       display: "flex",
       justifyContent: "space-between",
       alignItems: "center"
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      color: "#22c55e"
-    }
-  }, "\u25CF QB Online Connected"), /*#__PURE__*/React.createElement("div", {
-    style: {
       color: dbStatus === "saved" || dbStatus === "loaded" ? "#22c55e" : "#f59e0b",
       fontSize: 10
     }
-  }, "\uD83D\uDCBE ", dbStatus === "saved" ? "Saved" : dbStatus === "loaded" ? "DB Loaded" : dbStatus === "imported" ? "Imported" : "Unsaved")))), /*#__PURE__*/React.createElement("main", {
+  }, "\uD83D\uDCBE ", dbStatus === "saved" ? "Saved" : dbStatus === "loaded" ? "DB Loaded" : dbStatus === "imported" ? "Imported" : "Unsaved")), loggedInUser && /*#__PURE__*/React.createElement("div", {
+    style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, paddingTop: 6, borderTop: "1px solid #1e2535" }
+  }, /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, color: "#94a3b8" } }, "\uD83D\uDC64 ", loggedInUser.name), /*#__PURE__*/React.createElement("button", {
+    "data-testid": "button-logout",
+    onClick: () => setLoggedInUser(null),
+    style: { background: "none", border: "none", color: "#ef4444", fontSize: 11, cursor: "pointer", padding: "2px 6px" }
+  }, "Sign Out")))), /*#__PURE__*/React.createElement("main", {
     style: {
       flex: 1,
       overflowY: "auto",
@@ -2938,8 +2961,7 @@ function App() {
     salespeople: salespeople,
     deliveries: deliveries,
     purchaseOrders: purchaseOrders,
-    setActiveModule: setActiveModule,
-    arPayments: arPayments
+    setActiveModule: setActiveModule
   }), activeModule === "salesorders" && /*#__PURE__*/React.createElement(SalesOrders, {
     salesOrders: salesOrders,
     setSalesOrders: setSalesOrders,
@@ -3008,8 +3030,7 @@ function App() {
     routes: routes,
     salespeople: salespeople,
     showToast: showToast,
-    priceLevels: priceLevels,
-    arPayments: arPayments
+    priceLevels: priceLevels
   }), activeModule === "portal" && /*#__PURE__*/React.createElement(PortalManager, {
     customers: customers,
     setCustomers: setCustomers,
@@ -3028,9 +3049,7 @@ function App() {
     products: products,
     showToast: showToast,
     priceLevels: priceLevels,
-    settings: settings,
-    arPayments: arPayments,
-    creditMemos: creditMemos
+    settings: settings
   }), activeModule === "labels" && /*#__PURE__*/React.createElement(Labels, {
     products: products,
     customers: customers,
@@ -3046,9 +3065,7 @@ function App() {
     showToast: showToast,
     priceLevels: priceLevels,
     pendingCustomer: pendingCustomer,
-    setPendingCustomer: setPendingCustomer,
-    arPayments: arPayments,
-    creditMemos: creditMemos
+    setPendingCustomer: setPendingCustomer
   }), activeModule === "calllist" && /*#__PURE__*/React.createElement(CallList, {
     customers: customers,
     salespeople: salespeople,
@@ -3058,9 +3075,7 @@ function App() {
     showToast: showToast,
     setActiveModule: setActiveModule,
     priceLevels: priceLevels,
-    setPendingCustomer: setPendingCustomer,
-    arPayments: arPayments,
-    creditMemos: creditMemos
+    setPendingCustomer: setPendingCustomer
   }), activeModule === "creditmemos" && /*#__PURE__*/React.createElement(CreditMemos, {
     creditMemos: creditMemos,
     setCreditMemos: setCreditMemos,
@@ -3069,19 +3084,6 @@ function App() {
     setProducts: setProducts,
     invoices: invoices,
     showToast: showToast
-  }), activeModule === "ar" && /*#__PURE__*/React.createElement(AccountsReceivable, {
-    arPayments: arPayments,
-    setArPayments: setArPayments,
-    arDeposits: arDeposits,
-    setArDeposits: setArDeposits,
-    invoices: invoices,
-    setInvoices: setInvoices,
-    customers: customers,
-    setCustomers: setCustomers,
-    creditMemos: creditMemos,
-    routes: routes,
-    showToast: showToast,
-    settings: settings
   }), activeModule === "autopurchase" && /*#__PURE__*/React.createElement(AutoPurchase, {
     products: products,
     suppliers: suppliers,
@@ -3147,9 +3149,7 @@ function App() {
       suppliers: suppliers.length,
       salespeople: salespeople.length,
       deliveries: deliveries.length,
-      productionRuns: productionRuns.length,
-      arPayments: arPayments.length,
-      arDeposits: arDeposits.length
+      productionRuns: productionRuns.length
     }
   })), toast && /*#__PURE__*/React.createElement("div", {
     style: {
@@ -5129,11 +5129,10 @@ function Dashboard({
   salespeople,
   deliveries,
   purchaseOrders,
-  setActiveModule,
-  arPayments
+  setActiveModule
 }) {
   const openInvoices = invoices.filter(i => i.status === "open");
-  const totalAR = openInvoices.reduce((s, i) => s + Math.max(0, arGetInvBalance(i, arPayments, creditMemos)), 0);
+  const totalAR = openInvoices.reduce((s, i) => s + i.total, 0);
   const lowStock = products.filter(p => p.catchWeight ? p.stock < 50 : p.stockUnits < 20);
   const todayInvoices = invoices.filter(i => i.date === today());
   const pendingSOs = salesOrders.filter(so => ["draft", "confirmed", "picking"].includes(so.status));
@@ -7042,7 +7041,6 @@ function SalesOrders({
     setConvertModal(so);
   };
   const doConvert = () => {
-    var _customers$find;
     if (!convertModal) return;
     const so = convertModal;
     const toInvoice = convertLines.filter(l => l.convertQty > 0);
@@ -7078,12 +7076,11 @@ function SalesOrders({
       }
     });
     const subtotal = invLines.reduce((s, l) => s + l.total, 0);
-    const custTerms = (_customers$find = customers.find(c => c.id === so.customerId)) === null || _customers$find === void 0 ? void 0 : _customers$find.terms;
     const newInv = {
       id: genId("INV"),
       customerId: so.customerId,
       date: today(),
-      dueDate: dueDateFromTerms(custTerms),
+      dueDate: dueDate(30),
       status: "open",
       lines: invLines,
       subtotal,
@@ -7642,7 +7639,7 @@ function SalesOrders({
         color: "#506888",
         marginLeft: 10
       }
-    }, "Terms: ", selCust.terms || "1 Week")))) : null;
+    }, "Terms: ", selCust.terms || "Net 30")))) : null;
   })(), /*#__PURE__*/React.createElement(SpreadsheetGrid, {
     products: products,
     lines: form.lines,
@@ -7756,11 +7753,11 @@ function SalesOrders({
       });
     };
     const addSOLine = productId => {
-      var _customers$find2, _prod$pricing3, _prod$pricing4;
+      var _customers$find, _prod$pricing3, _prod$pricing4;
       const prod = products.find(p => p.id === productId);
       if (!prod) return;
       const isCW = prod.catchWeight;
-      const level = ((_customers$find2 = customers.find(c => c.id === editingSO.customerId)) === null || _customers$find2 === void 0 ? void 0 : _customers$find2.priceLevel) || "level1";
+      const level = ((_customers$find = customers.find(c => c.id === editingSO.customerId)) === null || _customers$find === void 0 ? void 0 : _customers$find.priceLevel) || "level1";
       const price = ((_prod$pricing3 = prod.pricing) === null || _prod$pricing3 === void 0 ? void 0 : _prod$pricing3[level]) || ((_prod$pricing4 = prod.pricing) === null || _prod$pricing4 === void 0 ? void 0 : _prod$pricing4.level1) || 0;
       const newLine = isCW ? {
         productId,
@@ -7990,7 +7987,7 @@ function SalesOrders({
       style: F.fieldLabel
     }, "Terms"), /*#__PURE__*/React.createElement("div", {
       style: F.fieldValue
-    }, (cust === null || cust === void 0 ? void 0 : cust.terms) || "1 Week"))))), so.notes && /*#__PURE__*/React.createElement("div", {
+    }, (cust === null || cust === void 0 ? void 0 : cust.terms) || "Net 30"))))), so.notes && /*#__PURE__*/React.createElement("div", {
       style: {
         background: "#fef9c3",
         border: "1px solid #eab308",
@@ -9752,7 +9749,7 @@ function Invoices({
     customerId: "",
     lines: [],
     notes: "",
-    terms: "1 Week"
+    terms: "Net 30"
   });
   const [lineProduct, setLineProduct] = useState("");
   const [lineQty, setLineQty] = useState(1);
@@ -9802,15 +9799,13 @@ function Invoices({
     setLineActual("");
   };
   const saveInvoice = () => {
-    var _customers$find3;
     if (!form.customerId || form.lines.length === 0) return;
     const subtotal = form.lines.reduce((s, l) => s + l.total, 0);
-    const invCustTerms = (_customers$find3 = customers.find(c => c.id === form.customerId)) === null || _customers$find3 === void 0 ? void 0 : _customers$find3.terms;
     const newInv = {
       id: genId("INV"),
       customerId: form.customerId,
       date: today(),
-      dueDate: dueDateFromTerms(invCustTerms),
+      dueDate: dueDate(30),
       status: "open",
       lines: form.lines,
       subtotal,
@@ -9839,7 +9834,7 @@ function Invoices({
       customerId: "",
       lines: [],
       notes: "",
-      terms: "1 Week"
+      terms: "Net 30"
     });
     setShowNew(false);
     showToast(`Invoice ${newInv.id} created — inventory deducted`);
@@ -10369,7 +10364,7 @@ function Invoices({
       },
       onClick: confirmVoid
     }, "Void Invoice")));
-  })()), batchScan && (_customers$find4 => {
+  })()), batchScan && (_customers$find2 => {
     const allInvs = invoices.filter(inv => inv.status !== "voided");
     const unsignedInvs = allInvs.filter(inv => !inv.signedCopy);
     const signedInvs = allInvs.filter(inv => inv.signedCopy);
@@ -11390,7 +11385,7 @@ function Invoices({
         color: "#e2e8f0",
         marginBottom: 4
       }
-    }, "Preview:"), "Signed invoice ", shareTarget.id, " for ", ((_customers$find4 = customers.find(c => c.id === shareTarget.customerId)) === null || _customers$find4 === void 0 ? void 0 : _customers$find4.name) || "customer", " \u2014 ", fmt(shareTarget.total), " dated ", shareTarget.date, ". Scanned copy attached."), /*#__PURE__*/React.createElement("div", {
+    }, "Preview:"), "Signed invoice ", shareTarget.id, " for ", ((_customers$find2 = customers.find(c => c.id === shareTarget.customerId)) === null || _customers$find2 === void 0 ? void 0 : _customers$find2.name) || "customer", " \u2014 ", fmt(shareTarget.total), " dated ", shareTarget.date, ". Scanned copy attached."), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
         justifyContent: "flex-end",
@@ -11402,14 +11397,14 @@ function Invoices({
     }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
       onClick: () => {
         if (shareMethod === "email") {
-          var _customers$find5;
-          const custName = ((_customers$find5 = customers.find(c => c.id === shareTarget.customerId)) === null || _customers$find5 === void 0 ? void 0 : _customers$find5.name) || "Customer";
+          var _customers$find3;
+          const custName = ((_customers$find3 = customers.find(c => c.id === shareTarget.customerId)) === null || _customers$find3 === void 0 ? void 0 : _customers$find3.name) || "Customer";
           const subject = encodeURIComponent(`Signed Invoice ${shareTarget.id} — ${custName}`);
           const body = encodeURIComponent(`Please find attached the signed copy of Invoice ${shareTarget.id} for ${custName}, amount ${fmt(shareTarget.total)}, dated ${shareTarget.date}.\n\nThank you,\nFreshTrade Distribution`);
           window.open(`mailto:${shareTo}?subject=${subject}&body=${body}`);
         } else {
-          var _customers$find6;
-          const msg = encodeURIComponent(`FreshTrade Invoice ${shareTarget.id} — Signed copy for ${((_customers$find6 = customers.find(c => c.id === shareTarget.customerId)) === null || _customers$find6 === void 0 ? void 0 : _customers$find6.name) || "customer"}, ${fmt(shareTarget.total)}.`);
+          var _customers$find4;
+          const msg = encodeURIComponent(`FreshTrade Invoice ${shareTarget.id} — Signed copy for ${((_customers$find4 = customers.find(c => c.id === shareTarget.customerId)) === null || _customers$find4 === void 0 ? void 0 : _customers$find4.name) || "customer"}, ${fmt(shareTarget.total)}.`);
           window.open(`sms:${shareTo}?body=${msg}`);
         }
         showToast(`${shareMethod === "email" ? "Email" : "Text"} opened with invoice details`);
@@ -11569,7 +11564,7 @@ function Invoices({
         color: "#506888",
         marginLeft: 10
       }
-    }, "Terms: ", selCust.terms || "1 Week")))) : null;
+    }, "Terms: ", selCust.terms || "Net 30")))) : null;
   })(), /*#__PURE__*/React.createElement(SpreadsheetGrid, {
     products: products,
     lines: form.lines,
@@ -11602,10 +11597,10 @@ function Invoices({
   }, /*#__PURE__*/React.createElement(LockBanner, {
     docType: "INV",
     docId: viewInv.id
-  }), (_customers$find7 => {
+  }), (_customers$find5 => {
     const isThisEditing = (editingInv === null || editingInv === void 0 ? void 0 : editingInv.id) === viewInv.id;
     const inv = isThisEditing ? editingInv : invoices.find(i => i.id === viewInv.id) || viewInv;
-    const custName = (_customers$find7 = customers.find(c => c.id === inv.customerId)) === null || _customers$find7 === void 0 ? void 0 : _customers$find7.name;
+    const custName = (_customers$find5 = customers.find(c => c.id === inv.customerId)) === null || _customers$find5 === void 0 ? void 0 : _customers$find5.name;
     const isEditing = isThisEditing;
     const startInvEdit = () => tryEdit("INV", viewInv.id, "User", () => {
       const invData = invoices.find(i => i.id === viewInv.id) || viewInv;
@@ -11897,7 +11892,7 @@ function Invoices({
       style: F.fieldValue
     }, (() => {
       const c = customers.find(c2 => c2.id === inv.customerId);
-      return (c === null || c === void 0 ? void 0 : c.terms) || "1 Week";
+      return (c === null || c === void 0 ? void 0 : c.terms) || "Net 30";
     })())), /*#__PURE__*/React.createElement("div", {
       style: F.fieldBox()
     }, /*#__PURE__*/React.createElement("div", {
@@ -15699,7 +15694,7 @@ function Purchasing({
     phone: "",
     email: "",
     address: "",
-    terms: "1 Week",
+    terms: "Net 30",
     categories: [],
     notes: ""
   });
@@ -16135,7 +16130,7 @@ function Purchasing({
       phone: "",
       email: "",
       address: "",
-      terms: "1 Week",
+      terms: "Net 30",
       categories: [],
       notes: ""
     });
@@ -18593,7 +18588,7 @@ function Purchasing({
       ...f,
       terms: e.target.value
     }))
-  }, TERMS_OPTIONS.map(t => /*#__PURE__*/React.createElement("option", {
+  }, ["Net 15", "Net 30", "Net 45", "Net 60", "COD", "Prepaid"].map(t => /*#__PURE__*/React.createElement("option", {
     key: t,
     value: t
   }, t))), /*#__PURE__*/React.createElement("div", {
@@ -22039,8 +22034,7 @@ function Customers({
   routes,
   salespeople,
   showToast,
-  priceLevels,
-  arPayments
+  priceLevels
 }) {
   const [showAdd, setShowAdd] = useState(false);
   const [editCust, setEditCust] = useState(null); // customer object for editing
@@ -22062,11 +22056,10 @@ function Customers({
     email: "",
     address: "",
     route: "R01",
-    terms: "1 Week",
+    terms: "Net 30",
     priceLevel: "level3",
     creditLimit: 5000,
-    contact: "",
-    collectionDay: ""
+    contact: ""
   };
   const [form, setForm] = useState(emptyForm);
   const [search, setSearch] = useState("");
@@ -22093,11 +22086,10 @@ function Customers({
       email: c.email || "",
       address: c.address || "",
       route: c.route || "R01",
-      terms: c.terms || "1 Week",
+      terms: c.terms || "Net 30",
       priceLevel: c.priceLevel || "level3",
       creditLimit: c.creditLimit || 5000,
-      contact: c.contact || "",
-      collectionDay: c.collectionDay || ""
+      contact: c.contact || ""
     });
     setEditCust(c);
     setViewCust(null);
@@ -22206,7 +22198,7 @@ function Customers({
     rows: filtered.map(c => {
       var _priceLevels$find7;
       const route = routes.find(r => r.id === c.route);
-      const openBal = arGetCustBalance(c.id, invoices, arPayments, creditMemos);
+      const openBal = invoices.filter(i => i.customerId === c.id && i.status === "open").reduce((s, i) => s + i.total, 0);
       return [/*#__PURE__*/React.createElement("span", {
         style: {
           fontFamily: "'DM Mono',monospace",
@@ -22295,7 +22287,7 @@ function Customers({
     const openInvoices = custInvoices.filter(i => i.status === "open");
     const paidInvoices = custInvoices.filter(i => i.status === "paid");
     const voidedInvoices = custInvoices.filter(i => i.status === "voided");
-    const accountBalance = openInvoices.reduce((s, i) => s + Math.max(0, arGetInvBalance(i, arPayments, creditMemos)), 0);
+    const accountBalance = openInvoices.reduce((s, i) => s + (i.total || 0), 0);
     const openCredits = custCMs.reduce((s, cm) => s + (cm.total || 0), 0);
     const ytdInvoices = custInvoices.filter(i => i.date >= new Date().getFullYear() + "-01-01");
     const ytdSales = ytdInvoices.reduce((s, i) => s + (i.status !== "voided" ? i.total || 0 : 0), 0);
@@ -22534,7 +22526,7 @@ function Customers({
       mono: true
     }), /*#__PURE__*/React.createElement(InfoCell, {
       label: "Terms",
-      value: c.terms || "1 Week",
+      value: c.terms || "Net 30",
       color: "#a855f7"
     })), c.creditHold && /*#__PURE__*/React.createElement("div", {
       style: {
@@ -22893,10 +22885,10 @@ function Customers({
     }, "No invoices to display")), displayInvoices.map((inv, ri) => {
       var _inv$lines;
       const days = daysDiff(inv.date);
-      const isOverdue = inv.status === "open" && days > 0;
+      const isOverdue = inv.status === "open" && days > 30;
       const lineCount = ((_inv$lines = inv.lines) === null || _inv$lines === void 0 ? void 0 : _inv$lines.length) || 0;
-      const paidAmt = arGetInvPaid(inv.id, arPayments) + arGetInvCredits(inv.id, creditMemos);
-      const balance = inv.status === "voided" ? 0 : Math.max(0, arGetInvBalance(inv, arPayments, creditMemos));
+      const paidAmt = inv.status === "paid" ? inv.total : 0;
+      const balance = inv.status === "voided" ? 0 : inv.total - paidAmt;
       return /*#__PURE__*/React.createElement("tr", {
         key: inv.id,
         className: "hover-row",
@@ -23034,7 +23026,7 @@ function Customers({
         fontSize: 16,
         color: "#f59e0b"
       }
-    }, fmt(displayInvoices.filter(i => i.status === "open").reduce((s, i) => s + Math.max(0, arGetInvBalance(i, arPayments, creditMemos)), 0)))))), acctTab === "orders" && /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
+    }, fmt(displayInvoices.filter(i => i.status === "open").reduce((s, i) => s + i.total, 0)))))), acctTab === "orders" && /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
       style: {
         maxHeight: 400,
         overflowY: "auto"
@@ -23522,7 +23514,7 @@ function Customers({
       ...f,
       terms: e.target.value
     }))
-  }, TERMS_OPTIONS.map(t => /*#__PURE__*/React.createElement("option", {
+  }, ["Net 15", "Net 30", "Net 45", "Net 60", "Net 90", "Due on Receipt", "COD", "Prepaid"].map(t => /*#__PURE__*/React.createElement("option", {
     key: t,
     value: t
   }, t))), /*#__PURE__*/React.createElement(Input, {
@@ -23537,31 +23529,7 @@ function Customers({
     style: {
       marginTop: 8
     }
-  }), /*#__PURE__*/React.createElement(Select, {
-    label: "Collection Day",
-    value: form.collectionDay,
-    onChange: e => setForm(f => ({
-      ...f,
-      collectionDay: e.target.value
-    })),
-    style: {
-      marginTop: 8
-    }
-  }, /*#__PURE__*/React.createElement("option", {
-    value: ""
-  }, "No set day"), /*#__PURE__*/React.createElement("option", {
-    value: "Monday"
-  }, "Monday"), /*#__PURE__*/React.createElement("option", {
-    value: "Tuesday"
-  }, "Tuesday"), /*#__PURE__*/React.createElement("option", {
-    value: "Wednesday"
-  }, "Wednesday"), /*#__PURE__*/React.createElement("option", {
-    value: "Thursday"
-  }, "Thursday"), /*#__PURE__*/React.createElement("option", {
-    value: "Friday"
-  }, "Friday"), /*#__PURE__*/React.createElement("option", {
-    value: "Saturday"
-  }, "Saturday"))), /*#__PURE__*/React.createElement(Select, {
+  })), /*#__PURE__*/React.createElement(Select, {
     label: "Assign Route",
     value: form.route,
     onChange: e => setForm(f => ({
@@ -23660,11 +23628,9 @@ function Routes({
   products,
   showToast,
   priceLevels,
-  settings,
-  arPayments,
-  creditMemos
+  settings
 }) {
-  var _customers$find8, _routes$find3;
+  var _customers$find6, _routes$find3;
   const [tab, setTab] = useState("command"); // command | setup
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({
@@ -23899,7 +23865,7 @@ function Routes({
     return {
       customer: cust,
       openInvoices: openInvList,
-      totalDue: openInvList.reduce((s, inv) => s + Math.max(0, arGetInvBalance(inv, arPayments, creditMemos)), 0)
+      totalDue: openInvList.reduce((s, inv) => s + inv.total, 0)
     };
   };
 
@@ -25161,7 +25127,7 @@ function Routes({
     style: {
       color: "#f1f5f9"
     }
-  }, (_customers$find8 = customers.find(c => c.id === moveStop.customerId)) === null || _customers$find8 === void 0 ? void 0 : _customers$find8.name), " from ", /*#__PURE__*/React.createElement("b", null, (_routes$find3 = routes.find(r => r.id === moveStop.fromRouteId)) === null || _routes$find3 === void 0 ? void 0 : _routes$find3.name)) : /*#__PURE__*/React.createElement(React.Fragment, null, "Moving ", /*#__PURE__*/React.createElement("b", {
+  }, (_customers$find6 = customers.find(c => c.id === moveStop.customerId)) === null || _customers$find6 === void 0 ? void 0 : _customers$find6.name), " from ", /*#__PURE__*/React.createElement("b", null, (_routes$find3 = routes.find(r => r.id === moveStop.fromRouteId)) === null || _routes$find3 === void 0 ? void 0 : _routes$find3.name)) : /*#__PURE__*/React.createElement(React.Fragment, null, "Moving ", /*#__PURE__*/React.createElement("b", {
     style: {
       color: "#f1f5f9"
     }
@@ -25809,7 +25775,7 @@ function Routes({
       if (printMode === "collection") {
         const custSet = new Set(orders.all.map(o => o.customerId));
         const routeCustomers = [...custSet].map(cid => customers.find(c => c.id === cid)).filter(Boolean);
-        const grandTotal = routeCustomers.reduce((s, c) => s + arGetCustBalance(c.id, invoices, arPayments, creditMemos) + getStopStatus(c.id).invoiceTotal, 0);
+        const grandTotal = routeCustomers.reduce((s, c) => s + (c.balance || 0) + getStopStatus(c.id).invoiceTotal, 0);
         return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
           style: {
             textAlign: "center",
@@ -25902,7 +25868,7 @@ function Routes({
           }
         }, "CHECK #"))), /*#__PURE__*/React.createElement("tbody", null, routeCustomers.map((c, i) => {
           const ss = getStopStatus(c.id);
-          const totalDue = arGetCustBalance(c.id, invoices, arPayments, creditMemos) + ss.invoiceTotal;
+          const totalDue = (c.balance || 0) + ss.invoiceTotal;
           return /*#__PURE__*/React.createElement("tr", {
             key: c.id,
             style: {
@@ -25930,12 +25896,9 @@ function Routes({
               padding: 8,
               textAlign: "right",
               fontFamily: "'DM Mono',monospace",
-              color: arGetCustBalance(c.id, invoices, arPayments, creditMemos) > 0 ? "#f59e0b" : "#475569"
+              color: c.balance > 0 ? "#f59e0b" : "#475569"
             }
-          }, (() => {
-            const _b = arGetCustBalance(c.id, invoices, arPayments, creditMemos);
-            return _b > 0 ? fmt(_b) : "—";
-          })()), /*#__PURE__*/React.createElement("td", {
+          }, c.balance > 0 ? fmt(c.balance) : "—"), /*#__PURE__*/React.createElement("td", {
             style: {
               padding: 8,
               textAlign: "right",
@@ -27536,16 +27499,14 @@ function CustomerPortal({
     const now = new Date();
     const buckets = {
       current: 0,
-      w1: 0,
-      w2: 0,
-      w3: 0,
-      w4: 0,
-      over4: 0
+      over30: 0,
+      over60: 0,
+      over90: 0
     };
     openInvs.forEach(inv => {
       const due = new Date(inv.dueDate || inv.date);
       const days = Math.floor((now - due) / 86400000);
-      if (days <= 0) buckets.current += inv.total || 0;else if (days <= 7) buckets.w1 += inv.total || 0;else if (days <= 14) buckets.w2 += inv.total || 0;else if (days <= 21) buckets.w3 += inv.total || 0;else if (days <= 28) buckets.w4 += inv.total || 0;else buckets.over4 += inv.total || 0;
+      if (days <= 0) buckets.current += inv.total || 0;else if (days <= 30) buckets.current += inv.total || 0;else if (days <= 60) buckets.over30 += inv.total || 0;else if (days <= 90) buckets.over60 += inv.total || 0;else buckets.over90 += inv.total || 0;
     });
     return buckets;
   })();
@@ -27560,7 +27521,7 @@ function CustomerPortal({
       <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:14px;margin-bottom:16px;"><div style="font-size:15px;font-weight:700;color:#111;">${customer.name}</div><div style="font-size:11px;color:#6b7280;">${customer.address || ""}</div><div style="font-size:11px;color:#6b7280;">Statement Date: ${new Date().toLocaleDateString()}</div></div>
       <table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="background:#059669;color:#fff;"><th style="padding:8px 10px;text-align:left;">Invoice</th><th style="padding:8px 10px;text-align:left;">Date</th><th style="padding:8px 10px;text-align:left;">Due</th><th style="padding:8px 10px;text-align:center;">Age</th><th style="padding:8px 10px;text-align:right;">Amount</th></tr></thead><tbody>${rows}</tbody></table>
       <div style="margin-top:16px;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
-        <div style="display:flex;text-align:center;font-size:11px;"><div style="flex:1;padding:10px;background:#f0fdf4;"><div style="font-weight:700;color:#059669;">Current</div><div style="font-size:14px;font-weight:700;">${fmtP(agingBuckets.current)}</div></div><div style="flex:1;padding:10px;background:#fefce8;"><div style="font-weight:700;color:#ca8a04;">1st Wk</div><div style="font-size:14px;font-weight:700;">${fmtP(agingBuckets.w1)}</div></div><div style="flex:1;padding:10px;background:#fff7ed;"><div style="font-weight:700;color:#ea580c;">2nd Wk</div><div style="font-size:14px;font-weight:700;">${fmtP(agingBuckets.w2)}</div></div><div style="flex:1;padding:10px;background:#fecaca;"><div style="font-weight:700;color:#dc2626;">3rd Wk</div><div style="font-size:14px;font-weight:700;">${fmtP(agingBuckets.w3)}</div></div><div style="flex:1;padding:10px;background:#fef2f2;"><div style="font-weight:700;color:#991b1b;">4th Wk</div><div style="font-size:14px;font-weight:700;">${fmtP(agingBuckets.w4)}</div></div><div style="flex:1;padding:10px;background:#ef4444;"><div style="font-weight:700;color:#fff;">Over 4</div><div style="font-size:14px;font-weight:700;color:#fff;">${fmtP(agingBuckets.over4)}</div></div></div>
+        <div style="display:flex;text-align:center;font-size:11px;"><div style="flex:1;padding:10px;background:#f0fdf4;"><div style="font-weight:700;color:#059669;">Current</div><div style="font-size:14px;font-weight:700;">${fmtP(agingBuckets.current)}</div></div><div style="flex:1;padding:10px;background:#fefce8;"><div style="font-weight:700;color:#ca8a04;">30+ Days</div><div style="font-size:14px;font-weight:700;">${fmtP(agingBuckets.over30)}</div></div><div style="flex:1;padding:10px;background:#fff7ed;"><div style="font-weight:700;color:#ea580c;">60+ Days</div><div style="font-size:14px;font-weight:700;">${fmtP(agingBuckets.over60)}</div></div><div style="flex:1;padding:10px;background:#fef2f2;"><div style="font-weight:700;color:#dc2626;">90+ Days</div><div style="font-size:14px;font-weight:700;">${fmtP(agingBuckets.over90)}</div></div></div>
       </div>
       <div style="margin-top:14px;text-align:right;font-size:18px;font-weight:800;color:#111;">Total Due: ${fmtP(totalOwed)}</div>
       <div style="margin-top:20px;text-align:center;font-size:10px;color:#9ca3af;">FreshTrade Distribution · 1200 Port Blvd, Miami FL 33132 · (305) 555-0100</div>
@@ -27730,30 +27691,20 @@ function CustomerPortal({
     bg: "#f0fdf4",
     color: "#059669"
   }, {
-    label: "1st Week",
-    val: agingBuckets.w1,
+    label: "31-60 Days",
+    val: agingBuckets.over30,
     bg: "#fefce8",
     color: "#ca8a04"
   }, {
-    label: "2nd Week",
-    val: agingBuckets.w2,
+    label: "61-90 Days",
+    val: agingBuckets.over60,
     bg: "#fff7ed",
     color: "#ea580c"
   }, {
-    label: "3rd Week",
-    val: agingBuckets.w3,
-    bg: "#fecaca",
-    color: "#dc2626"
-  }, {
-    label: "4th Week",
-    val: agingBuckets.w4,
+    label: "90+ Days",
+    val: agingBuckets.over90,
     bg: "#fef2f2",
-    color: "#991b1b"
-  }, {
-    label: "Over 4 Wks",
-    val: agingBuckets.over4,
-    bg: "#450a0a",
-    color: "#fca5a5"
+    color: "#dc2626"
   }].map((b, i) => /*#__PURE__*/React.createElement("div", {
     key: i,
     style: {
@@ -28490,7 +28441,7 @@ function PortalManager({
     }
   }, "ACTIONS"))), /*#__PURE__*/React.createElement("tbody", null, filtered.map((cust, ri) => {
     const custInvs = invoices.filter(inv => inv.customerId === cust.id && inv.status !== "draft");
-    const openBal = custInvs.filter(inv => inv.status === "open").reduce((s, inv) => s + (inv.total || 0), 0) /* portal: shows invoice totals */;
+    const openBal = custInvs.filter(inv => inv.status === "open").reduce((s, inv) => s + (inv.total || 0), 0);
     const hasPortal = cust.portalEnabled && cust.portalToken;
     return /*#__PURE__*/React.createElement("tr", {
       key: cust.id,
@@ -28820,9 +28771,7 @@ function OrderGuide({
   showToast,
   priceLevels,
   pendingCustomer,
-  setPendingCustomer,
-  arPayments,
-  creditMemos
+  setPendingCustomer
 }) {
   var _priceLevels$find9, _priceLevels$find0;
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -28899,8 +28848,7 @@ function OrderGuide({
       showToast(`⚠️ ${cust.name} is on CREDIT HOLD — order saved as Draft`, "error");
       status = "draft";
     }
-    const custArBal = arGetCustBalance(cust.id, invoices, arPayments, creditMemos);
-    const balanceAfter = custArBal + linesWithQty.reduce((s, l) => {
+    const balanceAfter = cust.balance + linesWithQty.reduce((s, l) => {
       const total = l.product.catchWeight ? (l.estWeight || 0) * l.qty * l.price : l.qty * l.price;
       return s + total;
     }, 0);
@@ -29019,10 +28967,10 @@ function OrderGuide({
       }
     }, ((_c$standardOrder = c.standardOrder) === null || _c$standardOrder === void 0 ? void 0 : _c$standardOrder.length) || 0, " standard items \xB7 Balance: ", /*#__PURE__*/React.createElement("span", {
       style: {
-        color: arGetCustBalance(c.id, invoices, arPayments, creditMemos) > c.creditLimit * 0.8 ? "#f59e0b" : "#22c55e",
+        color: c.balance > c.creditLimit * 0.8 ? "#f59e0b" : "#22c55e",
         fontWeight: 600
       }
-    }, fmt(arGetCustBalance(c.id, invoices, arPayments, creditMemos)))), /*#__PURE__*/React.createElement("div", {
+    }, fmt(c.balance))), /*#__PURE__*/React.createElement("div", {
       style: {
         fontSize: 11,
         color: "#475569"
@@ -29063,7 +29011,7 @@ function OrderGuide({
       fontSize: 12,
       color: "#64748b"
     }
-  }, cust.contact, " \xB7 ", cust.route, " \xB7 ", cust.terms, " \xB7 Balance: ", fmt(arGetCustBalance(cust.id, invoices, arPayments, creditMemos)), " / ", fmt(cust.creditLimit), " limit")), /*#__PURE__*/React.createElement("div", {
+  }, cust.contact, " \xB7 ", cust.route, " \xB7 ", cust.terms, " \xB7 Balance: ", fmt(cust.balance), " / ", fmt(cust.creditLimit), " limit")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 8
@@ -29392,7 +29340,7 @@ function OrderGuide({
       fontSize: 18,
       fontFamily: "'DM Mono',monospace"
     }
-  }, fmt(totalEst)))), arGetCustBalance(cust === null || cust === void 0 ? void 0 : cust.id, invoices, arPayments, creditMemos) + totalEst > ((cust === null || cust === void 0 ? void 0 : cust.creditLimit) || 99999) && /*#__PURE__*/React.createElement("div", {
+  }, fmt(totalEst)))), (cust === null || cust === void 0 ? void 0 : cust.balance) + totalEst > ((cust === null || cust === void 0 ? void 0 : cust.creditLimit) || 99999) && /*#__PURE__*/React.createElement("div", {
     style: {
       background: "#ef444422",
       border: "1px solid #ef4444",
@@ -29402,7 +29350,7 @@ function OrderGuide({
       fontSize: 11,
       color: "#ef4444"
     }
-  }, "\u26A0\uFE0F This order will exceed credit limit (", fmt(cust.creditLimit), "). Current balance: ", fmt(arGetCustBalance(cust.id, invoices, arPayments, creditMemos))), /*#__PURE__*/React.createElement("div", {
+  }, "\u26A0\uFE0F This order will exceed credit limit (", fmt(cust.creditLimit), "). Current balance: ", fmt(cust.balance)), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       flexDirection: "column",
@@ -29439,9 +29387,7 @@ function CallList({
   showToast,
   setActiveModule,
   priceLevels,
-  setPendingCustomer,
-  arPayments,
-  creditMemos
+  setPendingCustomer
 }) {
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const todayDay = dayNames[new Date().getDay()];
@@ -29558,9 +29504,9 @@ function CallList({
       }, "No recent"), /*#__PURE__*/React.createElement("span", {
         style: {
           fontFamily: "'DM Mono',monospace",
-          color: arGetCustBalance(c.id, invoices, arPayments, creditMemos) > c.creditLimit * 0.8 ? "#f59e0b" : "#22c55e"
+          color: c.balance > c.creditLimit * 0.8 ? "#f59e0b" : "#22c55e"
         }
-      }, fmt(arGetCustBalance(c.id, invoices, arPayments, creditMemos))), log ? /*#__PURE__*/React.createElement(Badge, {
+      }, fmt(c.balance)), log ? /*#__PURE__*/React.createElement(Badge, {
         text: log.status === "ordered" ? "✓ Ordered" : log.status === "no-answer" ? "No Answer" : log.status === "callback" ? "Callback" : "Called",
         color: log.status === "ordered" ? "#22c55e" : log.status === "no-answer" ? "#f59e0b" : "#3b82f6"
       }) : /*#__PURE__*/React.createElement(Badge, {
@@ -33551,7 +33497,7 @@ function DriverPortal({
 
   // Complete delivery
   const completeDelivery = () => {
-    var _photoCapture$photos2, _photoCapture$photos3, _customers$find9;
+    var _photoCapture$photos2, _photoCapture$photos3, _customers$find7;
     if (!activeStop) return;
     const inv = invoices.find(i => i.id === activeStop.id) || activeStop;
     const routeId = (() => {
@@ -33599,7 +33545,8 @@ function DriverPortal({
       ...updates
     } : x));
     setCompletedStops(prev => new Set([...prev, inv.id]));
-    showToast(`✅ ${inv.id} delivered — ${(_customers$find9 = customers.find(c => c.id === inv.customerId)) === null || _customers$find9 === void 0 ? void 0 : _customers$find9.name}`);
+    showToast(`✅ ${inv.id} delivered — ${(_customers$find7 = customers.find(c => c.id === inv.customerId)) === null || _customers$find7 === void 0 ? void 0 : _customers$find7.name}`);
+
     setActiveStop(null);
     setPhotoCapture(null);
     setDeliveryForm({
@@ -34483,1792 +34430,161 @@ function DriverPortal({
 }
 
 // ============================================================
-// ACCOUNTS RECEIVABLE MODULE
-// ============================================================
-function AccountsReceivable({
-  arPayments,
-  setArPayments,
-  arDeposits,
-  setArDeposits,
-  invoices,
-  setInvoices,
-  customers,
-  setCustomers,
-  creditMemos,
-  routes,
-  showToast,
-  settings
-}) {
-  var _customers$find1, _customers$find10;
-  const [tab, setTab] = useState("receive");
-  const [payForm, setPayForm] = useState({
-    customerId: "",
-    method: "check",
-    amount: "",
-    checkNumber: "",
-    checkDate: "",
-    reference: "",
-    notes: "",
-    postDated: false,
-    applyTo: []
-  });
-  const [showPayForm, setShowPayForm] = useState(false);
-  const [payFilter, setPayFilter] = useState({
-    status: "all",
-    method: "all",
-    customer: "all",
-    dateFrom: "",
-    dateTo: ""
-  });
-  const [depForm, setDepForm] = useState({
-    date: today(),
-    bankAccount: "Operating",
-    reference: "",
-    notes: "",
-    paymentIds: []
-  });
-  const [showDepForm, setShowDepForm] = useState(false);
-  const [returnForm, setReturnForm] = useState(null); // payment being returned
-  const [returnFee, setReturnFee] = useState("35.00");
-  const [returnNotes, setReturnNotes] = useState("");
-  const [stmtCustomer, setStmtCustomer] = useState("");
-  const [stmtDate, setStmtDate] = useState(today());
-  const [agingDate, setAgingDate] = useState(today());
-  const [collectionDay, setCollectionDay] = useState(new Date().toLocaleDateString("en-US", {
-    weekday: "long"
-  }));
-  const [selectedPmt, setSelectedPmt] = useState(null);
-  const METHODS = [{
-    id: "cash",
-    label: "💵 Cash",
-    color: "#22c55e"
-  }, {
-    id: "check",
-    label: "📝 Check",
-    color: "#3b82f6"
-  }, {
-    id: "credit_card",
-    label: "💳 Credit Card",
-    color: "#a855f7"
-  }, {
-    id: "ach",
-    label: "🏦 ACH",
-    color: "#0ea5e9"
-  }];
-  const methodLabel = m => {
-    var _METHODS$find;
-    return ((_METHODS$find = METHODS.find(x => x.id === m)) === null || _METHODS$find === void 0 ? void 0 : _METHODS$find.label) || m;
-  };
-  const methodColor = m => {
-    var _METHODS$find2;
-    return ((_METHODS$find2 = METHODS.find(x => x.id === m)) === null || _METHODS$find2 === void 0 ? void 0 : _METHODS$find2.color) || "#64748b";
-  };
-
-  // ── Computed: invoice balances from payments ──
-  const getInvPaid = invId => arPayments.filter(p => p.status !== "void" && p.status !== "returned").reduce((s, p) => s + (p.appliedTo || []).filter(a => a.invoiceId === invId).reduce((ss, a) => ss + a.amount, 0), 0);
-  const getInvCredits = invId => (creditMemos || []).filter(cm => cm.invoiceId === invId && cm.status !== "void").reduce((s, cm) => s + (cm.total || 0), 0);
-  const getInvBalance = inv => Math.round(((inv.total || 0) - getInvPaid(inv.id) - getInvCredits(inv.id)) * 100) / 100;
-  const openInvoices = invoices.filter(i => i.status === "open" && getInvBalance(i) > 0.005);
-  const getCustBalance = custId => invoices.filter(i => i.customerId === custId && i.status === "open").reduce((s, i) => s + Math.max(0, getInvBalance(i)), 0);
-
-  // ── Receive Payment ──
-  const openReceivePayment = custId => {
-    const custInvs = openInvoices.filter(i => i.customerId === (custId || "")).sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""));
-    setPayForm({
-      customerId: custId || "",
-      method: "check",
-      amount: "",
-      checkNumber: "",
-      checkDate: "",
-      reference: "",
-      notes: "",
-      postDated: false,
-      applyTo: custInvs.map(i => ({
-        invoiceId: i.id,
-        amount: 0,
-        balance: getInvBalance(i),
-        total: i.total,
-        dueDate: i.dueDate
-      }))
-    });
-    setShowPayForm(true);
-  };
-  const autoApplyPayment = () => {
-    let remaining = Number(payForm.amount) || 0;
-    setPayForm(f => ({
-      ...f,
-      applyTo: f.applyTo.map(a => {
-        if (remaining <= 0) return {
-          ...a,
-          amount: 0
-        };
-        const apply = Math.min(remaining, a.balance);
-        remaining -= apply;
-        return {
-          ...a,
-          amount: Math.round(apply * 100) / 100
-        };
-      })
-    }));
-  };
-  const savePayment = () => {
-    var _customers$find0;
-    const totalAmt = Number(payForm.amount);
-    if (!payForm.customerId || totalAmt <= 0) {
-      showToast("Select customer and enter amount");
-      return;
-    }
-    const totalApplied = payForm.applyTo.reduce((s, a) => s + Number(a.amount || 0), 0);
-    if (totalApplied > totalAmt + 0.01) {
-      showToast("Applied amount exceeds payment");
-      return;
-    }
-    const status = payForm.postDated ? "postdated" : payForm.method === "check" ? "pending" : "cleared";
-    const pmt = {
-      id: genId("PMT"),
-      customerId: payForm.customerId,
-      date: today(),
-      amount: totalAmt,
-      method: payForm.method,
-      checkNumber: payForm.checkNumber || "",
-      checkDate: payForm.postDated ? payForm.checkDate : "",
-      reference: payForm.reference || "",
-      postDated: payForm.postDated,
-      status,
-      depositId: null,
-      appliedTo: payForm.applyTo.filter(a => Number(a.amount) > 0).map(a => ({
-        invoiceId: a.invoiceId,
-        amount: Number(a.amount)
-      })),
-      returnedDate: null,
-      returnFee: 0,
-      returnNotes: "",
-      notes: payForm.notes || ""
-    };
-    setArPayments(prev => [pmt, ...prev]);
-    // Mark invoices as paid if fully paid
-    const paidInvIds = pmt.appliedTo.map(a => a.invoiceId).filter(invId => {
-      var _pmt$appliedTo$find;
-      const inv = invoices.find(i => i.id === invId);
-      if (!inv) return false;
-      const newBal = getInvBalance(inv) - (((_pmt$appliedTo$find = pmt.appliedTo.find(x => x.invoiceId === invId)) === null || _pmt$appliedTo$find === void 0 ? void 0 : _pmt$appliedTo$find.amount) || 0);
-      return newBal < 0.01;
-    });
-    if (paidInvIds.length > 0) {
-      setInvoices(prev => prev.map(i => paidInvIds.includes(i.id) ? {
-        ...i,
-        status: "paid",
-        paidDate: today()
-      } : i));
-    }
-    setShowPayForm(false);
-    showToast(`Payment ${pmt.id} recorded — ${fmt(totalAmt)} from ${(_customers$find0 = customers.find(c => c.id === payForm.customerId)) === null || _customers$find0 === void 0 ? void 0 : _customers$find0.name}`);
-  };
-
-  // ── Deposits ──
-  const undepositedPayments = arPayments.filter(p => !p.depositId && p.status === "cleared" && p.status !== "void" && p.status !== "returned");
-  const pendingChecks = arPayments.filter(p => p.status === "pending" && p.status !== "void");
-  const clearCheck = pmtId => {
-    setArPayments(prev => prev.map(p => p.id === pmtId ? {
-      ...p,
-      status: "cleared"
-    } : p));
-    showToast("Check marked as cleared");
-  };
-  const clearPostDated = pmtId => {
-    setArPayments(prev => prev.map(p => p.id === pmtId ? {
-      ...p,
-      status: "cleared",
-      postDated: false
-    } : p));
-    showToast("Post-dated check released and cleared");
-  };
-  const saveDeposit = () => {
-    if (depForm.paymentIds.length === 0) {
-      showToast("Select payments to deposit");
-      return;
-    }
-    const total = depForm.paymentIds.reduce((s, id) => {
-      var _arPayments$find;
-      return s + (((_arPayments$find = arPayments.find(p => p.id === id)) === null || _arPayments$find === void 0 ? void 0 : _arPayments$find.amount) || 0);
-    }, 0);
-    const dep = {
-      id: genId("DEP"),
-      date: depForm.date,
-      bankAccount: depForm.bankAccount,
-      reference: depForm.reference,
-      notes: depForm.notes,
-      paymentIds: depForm.paymentIds,
-      total: Math.round(total * 100) / 100,
-      status: "deposited"
-    };
-    setArDeposits(prev => [dep, ...prev]);
-    setArPayments(prev => prev.map(p => depForm.paymentIds.includes(p.id) ? {
-      ...p,
-      status: "deposited",
-      depositId: dep.id
-    } : p));
-    setShowDepForm(false);
-    showToast(`Deposit ${dep.id} created — ${fmt(total)} (${depForm.paymentIds.length} payments)`);
-  };
-
-  // ── Returned Check ──
-  const processReturn = () => {
-    if (!returnForm) return;
-    const pmt = returnForm;
-    const fee = Number(returnFee) || 0;
-    // Reverse the payment
-    setArPayments(prev => prev.map(p => p.id === pmt.id ? {
-      ...p,
-      status: "returned",
-      returnedDate: today(),
-      returnFee: fee,
-      returnNotes: returnNotes
-    } : p));
-    // Re-open invoices that were paid by this payment
-    const invIds = (pmt.appliedTo || []).map(a => a.invoiceId);
-    setInvoices(prev => prev.map(i => invIds.includes(i.id) ? {
-      ...i,
-      status: "open",
-      paidDate: null
-    } : i));
-    // Create a debit for the fee on the customer (add fee to an existing open invoice or handle separately)
-    if (fee > 0) {
-      const feeInv = {
-        id: genId("INV"),
-        customerId: pmt.customerId,
-        date: today(),
-        dueDate: today(),
-        status: "open",
-        lines: [{
-          productId: "__RETURNED_CHECK_FEE",
-          qty: 1,
-          priceEach: fee,
-          total: fee,
-          customName: "Returned Check Fee — Chk#" + (pmt.checkNumber || pmt.id),
-          description: `NSF fee for returned check ${pmt.checkNumber || pmt.id}`
-        }],
-        subtotal: fee,
-        tax: 0,
-        total: fee,
-        notes: `Returned check fee — Payment ${pmt.id}`,
-        isReturnedCheckFee: true
-      };
-      setInvoices(prev => [feeInv, ...prev]);
-    }
-    setReturnForm(null);
-    const cust = customers.find(c => c.id === pmt.customerId);
-    showToast(`Check ${pmt.checkNumber || pmt.id} returned${fee > 0 ? ` — $${fee} fee invoiced to ${cust === null || cust === void 0 ? void 0 : cust.name}` : ""}`);
-  };
-
-  // ── Void Payment ──
-  const voidPayment = pmtId => {
-    const pmt = arPayments.find(p => p.id === pmtId);
-    if (!pmt) return;
-    setArPayments(prev => prev.map(p => p.id === pmtId ? {
-      ...p,
-      status: "void"
-    } : p));
-    const invIds = (pmt.appliedTo || []).map(a => a.invoiceId);
-    setInvoices(prev => prev.map(i => invIds.includes(i.id) && i.status === "paid" ? {
-      ...i,
-      status: "open",
-      paidDate: null
-    } : i));
-    showToast(`Payment ${pmtId} voided — invoices re-opened`);
-  };
-
-  // ── Aging Report (weekly buckets) ──
-  const getAgingBuckets = asOf => {
-    const d = new Date(asOf || today());
-    const byCustomer = {};
-    invoices.filter(i => i.status === "open").forEach(inv => {
-      const bal = getInvBalance(inv);
-      if (bal < 0.01) return;
-      const due = new Date(inv.dueDate || inv.date);
-      const days = Math.floor((d - due) / 86400000);
-      const bucket = days <= 0 ? "current" : days <= 7 ? "w1" : days <= 14 ? "w2" : days <= 21 ? "w3" : days <= 28 ? "w4" : "over4";
-      if (!byCustomer[inv.customerId]) byCustomer[inv.customerId] = {
-        current: 0,
-        w1: 0,
-        w2: 0,
-        w3: 0,
-        w4: 0,
-        over4: 0,
-        total: 0,
-        invoices: []
-      };
-      byCustomer[inv.customerId][bucket] += bal;
-      byCustomer[inv.customerId].total += bal;
-      byCustomer[inv.customerId].invoices.push({
-        ...inv,
-        balance: bal,
-        daysPast: Math.max(0, days),
-        bucket
-      });
-    });
-    return byCustomer;
-  };
-
-  // ── Statement Print ──
-  const printStatement = (custId, asOfDate) => {
-    var _settings$company, _settings$company2, _settings$company3;
-    const cust = customers.find(c => c.id === custId);
-    if (!cust) return;
-    const custInvs = invoices.filter(i => i.customerId === custId && (i.status === "open" || i.status === "paid")).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
-    const custPmts = arPayments.filter(p => p.customerId === custId && p.status !== "void").sort((a, b) => (a.date || "").localeCompare(b.date || ""));
-    const openBal = invoices.filter(i => i.customerId === custId && i.status === "open").reduce((s, i) => s + Math.max(0, getInvBalance(i)), 0);
-    const aging = getAgingBuckets(asOfDate)[custId] || {
-      current: 0,
-      w1: 0,
-      w2: 0,
-      w3: 0,
-      w4: 0,
-      over4: 0
-    };
-    const companyName = (settings === null || settings === void 0 || (_settings$company = settings.company) === null || _settings$company === void 0 ? void 0 : _settings$company.name) || "FreshTrade Distribution";
-    const companyAddr = (settings === null || settings === void 0 || (_settings$company2 = settings.company) === null || _settings$company2 === void 0 ? void 0 : _settings$company2.address) || "";
-    const companyPhone = (settings === null || settings === void 0 || (_settings$company3 = settings.company) === null || _settings$company3 === void 0 ? void 0 : _settings$company3.phone) || "";
-    let html = `<html><head><title>Statement — ${cust.name}</title><style>*{margin:0;padding:0;box-sizing:border-box;font-family:'DM Sans',Arial,sans-serif;}body{background:#fff;padding:40px;}table{width:100%;border-collapse:collapse;font-size:12px;}th{background:#1e3a5f;color:#fff;padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;}td{padding:7px 10px;border-bottom:1px solid #e5e7eb;}.r{text-align:right;font-family:monospace;}.aging{display:flex;gap:0;margin-top:20px;}.aging div{flex:1;text-align:center;padding:12px;border:1px solid #e5e7eb;}.aging div b{display:block;font-size:18px;margin-top:4px;}@media print{body{padding:20px;}}</style></head><body>`;
-    html += `<div style="display:flex;justify-content:space-between;margin-bottom:30px;"><div><div style="font-size:20px;font-weight:800;color:#1e3a5f;">${companyName}</div><div style="font-size:11px;color:#6b7280;margin-top:4px;">${companyAddr}</div><div style="font-size:11px;color:#6b7280;">${companyPhone}</div></div><div style="text-align:right;"><div style="font-size:24px;font-weight:800;color:#1e3a5f;">STATEMENT</div><div style="font-size:12px;color:#6b7280;">As of ${asOfDate}</div></div></div>`;
-    html += `<div style="background:#f3f4f6;padding:16px;border-radius:8px;margin-bottom:24px;"><div style="font-weight:700;font-size:14px;">${cust.name}</div><div style="font-size:12px;color:#6b7280;margin-top:4px;">${cust.address || ""}</div><div style="font-size:12px;color:#6b7280;">${cust.phone || ""} ${cust.email ? " · " + cust.email : ""}</div><div style="font-size:12px;margin-top:6px;">Terms: <b>${cust.terms || "1 Week"}</b></div></div>`;
-    html += `<table><thead><tr><th>Date</th><th>Type</th><th>Ref #</th><th>Description</th><th class="r">Charges</th><th class="r">Payments</th><th class="r">Balance</th></tr></thead><tbody>`;
-    // Combine invoices + payments chronologically
-    const entries = [];
-    custInvs.filter(i => i.status === "open").forEach(i => {
-      var _i$lines;
-      return entries.push({
-        date: i.date,
-        type: "Invoice",
-        ref: i.id,
-        desc: ((_i$lines = i.lines) === null || _i$lines === void 0 ? void 0 : _i$lines.length) + " items",
-        charge: i.total,
-        payment: 0,
-        invId: i.id
-      });
-    });
-    custPmts.forEach(p => entries.push({
-      date: p.date,
-      type: p.status === "returned" ? "RETURNED" : methodLabel(p.method).replace(/[^\w\s]/g, ""),
-      ref: p.checkNumber || p.reference || p.id,
-      desc: p.notes || "Payment received",
-      charge: p.status === "returned" ? p.returnFee : 0,
-      payment: p.status === "returned" ? 0 : p.amount
-    }));
-    entries.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
-    let runBal = 0;
-    entries.forEach(e => {
-      runBal += (e.charge || 0) - (e.payment || 0);
-      html += `<tr><td>${e.date}</td><td>${e.type}</td><td>${e.ref}</td><td>${e.desc}</td><td class="r">${e.charge ? '$' + e.charge.toFixed(2) : ''}</td><td class="r">${e.payment ? '$' + e.payment.toFixed(2) : ''}</td><td class="r"><b>$${runBal.toFixed(2)}</b></td></tr>`;
-    });
-    html += `</tbody></table>`;
-    html += `<div class="aging"><div style="background:#dcfce7;"><div style="font-size:11px;color:#166534;">Current</div><b style="color:#166534;">$${aging.current.toFixed(2)}</b></div><div style="background:#fef9c3;"><div style="font-size:11px;color:#854d0e;">1st Week</div><b style="color:#854d0e;">$${aging.w1.toFixed(2)}</b></div><div style="background:#fed7aa;"><div style="font-size:11px;color:#9a3412;">2nd Week</div><b style="color:#9a3412;">$${aging.w2.toFixed(2)}</b></div><div style="background:#fecaca;"><div style="font-size:11px;color:#991b1b;">3rd Week</div><b style="color:#991b1b;">$${aging.w3.toFixed(2)}</b></div><div style="background:#fecaca;"><div style="font-size:11px;color:#991b1b;">4th Week</div><b style="color:#991b1b;">$${aging.w4.toFixed(2)}</b></div><div style="background:#ef4444;color:#fff;"><div style="font-size:11px;">Over 4 Wks</div><b>$${aging.over4.toFixed(2)}</b></div></div>`;
-    html += `<div style="margin-top:24px;text-align:right;font-size:18px;font-weight:800;color:#1e3a5f;">Balance Due: $${openBal.toFixed(2)}</div>`;
-    html += `<div style="margin-top:20px;font-size:10px;color:#9ca3af;text-align:center;">Please remit payment within terms. Late payments subject to finance charges.</div>`;
-    html += `</body></html>`;
-    const w = window.open("", "_blank", "width=900,height=700");
-    w.document.write(html);
-    w.document.close();
-    setTimeout(() => w.print(), 400);
-  };
-
-  // ── Post-dated check list ──
-  const postDatedChecks = arPayments.filter(p => p.postDated && p.status === "postdated");
-  const returnedChecks = arPayments.filter(p => p.status === "returned");
-
-  // ── Collections ──
-  const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  const collectionCustomers = customers.filter(c => c.collectionDay === collectionDay && getCustBalance(c.id) > 0.01);
-
-  // ── Filtered payments list ──
-  const filteredPayments = arPayments.filter(p => {
-    if (payFilter.status !== "all" && p.status !== payFilter.status) return false;
-    if (payFilter.method !== "all" && p.method !== payFilter.method) return false;
-    if (payFilter.customer !== "all" && p.customerId !== payFilter.customer) return false;
-    if (payFilter.dateFrom && p.date < payFilter.dateFrom) return false;
-    if (payFilter.dateTo && p.date > payFilter.dateTo) return false;
-    return true;
-  });
-  const TABS = [{
-    id: "receive",
-    label: "💰 Receive",
-    count: openInvoices.length
-  }, {
-    id: "payments",
-    label: "📋 Payments",
-    count: arPayments.filter(p => p.status !== "void").length
-  }, {
-    id: "deposits",
-    label: "🏦 Deposits"
-  }, {
-    id: "postdated",
-    label: "📅 Post-Dated",
-    count: postDatedChecks.length
-  }, {
-    id: "returned",
-    label: "⚠️ Returned",
-    count: returnedChecks.length
-  }, {
-    id: "aging",
-    label: "📊 Aging"
-  }, {
-    id: "statements",
-    label: "📄 Statements"
-  }, {
-    id: "collections",
-    label: "🔔 Collections",
-    count: collectionCustomers.length
-  }];
-  return /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: 28
-    }
-  }, /*#__PURE__*/React.createElement(PageHeader, {
-    title: "Accounts Receivable",
-    subtitle: `${openInvoices.length} open invoices · ${fmt(openInvoices.reduce((s, i) => s + getInvBalance(i), 0))} outstanding`
-  }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 4,
-      marginBottom: 20,
-      flexWrap: "wrap",
-      background: "#1a2030",
-      borderRadius: 10,
-      padding: 4
-    }
-  }, TABS.map(t => /*#__PURE__*/React.createElement("button", {
-    key: t.id,
-    onClick: () => setTab(t.id),
-    style: {
-      padding: "8px 14px",
-      borderRadius: 8,
-      border: "none",
-      cursor: "pointer",
-      fontSize: 12,
-      fontWeight: tab === t.id ? 700 : 500,
-      background: tab === t.id ? "#22c55e" : "transparent",
-      color: tab === t.id ? "#000" : "#94a3b8",
-      display: "flex",
-      alignItems: "center",
-      gap: 6
-    }
-  }, t.label, t.count > 0 && /*#__PURE__*/React.createElement("span", {
-    style: {
-      background: tab === t.id ? "#00000033" : "#334155",
-      padding: "1px 7px",
-      borderRadius: 10,
-      fontSize: 10,
-      fontWeight: 700
-    }
-  }, t.count)))), tab === "receive" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: "repeat(4,1fr)",
-      gap: 12,
-      marginBottom: 20
-    }
-  }, /*#__PURE__*/React.createElement(StatCard, {
-    label: "Open Invoices",
-    value: openInvoices.length,
-    icon: "invoice",
-    color: "#3b82f6"
-  }), /*#__PURE__*/React.createElement(StatCard, {
-    label: "Outstanding",
-    value: fmt(openInvoices.reduce((s, i) => s + getInvBalance(i), 0)),
-    icon: "dollar",
-    color: "#f59e0b"
-  }), /*#__PURE__*/React.createElement(StatCard, {
-    label: "Overdue",
-    value: invoices.filter(i => i.status === "open" && i.dueDate < today() && getInvBalance(i) > 0).length,
-    icon: "alert",
-    color: "#ef4444"
-  }), /*#__PURE__*/React.createElement(StatCard, {
-    label: "Payments Today",
-    value: arPayments.filter(p => p.date === today() && p.status !== "void").length,
-    sub: fmt(arPayments.filter(p => p.date === today() && p.status !== "void").reduce((s, p) => s + p.amount, 0)),
-    icon: "dollar",
-    color: "#22c55e"
-  })), /*#__PURE__*/React.createElement(Card, {
-    title: "Customer Balances \u2014 Click to Receive Payment"
-  }, /*#__PURE__*/React.createElement(DataTable, {
-    headers: ["Customer", "Route", "Terms", "Collection", "Open Inv", "Balance", "Overdue", "Action"],
-    rows: customers.filter(c => getCustBalance(c.id) > 0.01).sort((a, b) => getCustBalance(b.id) - getCustBalance(a.id)).map(c => {
-      const custInvs = invoices.filter(i => i.customerId === c.id && i.status === "open" && getInvBalance(i) > 0);
-      const overdue = custInvs.filter(i => i.dueDate < today());
-      const route = routes.find(r => r.id === c.route);
-      return [/*#__PURE__*/React.createElement("span", {
-        style: {
-          fontWeight: 600
-        }
-      }, c.name), (route === null || route === void 0 ? void 0 : route.name) || c.route || "—", c.terms || "1 Week", c.collectionDay || "—", custInvs.length, /*#__PURE__*/React.createElement("span", {
-        style: {
-          fontFamily: "'DM Mono',monospace",
-          fontWeight: 700,
-          color: "#f59e0b"
-        }
-      }, fmt(getCustBalance(c.id))), overdue.length > 0 ? /*#__PURE__*/React.createElement("span", {
-        style: {
-          color: "#ef4444",
-          fontWeight: 700
-        }
-      }, overdue.length, " (", fmt(overdue.reduce((s, i) => s + getInvBalance(i), 0)), ")") : "—", /*#__PURE__*/React.createElement(Btn, {
-        size: "sm",
-        onClick: () => openReceivePayment(c.id)
-      }, "\uD83D\uDCB0 Receive")];
-    })
-  }), customers.filter(c => getCustBalance(c.id) > 0.01).length === 0 && /*#__PURE__*/React.createElement("div", {
-    style: {
-      textAlign: "center",
-      padding: 30,
-      color: "#64748b"
-    }
-  }, "No outstanding balances"))), tab === "payments" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 8,
-      flexWrap: "wrap",
-      marginBottom: 16,
-      alignItems: "center"
-    }
-  }, /*#__PURE__*/React.createElement("select", {
-    value: payFilter.status,
-    onChange: e => setPayFilter(f => ({
-      ...f,
-      status: e.target.value
-    })),
-    style: {
-      background: "#1a2030",
-      border: "1px solid #2d3748",
-      borderRadius: 6,
-      padding: "6px 10px",
-      color: "#e2e8f0",
-      fontSize: 12
-    }
-  }, /*#__PURE__*/React.createElement("option", {
-    value: "all"
-  }, "All Statuses"), /*#__PURE__*/React.createElement("option", {
-    value: "pending"
-  }, "Pending"), /*#__PURE__*/React.createElement("option", {
-    value: "cleared"
-  }, "Cleared"), /*#__PURE__*/React.createElement("option", {
-    value: "deposited"
-  }, "Deposited"), /*#__PURE__*/React.createElement("option", {
-    value: "postdated"
-  }, "Post-Dated"), /*#__PURE__*/React.createElement("option", {
-    value: "returned"
-  }, "Returned"), /*#__PURE__*/React.createElement("option", {
-    value: "void"
-  }, "Void")), /*#__PURE__*/React.createElement("select", {
-    value: payFilter.method,
-    onChange: e => setPayFilter(f => ({
-      ...f,
-      method: e.target.value
-    })),
-    style: {
-      background: "#1a2030",
-      border: "1px solid #2d3748",
-      borderRadius: 6,
-      padding: "6px 10px",
-      color: "#e2e8f0",
-      fontSize: 12
-    }
-  }, /*#__PURE__*/React.createElement("option", {
-    value: "all"
-  }, "All Methods"), METHODS.map(m => /*#__PURE__*/React.createElement("option", {
-    key: m.id,
-    value: m.id
-  }, m.label))), /*#__PURE__*/React.createElement("select", {
-    value: payFilter.customer,
-    onChange: e => setPayFilter(f => ({
-      ...f,
-      customer: e.target.value
-    })),
-    style: {
-      background: "#1a2030",
-      border: "1px solid #2d3748",
-      borderRadius: 6,
-      padding: "6px 10px",
-      color: "#e2e8f0",
-      fontSize: 12,
-      maxWidth: 200
-    }
-  }, /*#__PURE__*/React.createElement("option", {
-    value: "all"
-  }, "All Customers"), customers.map(c => /*#__PURE__*/React.createElement("option", {
-    key: c.id,
-    value: c.id
-  }, c.name))), /*#__PURE__*/React.createElement("input", {
-    type: "date",
-    value: payFilter.dateFrom,
-    onChange: e => setPayFilter(f => ({
-      ...f,
-      dateFrom: e.target.value
-    })),
-    style: {
-      background: "#1a2030",
-      border: "1px solid #2d3748",
-      borderRadius: 6,
-      padding: "6px 10px",
-      color: "#e2e8f0",
-      fontSize: 12
-    }
-  }), /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: "#475569"
-    }
-  }, "to"), /*#__PURE__*/React.createElement("input", {
-    type: "date",
-    value: payFilter.dateTo,
-    onChange: e => setPayFilter(f => ({
-      ...f,
-      dateTo: e.target.value
-    })),
-    style: {
-      background: "#1a2030",
-      border: "1px solid #2d3748",
-      borderRadius: 6,
-      padding: "6px 10px",
-      color: "#e2e8f0",
-      fontSize: 12
-    }
-  }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      flex: 1
-    }
-  }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 12,
-      color: "#64748b"
-    }
-  }, "Showing ", filteredPayments.length, " of ", arPayments.length)), /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement(DataTable, {
-    headers: ["Date", "ID", "Customer", "Method", "Check #", "Amount", "Applied To", "Status", "Actions"],
-    rows: filteredPayments.sort((a, b) => (b.date || "").localeCompare(a.date || "")).map(p => {
-      const cust = customers.find(c => c.id === p.customerId);
-      const statusColors = {
-        pending: "#f59e0b",
-        cleared: "#22c55e",
-        deposited: "#3b82f6",
-        postdated: "#8b5cf6",
-        returned: "#ef4444",
-        void: "#475569"
-      };
-      return [p.date, /*#__PURE__*/React.createElement("span", {
-        style: {
-          fontSize: 11,
-          fontFamily: "'DM Mono',monospace"
-        }
-      }, p.id), (cust === null || cust === void 0 ? void 0 : cust.name) || p.customerId, /*#__PURE__*/React.createElement("span", {
-        style: {
-          color: methodColor(p.method),
-          fontWeight: 600,
-          fontSize: 11
-        }
-      }, methodLabel(p.method)), p.checkNumber || "—", /*#__PURE__*/React.createElement("span", {
-        style: {
-          fontFamily: "'DM Mono',monospace",
-          fontWeight: 700
-        }
-      }, fmt(p.amount)), /*#__PURE__*/React.createElement("span", {
-        style: {
-          fontSize: 10,
-          color: "#64748b"
-        }
-      }, (p.appliedTo || []).map(a => a.invoiceId).join(", ") || "Unapplied"), /*#__PURE__*/React.createElement(Badge, {
-        text: p.status,
-        color: statusColors[p.status] || "#475569"
-      }), /*#__PURE__*/React.createElement("div", {
-        style: {
-          display: "flex",
-          gap: 4
-        }
-      }, p.status === "pending" && /*#__PURE__*/React.createElement(Btn, {
-        size: "sm",
-        onClick: () => clearCheck(p.id),
-        style: {
-          fontSize: 10,
-          padding: "2px 8px"
-        }
-      }, "\u2713 Clear"), p.method === "check" && p.status !== "returned" && p.status !== "void" && /*#__PURE__*/React.createElement(Btn, {
-        size: "sm",
-        variant: "secondary",
-        onClick: () => {
-          setReturnForm(p);
-          setReturnFee("35.00");
-          setReturnNotes("");
-        },
-        style: {
-          fontSize: 10,
-          padding: "2px 8px",
-          borderColor: "#ef444444"
-        }
-      }, "\u21A9 Return"), p.status !== "void" && p.status !== "deposited" && /*#__PURE__*/React.createElement(Btn, {
-        size: "sm",
-        variant: "secondary",
-        onClick: () => voidPayment(p.id),
-        style: {
-          fontSize: 10,
-          padding: "2px 8px",
-          color: "#ef4444",
-          borderColor: "#ef444444"
-        }
-      }, "\u2715"))];
-    })
-  }), filteredPayments.length === 0 && /*#__PURE__*/React.createElement("div", {
-    style: {
-      textAlign: "center",
-      padding: 30,
-      color: "#64748b"
-    }
-  }, "No payments found"))), tab === "deposits" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginBottom: 16
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 12
-    }
-  }, /*#__PURE__*/React.createElement(StatCard, {
-    label: "Undeposited",
-    value: undepositedPayments.length,
-    sub: fmt(undepositedPayments.reduce((s, p) => s + p.amount, 0)),
-    icon: "dollar",
-    color: "#f59e0b"
-  }), /*#__PURE__*/React.createElement(StatCard, {
-    label: "Pending Checks",
-    value: pendingChecks.length,
-    sub: fmt(pendingChecks.reduce((s, p) => s + p.amount, 0)),
-    icon: "dollar",
-    color: "#3b82f6"
-  })), /*#__PURE__*/React.createElement(Btn, {
-    icon: "plus",
-    onClick: () => {
-      setDepForm({
-        date: today(),
-        bankAccount: "Operating",
-        reference: "",
-        notes: "",
-        paymentIds: []
-      });
-      setShowDepForm(true);
-    }
-  }, "Create Deposit")), undepositedPayments.length > 0 && /*#__PURE__*/React.createElement(Card, {
-    title: `Undeposited Payments (${undepositedPayments.length})`,
-    style: {
-      marginBottom: 20
-    }
-  }, /*#__PURE__*/React.createElement(DataTable, {
-    headers: ["", "Date", "Customer", "Method", "Check #", "Amount", "Ref"],
-    rows: undepositedPayments.map(p => {
-      const cust = customers.find(c => c.id === p.customerId);
-      const sel = depForm.paymentIds.includes(p.id);
-      return [/*#__PURE__*/React.createElement("input", {
-        type: "checkbox",
-        checked: sel,
-        onChange: () => setDepForm(f => ({
-          ...f,
-          paymentIds: sel ? f.paymentIds.filter(x => x !== p.id) : [...f.paymentIds, p.id]
-        }))
-      }), p.date, (cust === null || cust === void 0 ? void 0 : cust.name) || "—", /*#__PURE__*/React.createElement("span", {
-        style: {
-          color: methodColor(p.method),
-          fontSize: 11
-        }
-      }, methodLabel(p.method)), p.checkNumber || "—", /*#__PURE__*/React.createElement("span", {
-        style: {
-          fontFamily: "'DM Mono',monospace",
-          fontWeight: 700
-        }
-      }, fmt(p.amount)), p.reference || "—"];
-    })
-  })), /*#__PURE__*/React.createElement(Card, {
-    title: "Deposit History"
-  }, /*#__PURE__*/React.createElement(DataTable, {
-    headers: ["Date", "ID", "Bank", "# Payments", "Total", "Reference", "Status"],
-    rows: arDeposits.sort((a, b) => (b.date || "").localeCompare(a.date || "")).map(d => [d.date, /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 11,
-        fontFamily: "'DM Mono',monospace"
-      }
-    }, d.id), d.bankAccount, d.paymentIds.length, /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontFamily: "'DM Mono',monospace",
-        fontWeight: 700,
-        color: "#22c55e"
-      }
-    }, fmt(d.total)), d.reference || "—", /*#__PURE__*/React.createElement(Badge, {
-      text: d.status,
-      color: "#22c55e"
-    })])
-  }), arDeposits.length === 0 && /*#__PURE__*/React.createElement("div", {
-    style: {
-      textAlign: "center",
-      padding: 30,
-      color: "#64748b"
-    }
-  }, "No deposits yet"))), tab === "postdated" && /*#__PURE__*/React.createElement(Card, {
-    title: `Post-Dated Checks (${postDatedChecks.length})`
-  }, /*#__PURE__*/React.createElement(DataTable, {
-    headers: ["Check Date", "Customer", "Check #", "Amount", "Received", "Notes", "Action"],
-    rows: postDatedChecks.sort((a, b) => (a.checkDate || "").localeCompare(b.checkDate || "")).map(p => {
-      const cust = customers.find(c => c.id === p.customerId);
-      const ready = p.checkDate <= today();
-      return [/*#__PURE__*/React.createElement("span", {
-        style: {
-          fontWeight: 700,
-          color: ready ? "#22c55e" : "#f59e0b"
-        }
-      }, p.checkDate, " ", ready && "✓ Ready"), (cust === null || cust === void 0 ? void 0 : cust.name) || "—", p.checkNumber || "—", /*#__PURE__*/React.createElement("span", {
-        style: {
-          fontFamily: "'DM Mono',monospace",
-          fontWeight: 700
-        }
-      }, fmt(p.amount)), p.date, p.notes || "—", /*#__PURE__*/React.createElement("div", {
-        style: {
-          display: "flex",
-          gap: 4
-        }
-      }, ready && /*#__PURE__*/React.createElement(Btn, {
-        size: "sm",
-        onClick: () => clearPostDated(p.id)
-      }, "\u2713 Release & Clear"), /*#__PURE__*/React.createElement(Btn, {
-        size: "sm",
-        variant: "secondary",
-        onClick: () => {
-          setReturnForm(p);
-          setReturnFee("35.00");
-          setReturnNotes("");
-        }
-      }, "\u21A9 Return"))];
-    })
-  }), postDatedChecks.length === 0 && /*#__PURE__*/React.createElement("div", {
-    style: {
-      textAlign: "center",
-      padding: 30,
-      color: "#64748b"
-    }
-  }, "No post-dated checks")), tab === "returned" && /*#__PURE__*/React.createElement(Card, {
-    title: `Returned / Bounced Checks (${returnedChecks.length})`
-  }, /*#__PURE__*/React.createElement(DataTable, {
-    headers: ["Return Date", "Customer", "Check #", "Original Amt", "Fee", "Inv Created", "Notes"],
-    rows: returnedChecks.sort((a, b) => (b.returnedDate || "").localeCompare(a.returnedDate || "")).map(p => {
-      const cust = customers.find(c => c.id === p.customerId);
-      return [p.returnedDate, (cust === null || cust === void 0 ? void 0 : cust.name) || "—", p.checkNumber || "—", /*#__PURE__*/React.createElement("span", {
-        style: {
-          fontFamily: "'DM Mono',monospace",
-          color: "#ef4444",
-          fontWeight: 700
-        }
-      }, fmt(p.amount)), p.returnFee > 0 ? /*#__PURE__*/React.createElement("span", {
-        style: {
-          fontFamily: "'DM Mono',monospace",
-          color: "#f59e0b"
-        }
-      }, fmt(p.returnFee)) : "—", p.returnFee > 0 ? "✅ Fee invoiced" : "No fee", p.returnNotes || "—"];
-    })
-  }), returnedChecks.length === 0 && /*#__PURE__*/React.createElement("div", {
-    style: {
-      textAlign: "center",
-      padding: 30,
-      color: "#64748b"
-    }
-  }, "No returned checks")), tab === "aging" && (() => {
-    const aging = getAgingBuckets(agingDate);
-    const totals = {
-      current: 0,
-      w1: 0,
-      w2: 0,
-      w3: 0,
-      w4: 0,
-      over4: 0,
-      total: 0
-    };
-    Object.values(aging).forEach(a => {
-      totals.current += a.current;
-      totals.w1 += a.w1;
-      totals.w2 += a.w2;
-      totals.w3 += a.w3;
-      totals.w4 += a.w4;
-      totals.over4 += a.over4;
-      totals.total += a.total;
-    });
-    return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginBottom: 16
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        alignItems: "center",
-        gap: 10
-      }
-    }, /*#__PURE__*/React.createElement("label", {
-      style: {
-        fontSize: 12,
-        color: "#94a3b8"
-      }
-    }, "As of:"), /*#__PURE__*/React.createElement("input", {
-      type: "date",
-      value: agingDate,
-      onChange: e => setAgingDate(e.target.value),
-      style: {
-        background: "#1a2030",
-        border: "1px solid #2d3748",
-        borderRadius: 6,
-        padding: "6px 10px",
-        color: "#e2e8f0",
-        fontSize: 12
-      }
-    })), /*#__PURE__*/React.createElement(Btn, {
-      variant: "secondary",
-      icon: "print",
-      onClick: () => window.print()
-    }, "Print Report")), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "grid",
-        gridTemplateColumns: "repeat(7,1fr)",
-        gap: 0,
-        marginBottom: 20,
-        borderRadius: 10,
-        overflow: "hidden",
-        border: "1px solid #2d3748"
-      }
-    }, [{
-      label: "Current",
-      val: totals.current,
-      bg: "#22c55e11",
-      c: "#22c55e"
-    }, {
-      label: "1st Week",
-      val: totals.w1,
-      bg: "#f59e0b11",
-      c: "#f59e0b"
-    }, {
-      label: "2nd Week",
-      val: totals.w2,
-      bg: "#f9731611",
-      c: "#f97316"
-    }, {
-      label: "3rd Week",
-      val: totals.w3,
-      bg: "#ef444411",
-      c: "#ef4444"
-    }, {
-      label: "4th Week",
-      val: totals.w4,
-      bg: "#dc262611",
-      c: "#dc2626"
-    }, {
-      label: "Over 4 Wks",
-      val: totals.over4,
-      bg: "#7f1d1d22",
-      c: "#fca5a5"
-    }, {
-      label: "TOTAL",
-      val: totals.total,
-      bg: "#3b82f611",
-      c: "#3b82f6"
-    }].map((b, i) => /*#__PURE__*/React.createElement("div", {
-      key: i,
-      style: {
-        background: b.bg,
-        padding: "14px 8px",
-        textAlign: "center",
-        borderRight: i < 6 ? "1px solid #2d3748" : "none"
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 10,
-        color: "#94a3b8",
-        fontWeight: 600
-      }
-    }, b.label), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 16,
-        fontWeight: 800,
-        fontFamily: "'DM Mono',monospace",
-        color: b.c,
-        marginTop: 4
-      }
-    }, fmt(b.val))))), /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement(DataTable, {
-      headers: ["Customer", "Terms", "Current", "1st Wk", "2nd Wk", "3rd Wk", "4th Wk", "Over 4", "Total"],
-      rows: Object.entries(aging).sort((a, b) => b[1].total - a[1].total).map(([custId, a]) => {
-        const cust = customers.find(c => c.id === custId);
-        const cell = (v, color) => /*#__PURE__*/React.createElement("span", {
-          style: {
-            fontFamily: "'DM Mono',monospace",
-            fontWeight: v > 0 ? 700 : 400,
-            color: v > 0 ? color : "#475569"
-          }
-        }, v > 0 ? fmt(v) : "—");
-        return [/*#__PURE__*/React.createElement("span", {
-          style: {
-            fontWeight: 600
-          }
-        }, (cust === null || cust === void 0 ? void 0 : cust.name) || custId), /*#__PURE__*/React.createElement("span", {
-          style: {
-            fontSize: 11,
-            color: "#8b5cf6"
-          }
-        }, (cust === null || cust === void 0 ? void 0 : cust.terms) || "1 Week"), cell(a.current, "#22c55e"), cell(a.w1, "#f59e0b"), cell(a.w2, "#f97316"), cell(a.w3, "#ef4444"), cell(a.w4, "#dc2626"), cell(a.over4, "#fca5a5"), /*#__PURE__*/React.createElement("span", {
-          style: {
-            fontFamily: "'DM Mono',monospace",
-            fontWeight: 800,
-            color: "#f1f5f9"
-          }
-        }, fmt(a.total))];
-      })
-    })));
-  })(), tab === "statements" && /*#__PURE__*/React.createElement(Card, {
-    title: "Generate Customer Statement"
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 12,
-      alignItems: "flex-end",
-      marginBottom: 20
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      flex: 1
-    }
-  }, /*#__PURE__*/React.createElement("label", {
-    style: {
-      display: "block",
-      fontSize: 11,
-      color: "#94a3b8",
-      fontWeight: 600,
-      marginBottom: 4
-    }
-  }, "Customer"), /*#__PURE__*/React.createElement("select", {
-    value: stmtCustomer,
-    onChange: e => setStmtCustomer(e.target.value),
-    style: {
-      width: "100%",
-      background: "#0f1117",
-      border: "1px solid #2d3748",
-      borderRadius: 6,
-      padding: "8px 10px",
-      color: "#e2e8f0",
-      fontSize: 13
-    }
-  }, /*#__PURE__*/React.createElement("option", {
-    value: ""
-  }, "Select customer..."), customers.filter(c => getCustBalance(c.id) > 0).sort((a, b) => a.name.localeCompare(b.name)).map(c => /*#__PURE__*/React.createElement("option", {
-    key: c.id,
-    value: c.id
-  }, c.name, " \u2014 ", fmt(getCustBalance(c.id)), " outstanding")))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    style: {
-      display: "block",
-      fontSize: 11,
-      color: "#94a3b8",
-      fontWeight: 600,
-      marginBottom: 4
-    }
-  }, "As of Date"), /*#__PURE__*/React.createElement("input", {
-    type: "date",
-    value: stmtDate,
-    onChange: e => setStmtDate(e.target.value),
-    style: {
-      background: "#0f1117",
-      border: "1px solid #2d3748",
-      borderRadius: 6,
-      padding: "8px 10px",
-      color: "#e2e8f0",
-      fontSize: 13
-    }
-  })), /*#__PURE__*/React.createElement(Btn, {
-    icon: "print",
-    onClick: () => {
-      if (stmtCustomer) printStatement(stmtCustomer, stmtDate);else showToast("Select a customer");
-    },
-    disabled: !stmtCustomer
-  }, "Print Statement"), /*#__PURE__*/React.createElement(Btn, {
-    variant: "secondary",
-    icon: "print",
-    onClick: () => {
-      customers.filter(c => getCustBalance(c.id) > 0.01).forEach(c => printStatement(c.id, stmtDate));
-      showToast(`Printing ${customers.filter(c => getCustBalance(c.id) > 0.01).length} statements`);
-    }
-  }, "Print All Open")), stmtCustomer && (() => {
-    const cust = customers.find(c => c.id === stmtCustomer);
-    const custInvs = invoices.filter(i => i.customerId === stmtCustomer && i.status === "open" && getInvBalance(i) > 0);
-    return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-      style: {
-        background: "#1a2030",
-        padding: 14,
-        borderRadius: 8,
-        marginBottom: 14
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontWeight: 700,
-        fontSize: 14
-      }
-    }, cust === null || cust === void 0 ? void 0 : cust.name), /*#__PURE__*/React.createElement("span", {
-      style: {
-        marginLeft: 12,
-        fontSize: 13,
-        fontFamily: "'DM Mono',monospace",
-        color: "#f59e0b"
-      }
-    }, fmt(getCustBalance(stmtCustomer))), /*#__PURE__*/React.createElement("span", {
-      style: {
-        marginLeft: 12,
-        fontSize: 12,
-        color: "#64748b"
-      }
-    }, custInvs.length, " open invoices")), /*#__PURE__*/React.createElement(DataTable, {
-      headers: ["Invoice", "Date", "Due", "Age", "Original", "Paid", "Balance"],
-      rows: custInvs.sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || "")).map(i => {
-        const bal = getInvBalance(i);
-        const paid = getInvPaid(i.id);
-        const days = Math.max(0, Math.floor((new Date(today()) - new Date(i.dueDate || i.date)) / 86400000));
-        const overdue = i.dueDate < today();
-        return [i.id, i.date, /*#__PURE__*/React.createElement("span", {
-          style: {
-            color: overdue ? "#ef4444" : "#94a3b8",
-            fontWeight: overdue ? 700 : 400
-          }
-        }, i.dueDate, " ", overdue && `(${days}d)`), days > 0 ? /*#__PURE__*/React.createElement("span", {
-          style: {
-            color: "#ef4444"
-          }
-        }, days, " days") : "Current", /*#__PURE__*/React.createElement("span", {
-          style: {
-            fontFamily: "'DM Mono',monospace"
-          }
-        }, fmt(i.total)), /*#__PURE__*/React.createElement("span", {
-          style: {
-            fontFamily: "'DM Mono',monospace",
-            color: paid > 0 ? "#22c55e" : "#475569"
-          }
-        }, paid > 0 ? fmt(paid) : "—"), /*#__PURE__*/React.createElement("span", {
-          style: {
-            fontFamily: "'DM Mono',monospace",
-            fontWeight: 700,
-            color: "#f59e0b"
-          }
-        }, fmt(bal))];
-      })
-    }));
-  })()), tab === "collections" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 4,
-      marginBottom: 16,
-      background: "#1a2030",
-      borderRadius: 8,
-      padding: 4
-    }
-  }, DAYS.map(d => /*#__PURE__*/React.createElement("button", {
-    key: d,
-    onClick: () => setCollectionDay(d),
-    style: {
-      flex: 1,
-      padding: "10px 8px",
-      borderRadius: 6,
-      border: "none",
-      cursor: "pointer",
-      fontSize: 12,
-      fontWeight: collectionDay === d ? 700 : 500,
-      background: collectionDay === d ? "#3b82f6" : "transparent",
-      color: collectionDay === d ? "#fff" : "#94a3b8",
-      textAlign: "center"
-    }
-  }, d, (() => {
-    const cnt = customers.filter(c => c.collectionDay === d && getCustBalance(c.id) > 0.01).length;
-    return cnt > 0 ? /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 10,
-        marginTop: 2,
-        color: collectionDay === d ? "#93c5fd" : "#f59e0b"
-      }
-    }, cnt, " due") : null;
-  })()))), /*#__PURE__*/React.createElement(Card, {
-    title: `${collectionDay} Collections (${collectionCustomers.length} customers)`
-  }, collectionCustomers.length > 0 ? /*#__PURE__*/React.createElement(DataTable, {
-    headers: ["Customer", "Route", "Phone", "# Invoices", "Oldest Due", "Balance", "Action"],
-    rows: collectionCustomers.sort((a, b) => getCustBalance(b.id) - getCustBalance(a.id)).map(c => {
-      const custInvs = invoices.filter(i => i.customerId === c.id && i.status === "open" && getInvBalance(i) > 0).sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""));
-      const oldest = custInvs[0];
-      const route = routes.find(r => r.id === c.route);
-      return [/*#__PURE__*/React.createElement("span", {
-        style: {
-          fontWeight: 600
-        }
-      }, c.name), (route === null || route === void 0 ? void 0 : route.name) || c.route || "—", c.phone || c.ownerPhone || "—", custInvs.length, oldest ? /*#__PURE__*/React.createElement("span", {
-        style: {
-          color: oldest.dueDate < today() ? "#ef4444" : "#94a3b8"
-        }
-      }, oldest.dueDate) : "—", /*#__PURE__*/React.createElement("span", {
-        style: {
-          fontFamily: "'DM Mono',monospace",
-          fontWeight: 700,
-          color: "#f59e0b"
-        }
-      }, fmt(getCustBalance(c.id))), /*#__PURE__*/React.createElement("div", {
-        style: {
-          display: "flex",
-          gap: 4
-        }
-      }, /*#__PURE__*/React.createElement(Btn, {
-        size: "sm",
-        onClick: () => {
-          setTab("receive");
-          setTimeout(() => openReceivePayment(c.id), 100);
-        }
-      }, "\uD83D\uDCB0 Collect"), /*#__PURE__*/React.createElement(Btn, {
-        size: "sm",
-        variant: "secondary",
-        onClick: () => {
-          setStmtCustomer(c.id);
-          setTab("statements");
-        }
-      }, "\uD83D\uDCC4 Statement"))];
-    })
-  }) : /*#__PURE__*/React.createElement("div", {
-    style: {
-      textAlign: "center",
-      padding: 30,
-      color: "#64748b"
-    }
-  }, "No collections scheduled for ", collectionDay)), /*#__PURE__*/React.createElement(Card, {
-    title: "\u26A0\uFE0F Overdue Reminders \u2014 All Customers",
-    style: {
-      marginTop: 20
-    }
-  }, /*#__PURE__*/React.createElement(DataTable, {
-    headers: ["Customer", "Invoice", "Due Date", "Days Late", "Balance", "Collection Day"],
-    rows: invoices.filter(i => i.status === "open" && i.dueDate < today() && getInvBalance(i) > 0).sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || "")).slice(0, 50).map(i => {
-      const cust = customers.find(c => c.id === i.customerId);
-      const days = Math.floor((new Date(today()) - new Date(i.dueDate)) / 86400000);
-      return [(cust === null || cust === void 0 ? void 0 : cust.name) || "—", i.id, i.dueDate, /*#__PURE__*/React.createElement("span", {
-        style: {
-          fontWeight: 700,
-          color: days > 60 ? "#dc2626" : days > 30 ? "#f97316" : "#f59e0b"
-        }
-      }, days, " days"), /*#__PURE__*/React.createElement("span", {
-        style: {
-          fontFamily: "'DM Mono',monospace",
-          fontWeight: 700
-        }
-      }, fmt(getInvBalance(i))), (cust === null || cust === void 0 ? void 0 : cust.collectionDay) || /*#__PURE__*/React.createElement("span", {
-        style: {
-          color: "#f59e0b",
-          fontStyle: "italic"
-        }
-      }, "Not set")];
-    })
-  }))), showPayForm && /*#__PURE__*/React.createElement(Modal, {
-    title: `💰 Receive Payment — ${((_customers$find1 = customers.find(c => c.id === payForm.customerId)) === null || _customers$find1 === void 0 ? void 0 : _customers$find1.name) || "Select Customer"}`,
-    onClose: () => setShowPayForm(false),
-    width: 800
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gap: 14,
-      marginBottom: 16
-    }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    style: {
-      display: "block",
-      fontSize: 11,
-      color: "#94a3b8",
-      fontWeight: 600,
-      marginBottom: 4
-    }
-  }, "Customer"), /*#__PURE__*/React.createElement("select", {
-    value: payForm.customerId,
-    onChange: e => {
-      const id = e.target.value;
-      openReceivePayment(id);
-    },
-    style: {
-      width: "100%",
-      background: "#0f1117",
-      border: "1px solid #2d3748",
-      borderRadius: 6,
-      padding: "8px 10px",
-      color: "#e2e8f0",
-      fontSize: 13
-    }
-  }, /*#__PURE__*/React.createElement("option", {
-    value: ""
-  }, "Select customer..."), customers.sort((a, b) => a.name.localeCompare(b.name)).map(c => /*#__PURE__*/React.createElement("option", {
-    key: c.id,
-    value: c.id
-  }, c.name, " ", getCustBalance(c.id) > 0 ? `— ${fmt(getCustBalance(c.id))} due` : "")))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    style: {
-      display: "block",
-      fontSize: 11,
-      color: "#94a3b8",
-      fontWeight: 600,
-      marginBottom: 4
-    }
-  }, "Payment Method"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 4
-    }
-  }, METHODS.map(m => /*#__PURE__*/React.createElement("button", {
-    key: m.id,
-    onClick: () => setPayForm(f => ({
-      ...f,
-      method: m.id,
-      postDated: false
-    })),
-    style: {
-      flex: 1,
-      padding: "8px 6px",
-      borderRadius: 6,
-      border: payForm.method === m.id ? `2px solid ${m.color}` : "1px solid #2d3748",
-      background: payForm.method === m.id ? `${m.color}22` : "#0f1117",
-      color: payForm.method === m.id ? m.color : "#64748b",
-      fontSize: 11,
-      fontWeight: 600,
-      cursor: "pointer"
-    }
-  }, m.label))))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr 1fr 1fr",
-      gap: 14,
-      marginBottom: 16
-    }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    style: {
-      display: "block",
-      fontSize: 11,
-      color: "#94a3b8",
-      fontWeight: 600,
-      marginBottom: 4
-    }
-  }, "Amount"), /*#__PURE__*/React.createElement("input", {
-    type: "number",
-    step: "0.01",
-    value: payForm.amount,
-    onChange: e => setPayForm(f => ({
-      ...f,
-      amount: e.target.value
-    })),
-    placeholder: "0.00",
-    style: {
-      width: "100%",
-      background: "#0f1117",
-      border: "2px solid #22c55e",
-      borderRadius: 6,
-      padding: "10px 12px",
-      color: "#22c55e",
-      fontSize: 18,
-      fontWeight: 800,
-      fontFamily: "'DM Mono',monospace",
-      textAlign: "center"
-    }
-  })), payForm.method === "check" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    style: {
-      display: "block",
-      fontSize: 11,
-      color: "#94a3b8",
-      fontWeight: 600,
-      marginBottom: 4
-    }
-  }, "Check #"), /*#__PURE__*/React.createElement("input", {
-    value: payForm.checkNumber,
-    onChange: e => setPayForm(f => ({
-      ...f,
-      checkNumber: e.target.value
-    })),
-    placeholder: "Check number",
-    style: {
-      width: "100%",
-      background: "#0f1117",
-      border: "1px solid #2d3748",
-      borderRadius: 6,
-      padding: "8px 10px",
-      color: "#e2e8f0",
-      fontSize: 13
-    }
-  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    style: {
-      display: "block",
-      fontSize: 11,
-      color: "#94a3b8",
-      fontWeight: 600,
-      marginBottom: 4
-    }
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "checkbox",
-    checked: payForm.postDated,
-    onChange: e => setPayForm(f => ({
-      ...f,
-      postDated: e.target.checked
-    })),
-    style: {
-      marginRight: 6
-    }
-  }), "Post-Dated"), payForm.postDated && /*#__PURE__*/React.createElement("input", {
-    type: "date",
-    value: payForm.checkDate,
-    onChange: e => setPayForm(f => ({
-      ...f,
-      checkDate: e.target.value
-    })),
-    style: {
-      width: "100%",
-      background: "#0f1117",
-      border: "1px solid #8b5cf6",
-      borderRadius: 6,
-      padding: "8px 10px",
-      color: "#8b5cf6",
-      fontSize: 13
-    }
-  }))), (payForm.method === "credit_card" || payForm.method === "ach") && /*#__PURE__*/React.createElement("div", {
-    style: {
-      gridColumn: "span 2"
-    }
-  }, /*#__PURE__*/React.createElement("label", {
-    style: {
-      display: "block",
-      fontSize: 11,
-      color: "#94a3b8",
-      fontWeight: 600,
-      marginBottom: 4
-    }
-  }, payForm.method === "credit_card" ? "Auth/Confirmation #" : "ACH Reference"), /*#__PURE__*/React.createElement("input", {
-    value: payForm.reference,
-    onChange: e => setPayForm(f => ({
-      ...f,
-      reference: e.target.value
-    })),
-    placeholder: "Reference number",
-    style: {
-      width: "100%",
-      background: "#0f1117",
-      border: "1px solid #2d3748",
-      borderRadius: 6,
-      padding: "8px 10px",
-      color: "#e2e8f0",
-      fontSize: 13
-    }
-  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    style: {
-      display: "block",
-      fontSize: 11,
-      color: "#94a3b8",
-      fontWeight: 600,
-      marginBottom: 4
-    }
-  }, "Notes"), /*#__PURE__*/React.createElement("input", {
-    value: payForm.notes,
-    onChange: e => setPayForm(f => ({
-      ...f,
-      notes: e.target.value
-    })),
-    placeholder: "Optional notes",
-    style: {
-      width: "100%",
-      background: "#0f1117",
-      border: "1px solid #2d3748",
-      borderRadius: 6,
-      padding: "8px 10px",
-      color: "#e2e8f0",
-      fontSize: 13
-    }
-  }))), payForm.customerId && payForm.applyTo.length > 0 && /*#__PURE__*/React.createElement("div", {
-    style: {
-      border: "1px solid #2d3748",
-      borderRadius: 8,
-      overflow: "hidden",
-      marginBottom: 16
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      padding: "10px 14px",
-      background: "#0a0d14",
-      borderBottom: "1px solid #2d3748"
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 12,
-      fontWeight: 700,
-      color: "#f1f5f9"
-    }
-  }, "Apply to Invoices"), /*#__PURE__*/React.createElement(Btn, {
-    size: "sm",
-    onClick: autoApplyPayment,
-    disabled: !payForm.amount
-  }, "\u26A1 Auto-Apply")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      maxHeight: 250,
-      overflowY: "auto"
-    }
-  }, payForm.applyTo.map((a, i) => /*#__PURE__*/React.createElement("div", {
-    key: a.invoiceId,
-    style: {
-      display: "grid",
-      gridTemplateColumns: "100px 90px 100px 1fr 120px",
-      gap: 8,
-      padding: "8px 14px",
-      alignItems: "center",
-      borderBottom: "1px solid #1e2535",
-      background: Number(a.amount) > 0 ? "#22c55e08" : "transparent"
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 12,
-      fontWeight: 600,
-      color: "#e2e8f0"
-    }
-  }, a.invoiceId), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 11,
-      color: a.dueDate < today() ? "#ef4444" : "#64748b"
-    }
-  }, a.dueDate), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 12,
-      fontFamily: "'DM Mono',monospace",
-      color: "#94a3b8"
-    }
-  }, fmt(a.total)), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 12,
-      fontFamily: "'DM Mono',monospace",
-      color: "#f59e0b",
-      fontWeight: 600
-    }
-  }, "Bal: ", fmt(a.balance)), /*#__PURE__*/React.createElement("input", {
-    type: "number",
-    step: "0.01",
-    min: "0",
-    max: a.balance,
-    value: a.amount || "",
-    onChange: e => setPayForm(f => ({
-      ...f,
-      applyTo: f.applyTo.map((x, j) => j === i ? {
-        ...x,
-        amount: Number(e.target.value) || 0
-      } : x)
-    })),
-    placeholder: "0.00",
-    style: {
-      width: "100%",
-      background: "#0f1117",
-      border: Number(a.amount) > 0 ? "1px solid #22c55e" : "1px solid #2d3748",
-      borderRadius: 4,
-      padding: "5px 8px",
-      color: "#22c55e",
-      fontSize: 13,
-      fontFamily: "'DM Mono',monospace",
-      textAlign: "right"
-    }
-  })))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      justifyContent: "space-between",
-      padding: "10px 14px",
-      background: "#0a0d14",
-      borderTop: "1px solid #2d3748"
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 12,
-      color: "#64748b"
-    }
-  }, "Applied: ", /*#__PURE__*/React.createElement("b", {
-    style: {
-      color: "#22c55e"
-    }
-  }, fmt(payForm.applyTo.reduce((s, a) => s + Number(a.amount || 0), 0)))), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 12,
-      color: "#64748b"
-    }
-  }, "Unapplied: ", /*#__PURE__*/React.createElement("b", {
-    style: {
-      color: Number(payForm.amount || 0) - payForm.applyTo.reduce((s, a) => s + Number(a.amount || 0), 0) > 0.01 ? "#f59e0b" : "#22c55e"
-    }
-  }, fmt(Math.max(0, Number(payForm.amount || 0) - payForm.applyTo.reduce((s, a) => s + Number(a.amount || 0), 0))))))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      justifyContent: "flex-end",
-      gap: 10
-    }
-  }, /*#__PURE__*/React.createElement(Btn, {
-    variant: "secondary",
-    onClick: () => setShowPayForm(false)
-  }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
-    icon: "check",
-    onClick: savePayment,
-    disabled: !payForm.customerId || !(Number(payForm.amount) > 0)
-  }, "Record Payment \u2014 ", fmt(Number(payForm.amount || 0))))), showDepForm && /*#__PURE__*/React.createElement(Modal, {
-    title: "\uD83C\uDFE6 Create Deposit",
-    onClose: () => setShowDepForm(false),
-    width: 600
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gap: 14,
-      marginBottom: 16
-    }
-  }, /*#__PURE__*/React.createElement(Input, {
-    label: "Deposit Date",
-    type: "date",
-    value: depForm.date,
-    onChange: e => setDepForm(f => ({
-      ...f,
-      date: e.target.value
-    }))
-  }), /*#__PURE__*/React.createElement(Input, {
-    label: "Bank Account",
-    value: depForm.bankAccount,
-    onChange: e => setDepForm(f => ({
-      ...f,
-      bankAccount: e.target.value
-    })),
-    placeholder: "Operating"
-  }), /*#__PURE__*/React.createElement(Input, {
-    label: "Reference / Slip #",
-    value: depForm.reference,
-    onChange: e => setDepForm(f => ({
-      ...f,
-      reference: e.target.value
-    })),
-    placeholder: "Deposit slip #"
-  }), /*#__PURE__*/React.createElement(Input, {
-    label: "Notes",
-    value: depForm.notes,
-    onChange: e => setDepForm(f => ({
-      ...f,
-      notes: e.target.value
-    }))
-  })), /*#__PURE__*/React.createElement("div", {
-    style: {
-      background: "#1a2030",
-      borderRadius: 8,
-      padding: 14,
-      marginBottom: 16
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 12,
-      color: "#64748b",
-      marginBottom: 6
-    }
-  }, "Selected: ", /*#__PURE__*/React.createElement("b", {
-    style: {
-      color: "#22c55e"
-    }
-  }, depForm.paymentIds.length, " payments")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 20,
-      fontWeight: 800,
-      fontFamily: "'DM Mono',monospace",
-      color: "#22c55e"
-    }
-  }, fmt(depForm.paymentIds.reduce((s, id) => {
-    var _arPayments$find2;
-    return s + (((_arPayments$find2 = arPayments.find(p => p.id === id)) === null || _arPayments$find2 === void 0 ? void 0 : _arPayments$find2.amount) || 0);
-  }, 0)))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      justifyContent: "flex-end",
-      gap: 10
-    }
-  }, /*#__PURE__*/React.createElement(Btn, {
-    variant: "secondary",
-    onClick: () => setShowDepForm(false)
-  }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
-    icon: "check",
-    onClick: saveDeposit,
-    disabled: depForm.paymentIds.length === 0
-  }, "Create Deposit"))), returnForm && /*#__PURE__*/React.createElement(Modal, {
-    title: `↩ Return Check — ${returnForm.checkNumber || returnForm.id}`,
-    onClose: () => setReturnForm(null),
-    width: 500
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      background: "#ef444411",
-      border: "1px solid #ef444444",
-      borderRadius: 8,
-      padding: 14,
-      marginBottom: 16
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 13,
-      fontWeight: 700,
-      color: "#ef4444",
-      marginBottom: 6
-    }
-  }, "\u26A0\uFE0F This will reverse the payment and re-open the invoices"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 12,
-      color: "#94a3b8"
-    }
-  }, "Customer: ", /*#__PURE__*/React.createElement("b", {
-    style: {
-      color: "#f1f5f9"
-    }
-  }, (_customers$find10 = customers.find(c => c.id === returnForm.customerId)) === null || _customers$find10 === void 0 ? void 0 : _customers$find10.name), /*#__PURE__*/React.createElement("br", null), "Amount: ", /*#__PURE__*/React.createElement("b", {
-    style: {
-      color: "#ef4444"
-    }
-  }, fmt(returnForm.amount)), /*#__PURE__*/React.createElement("br", null), "Check #: ", /*#__PURE__*/React.createElement("b", {
-    style: {
-      color: "#f1f5f9"
-    }
-  }, returnForm.checkNumber || "—"), /*#__PURE__*/React.createElement("br", null), "Applied to: ", (returnForm.appliedTo || []).map(a => a.invoiceId).join(", ") || "None")), /*#__PURE__*/React.createElement(Input, {
-    label: "NSF / Return Fee ($)",
-    type: "number",
-    step: "0.01",
-    value: returnFee,
-    onChange: e => setReturnFee(e.target.value)
-  }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 11,
-      color: "#64748b",
-      marginTop: 4,
-      marginBottom: 12
-    }
-  }, "A new invoice will be created for this fee amount"), /*#__PURE__*/React.createElement(Input, {
-    label: "Return Notes",
-    value: returnNotes,
-    onChange: e => setReturnNotes(e.target.value),
-    placeholder: "Reason for return..."
-  }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      justifyContent: "flex-end",
-      gap: 10,
-      marginTop: 16
-    }
-  }, /*#__PURE__*/React.createElement(Btn, {
-    variant: "secondary",
-    onClick: () => setReturnForm(null)
-  }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
-    onClick: processReturn,
-    style: {
-      background: "#ef4444"
-    }
-  }, "\u21A9 Process Return", Number(returnFee) > 0 ? ` + $${Number(returnFee).toFixed(2)} Fee` : ""))));
-}
-
-// ============================================================
 // SYSTEM SETTINGS MODULE
 // ============================================================
+// Settings UI helper components (top level to prevent focus loss)
+const SectionLabel = ({
+  children
+}) => /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontSize: 11,
+    fontWeight: 700,
+    color: "#64748b",
+    textTransform: "uppercase",
+    letterSpacing: "0.5px",
+    marginTop: 18,
+    marginBottom: 8,
+    paddingBottom: 6,
+    borderBottom: "1px solid #2d3748"
+  }
+}, children);
+const Toggle = ({
+  label,
+  value,
+  onChange,
+  hint
+}) => /*#__PURE__*/React.createElement("div", {
+  style: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "8px 0",
+    borderBottom: "1px solid #1a2030"
+  }
+}, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontSize: 13,
+    color: "#e2e8f0",
+    fontWeight: 500
+  }
+}, label), hint && /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontSize: 10,
+    color: "#64748b",
+    marginTop: 2
+  }
+}, hint)), /*#__PURE__*/React.createElement("button", {
+  onClick: () => onChange(!value),
+  style: {
+    width: 42,
+    height: 24,
+    borderRadius: 12,
+    border: "none",
+    cursor: "pointer",
+    position: "relative",
+    background: value ? "#22c55e" : "#334155",
+    transition: "all 0.2s"
+  }
+}, /*#__PURE__*/React.createElement("div", {
+  style: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    background: "#fff",
+    position: "absolute",
+    top: 3,
+    left: value ? 21 : 3,
+    transition: "all 0.2s",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.3)"
+  }
+})));
+const Field = ({
+  label,
+  value,
+  onChange,
+  type = "text",
+  placeholder,
+  hint,
+  disabled,
+  style: st
+}) => /*#__PURE__*/React.createElement("div", {
+  style: {
+    marginBottom: 10,
+    ...st
+  }
+}, /*#__PURE__*/React.createElement("label", {
+  style: {
+    display: "block",
+    fontSize: 12,
+    color: "#94a3b8",
+    marginBottom: 5,
+    fontWeight: 500
+  }
+}, label), /*#__PURE__*/React.createElement("input", {
+  type: type,
+  value: value || "",
+  onChange: e => onChange(e.target.value),
+  disabled: disabled,
+  placeholder: placeholder,
+  style: {
+    width: "100%",
+    background: disabled ? "#0a0d14" : "#0f1117",
+    border: "1px solid #2d3748",
+    borderRadius: 8,
+    padding: "9px 12px",
+    color: disabled ? "#475569" : "#e2e8f0",
+    fontSize: 13,
+    boxSizing: "border-box",
+    opacity: disabled ? 0.6 : 1
+  }
+}), hint && /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontSize: 10,
+    color: "#64748b",
+    marginTop: 3
+  }
+}, hint));
+const Dropdown = ({
+  label,
+  value,
+  onChange,
+  options,
+  hint
+}) => /*#__PURE__*/React.createElement("div", {
+  style: {
+    marginBottom: 10
+  }
+}, /*#__PURE__*/React.createElement("label", {
+  style: {
+    display: "block",
+    fontSize: 12,
+    color: "#94a3b8",
+    marginBottom: 5,
+    fontWeight: 500
+  }
+}, label), /*#__PURE__*/React.createElement("select", {
+  value: value || "",
+  onChange: e => onChange(e.target.value),
+  style: {
+    width: "100%",
+    background: "#0f1117",
+    border: "1px solid #2d3748",
+    borderRadius: 8,
+    padding: "9px 12px",
+    color: "#e2e8f0",
+    fontSize: 13
+  }
+}, options.map(o => /*#__PURE__*/React.createElement("option", {
+  key: o.value || o,
+  value: o.value || o
+}, o.label || o))), hint && /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontSize: 10,
+    color: "#64748b",
+    marginTop: 3
+  }
+}, hint));
+
 function SystemSettings({
   settings,
   setSettings,
@@ -36290,8 +34606,10 @@ function SystemSettings({
     role: "warehouse",
     email: "",
     pin: "",
+    password: "",
     active: true
   });
+  const [showPassword, setShowPassword] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const importRef = useRef(null);
   const update = (section, key, value) => {
@@ -36365,158 +34683,17 @@ function SystemSettings({
     label: "Database",
     icon: "inventory"
   }];
-  const SectionLabel = ({
-    children
-  }) => /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 11,
-      fontWeight: 700,
-      color: "#64748b",
-      textTransform: "uppercase",
-      letterSpacing: "0.5px",
-      marginTop: 18,
-      marginBottom: 8,
-      paddingBottom: 6,
-      borderBottom: "1px solid #2d3748"
-    }
-  }, children);
-  const Toggle = ({
-    label,
-    value,
-    onChange,
-    hint
-  }) => /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      padding: "8px 0",
-      borderBottom: "1px solid #1a2030"
-    }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 13,
-      color: "#e2e8f0",
-      fontWeight: 500
-    }
-  }, label), hint && /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 10,
-      color: "#64748b",
-      marginTop: 2
-    }
-  }, hint)), /*#__PURE__*/React.createElement("button", {
-    onClick: () => onChange(!value),
-    style: {
-      width: 42,
-      height: 24,
-      borderRadius: 12,
-      border: "none",
-      cursor: "pointer",
-      position: "relative",
-      background: value ? "#22c55e" : "#334155",
-      transition: "all 0.2s"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      width: 18,
-      height: 18,
-      borderRadius: 9,
-      background: "#fff",
-      position: "absolute",
-      top: 3,
-      left: value ? 21 : 3,
-      transition: "all 0.2s",
-      boxShadow: "0 1px 3px rgba(0,0,0,0.3)"
-    }
-  })));
-  const Field = ({
-    label,
-    value,
-    onChange,
-    type = "text",
-    placeholder,
-    hint,
-    disabled,
-    style: st
-  }) => /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginBottom: 10,
-      ...st
-    }
-  }, /*#__PURE__*/React.createElement("label", {
-    style: {
-      display: "block",
-      fontSize: 12,
-      color: "#94a3b8",
-      marginBottom: 5,
-      fontWeight: 500
-    }
-  }, label), /*#__PURE__*/React.createElement("input", {
-    type: type,
-    value: value || "",
-    onChange: e => onChange(e.target.value),
-    disabled: disabled,
-    placeholder: placeholder,
-    style: {
-      width: "100%",
-      background: disabled ? "#0a0d14" : "#0f1117",
-      border: "1px solid #2d3748",
-      borderRadius: 8,
-      padding: "9px 12px",
-      color: disabled ? "#475569" : "#e2e8f0",
-      fontSize: 13,
-      boxSizing: "border-box",
-      opacity: disabled ? 0.6 : 1
-    }
-  }), hint && /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 10,
-      color: "#64748b",
-      marginTop: 3
-    }
-  }, hint));
-  const Dropdown = ({
-    label,
-    value,
-    onChange,
-    options,
-    hint
-  }) => /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginBottom: 10
-    }
-  }, /*#__PURE__*/React.createElement("label", {
-    style: {
-      display: "block",
-      fontSize: 12,
-      color: "#94a3b8",
-      marginBottom: 5,
-      fontWeight: 500
-    }
-  }, label), /*#__PURE__*/React.createElement("select", {
-    value: value || "",
-    onChange: e => onChange(e.target.value),
-    style: {
-      width: "100%",
-      background: "#0f1117",
-      border: "1px solid #2d3748",
-      borderRadius: 8,
-      padding: "9px 12px",
-      color: "#e2e8f0",
-      fontSize: 13
-    }
-  }, options.map(o => /*#__PURE__*/React.createElement("option", {
-    key: o.value || o,
-    value: o.value || o
-  }, o.label || o))), hint && /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 10,
-      color: "#64748b",
-      marginTop: 3
-    }
-  }, hint));
   const saveUser = () => {
+    if (userForm.role !== "driver" && !editUser) {
+      const pw = userForm.password || "";
+      if (pw.length < 8) { showToast("Password must be at least 8 characters", "error"); return; }
+      if (!/[A-Z]/.test(pw)) { showToast("Password needs at least one uppercase letter", "error"); return; }
+      if (!/[a-z]/.test(pw)) { showToast("Password needs at least one lowercase letter", "error"); return; }
+      if (!/[0-9]/.test(pw)) { showToast("Password needs at least one number", "error"); return; }
+    }
+    if (userForm.role === "driver" && (!userForm.pin || userForm.pin.length < 6)) {
+      showToast("Driver PIN must be 6 digits", "error"); return;
+    }
     if (editUser) {
       setSettings(prev => ({
         ...prev,
@@ -36544,6 +34721,7 @@ function SystemSettings({
       role: "warehouse",
       email: "",
       pin: "",
+      password: "",
       active: true
     });
   };
@@ -37932,13 +36110,14 @@ function SystemSettings({
         role: "warehouse",
         email: "",
         pin: "",
+        password: "",
         active: true
       });
       setEditUser(null);
       setShowAddUser(true);
     }
   }, "Add User")), /*#__PURE__*/React.createElement(Table, {
-    headers: ["User", "Role", "Email", "PIN", "Status", "Actions"],
+    headers: ["User", "Role", "Email", "Credential", "Status", "Actions"],
     rows: settings.users.map(u => [/*#__PURE__*/React.createElement("span", {
       style: {
         fontWeight: 600,
@@ -37956,9 +36135,9 @@ function SystemSettings({
       style: {
         fontFamily: "'DM Mono',monospace",
         fontSize: 11,
-        color: "#475569"
+        color: u.role === "driver" ? "#3b82f6" : "#22c55e"
       }
-    }, "●".repeat(6)), /*#__PURE__*/React.createElement(Badge, {
+    }, u.role === "driver" ? "🔑 PIN" : "🔒 Password"), /*#__PURE__*/React.createElement(Badge, {
       text: u.active ? "Active" : "Inactive",
       color: u.active ? "#22c55e" : "#ef4444"
     }), /*#__PURE__*/React.createElement("div", {
@@ -37988,8 +36167,33 @@ function SystemSettings({
         }));
         showToast(`User ${u.active ? "deactivated" : "activated"}`);
       }
-    }, u.active ? "Disable" : "Enable"))])
-  }), /*#__PURE__*/React.createElement(SectionLabel, null, "Role Permissions Reference"), /*#__PURE__*/React.createElement("div", {
+    }, u.active ? "Disable" : "Enable"), /*#__PURE__*/React.createElement(Btn, {
+      "data-testid": "button-delete-user-" + u.id,
+      variant: "secondary",
+      size: "sm",
+      icon: "trash",
+      onClick: () => {
+        if (confirm("Delete user " + u.name + "? This cannot be undone.")) {
+          setSettings(prev => ({
+            ...prev,
+            users: prev.users.filter(x => x.id !== u.id)
+          }));
+          showToast("User " + u.name + " deleted");
+        }
+      }
+    }, "Delete"))])
+  }), /*#__PURE__*/React.createElement(SectionLabel, null, "Security Policy"), React.createElement("div", {
+    style: { 
+      padding: 14, 
+      background: "#0f1a2e", 
+      borderRadius: 8, 
+      border: "1px solid #1e3a5f", 
+      marginBottom: 16,
+      fontSize: 12,
+      lineHeight: 1.7,
+      color: "#94a3b8"
+    }
+  }, React.createElement("div", { style: { fontWeight: 600, color: "#3b82f6", marginBottom: 6 } }, "Authentication Methods"), React.createElement("div", null, React.createElement("span", { style: { color: "#3b82f6" } }, "Drivers"), " use a 6-digit numeric PIN for quick mobile access during deliveries."), React.createElement("div", null, React.createElement("span", { style: { color: "#22c55e" } }, "All other roles"), " require a secure password (min 8 characters, with uppercase, lowercase, and a number).")), React.createElement(SectionLabel, null, "Role Permissions Reference"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
       gridTemplateColumns: "repeat(6,1fr)",
@@ -38054,16 +36258,38 @@ function SystemSettings({
       email: v
     })),
     placeholder: "user@freshtrade.com"
-  }), /*#__PURE__*/React.createElement(Field, {
+  }), /*#__PURE__*/userForm.role === "driver" ? React.createElement(Field, {
     label: "PIN (6 digits)",
     value: userForm.pin,
     onChange: v => setUserForm(f => ({
       ...f,
-      pin: v
+      pin: v.replace(/[^0-9]/g, "").slice(0, 6)
     })),
     placeholder: "123456",
-    type: "password"
-  })), /*#__PURE__*/React.createElement("div", {
+    type: "password",
+    hint: "Numeric PIN for quick driver access"
+  }) : React.createElement("div", null, React.createElement(Field, {
+    label: "Password",
+    value: userForm.password,
+    onChange: v => setUserForm(f => ({
+      ...f,
+      password: v
+    })),
+    placeholder: "Minimum 8 characters",
+    type: showPassword ? "text" : "password",
+    hint: "Min 8 chars, include uppercase, lowercase, and a number"
+  }), React.createElement("button", {
+    onClick: () => setShowPassword(!showPassword),
+    style: {
+      background: "none",
+      border: "none",
+      color: "#64748b",
+      fontSize: 11,
+      cursor: "pointer",
+      marginTop: 2,
+      padding: 0
+    }
+  }, showPassword ? "Hide password" : "Show password"))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       justifyContent: "flex-end",
@@ -38078,7 +36304,7 @@ function SystemSettings({
     }
   }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
     onClick: saveUser,
-    disabled: !userForm.name || !userForm.email,
+    disabled: !userForm.name || !userForm.email || (userForm.role === "driver" ? !userForm.pin || userForm.pin.length < 6 : (!editUser && (!userForm.password || userForm.password.length < 8))),
     icon: editUser ? "check" : "plus"
   }, editUser ? "Save Changes" : "Add User")))), tab === "email" && /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -38416,7 +36642,7 @@ function SystemSettings({
     label: "Default Payment Terms",
     value: settings.preferences.defaultTerms,
     onChange: v => update("preferences", "defaultTerms", v),
-    options: TERMS_OPTIONS
+    options: ["Net 15", "Net 30", "Net 45", "Net 60", "Net 90", "Due on Receipt", "COD", "Prepaid"]
   }), /*#__PURE__*/React.createElement(Dropdown, {
     label: "Default Price Level",
     value: settings.preferences.defaultPriceLevel,
@@ -39334,11 +37560,13 @@ function SystemSettings({
     }
   }, "Import / Restore"), "."))))));
 }
-(async function () {
+
+// Load data from PostgreSQL before rendering
+(async function() {
   try {
     _cachedData = await dbLoadAsync();
     console.log("Data loaded from PostgreSQL:", _cachedData ? "found" : "empty database");
-  } catch (e) {
+  } catch(e) {
     console.warn("Could not load from server, starting fresh:", e);
   }
   const root = ReactDOM.createRoot(document.getElementById('root'));
