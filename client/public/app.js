@@ -22022,25 +22022,23 @@ function Inventory({
       gap: 10
     }
   }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      background: "#1a2030",
-      borderRadius: 8,
-      padding: 14
-    }
+    style: { background: "#1a2030", borderRadius: 8, padding: 12 }
   }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 13,
-      color: "#f1f5f9",
-      fontWeight: 700,
-      marginBottom: 10
-    }
-  }, "Sell Price Levels"), priceLevels.map(pl => ({
-    key: pl.id,
-    label: pl.label,
-    color: pl.color,
-    method: pl.method,
-    markupValue: pl.markupValue
-  })).map(lvl => {
+    style: { fontSize: 13, color: "#f1f5f9", fontWeight: 700, marginBottom: 8 }
+  }, "Sell Price Levels"),
+  /*#__PURE__*/React.createElement("table", {
+    style: { width: "100%", borderCollapse: "collapse" }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+    style: { borderBottom: "1px solid #2d3748" }
+  }, /*#__PURE__*/React.createElement("th", { style: { padding: "4px 6px", fontSize: 10, color: "#64748b", fontWeight: 600, textAlign: "left", width: 80 } }, "Level"),
+    /*#__PURE__*/React.createElement("th", { style: { padding: "4px 6px", fontSize: 10, color: "#64748b", fontWeight: 600, textAlign: "center", width: 80 } }, "Method"),
+    /*#__PURE__*/React.createElement("th", { style: { padding: "4px 6px", fontSize: 10, color: "#64748b", fontWeight: 600, textAlign: "center" } }, "Price / Markup"),
+    /*#__PURE__*/React.createElement("th", { style: { padding: "4px 6px", fontSize: 10, color: "#64748b", fontWeight: 600, textAlign: "center", width: 70 } }, "Sell $"),
+    /*#__PURE__*/React.createElement("th", { style: { padding: "4px 6px", fontSize: 10, color: "#64748b", fontWeight: 600, textAlign: "center", width: 55 } }, "GP%"),
+    (form.catchWeight || form.fixedWeight) && /*#__PURE__*/React.createElement("th", { style: { padding: "4px 6px", fontSize: 10, color: "#3b82f6", fontWeight: 600, textAlign: "center", width: 70 } }, "+Piece")
+  )),
+  /*#__PURE__*/React.createElement("tbody", null, priceLevels.map(pl => {
+    const lvl = { key: pl.id, label: pl.label, color: pl.color };
     const cost = Number(form.pricing.cost) || 0;
     const methodKey = lvl.key + "Method";
     const markupKey = lvl.key + "Markup";
@@ -22052,85 +22050,63 @@ function Inventory({
     const sell = lvlMethod !== "manual" && calcPrice > 0 ? calcPrice : (Number(form.pricing[lvl.key]) || 0);
     const marginPct = cost > 0 && sell > 0 ? ((sell - cost) / sell * 100).toFixed(1) : null;
     const piecePriceKey = lvl.key + "Piece";
-    const pieceAdd = Number(form.pricing[piecePriceKey]) || 0;
-    const pieceTotal = sell > 0 && pieceAdd > 0 ? sell + pieceAdd : 0;
     const isWB = form.catchWeight || form.fixedWeight;
     if (lvlMethod !== "manual" && calcPrice > 0 && Number(form.pricing[lvl.key]) !== calcPrice) {
       setTimeout(() => setForm(f => ({ ...f, pricing: { ...f.pricing, [lvl.key]: calcPrice } })), 0);
     }
-    return /*#__PURE__*/React.createElement("div", {
+    return /*#__PURE__*/React.createElement("tr", {
       key: lvl.key,
-      style: {
-        marginBottom: 6,
-        padding: "8px 10px",
-        background: "#0f1117",
-        borderRadius: 5,
-        border: "1px solid #2d3748"
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }
-    }, /*#__PURE__*/React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
-      /*#__PURE__*/React.createElement("label", { style: { fontSize: 14, color: "#e2e8f0", fontWeight: 700, minWidth: 70 } }, lvl.label),
-      /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 2 } }, ["manual", "pct", "flat"].map(m => /*#__PURE__*/React.createElement("button", {
+      style: { borderBottom: "1px solid #1e293b" }
+    },
+    /*#__PURE__*/React.createElement("td", { style: { padding: "5px 6px", fontSize: 13, color: "#e2e8f0", fontWeight: 700 } }, lvl.label),
+    /*#__PURE__*/React.createElement("td", { style: { padding: "3px 2px", textAlign: "center" } },
+      /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 1, justifyContent: "center" } }, ["manual", "pct", "flat"].map(m => /*#__PURE__*/React.createElement("button", {
         key: m,
         onClick: () => setForm(f => ({ ...f, pricing: { ...f.pricing, [methodKey]: m } })),
         "data-testid": "btn-method-" + lvl.key + "-" + m,
-        style: { padding: "2px 8px", borderRadius: 3, border: lvlMethod === m ? "1px solid #22c55e" : "1px solid #2d3748", background: lvlMethod === m ? "#22c55e22" : "transparent", color: lvlMethod === m ? "#22c55e" : "#64748b", fontSize: 11, fontWeight: 600, cursor: "pointer" }
+        style: { padding: "2px 6px", borderRadius: 3, border: lvlMethod === m ? "1px solid #22c55e" : "1px solid #2d3748", background: lvlMethod === m ? "#22c55e22" : "transparent", color: lvlMethod === m ? "#22c55e" : "#64748b", fontSize: 10, fontWeight: 600, cursor: "pointer", lineHeight: 1.2 }
       }, m === "manual" ? "$" : m === "pct" ? "+%" : "+$")))),
-    /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center" } },
-      marginPct !== null && /*#__PURE__*/React.createElement("span", { style: { fontSize: 13, color: Number(marginPct) > 0 ? "#22c55e" : "#ef4444", fontWeight: 600 } }, marginPct, "% GP"),
-      cost > 0 && sell > 0 && /*#__PURE__*/React.createElement("span", { style: { fontSize: 12, color: "#64748b" } }, "+", fmt(sell - cost)),
-      isWB && pieceTotal > 0 && /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, color: "#3b82f6", fontWeight: 600, background: "#3b82f622", padding: "1px 5px", borderRadius: 3 } }, "Pc:", fmt(pieceTotal)))),
-    /*#__PURE__*/React.createElement("div", {
-      style: { display: "flex", gap: 6, alignItems: "center" }
-    }, lvlMethod === "manual" ?
-      /*#__PURE__*/React.createElement("div", {
-        style: { position: "relative", flex: 1 }
-      }, /*#__PURE__*/React.createElement("span", {
-        style: { position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontSize: 15, fontWeight: 700 }
-      }, "$"), /*#__PURE__*/React.createElement("input", {
-        type: "number",
-        value: form.pricing[lvl.key],
-        onChange: e => setForm(f => ({ ...f, pricing: { ...f.pricing, [lvl.key]: e.target.value } })),
-        placeholder: "0.00",
-        step: "0.01",
-        "data-testid": "input-price-" + lvl.key,
-        style: { width: "100%", background: "#1a2030", border: "1px solid #2d3748", borderRadius: 5, padding: "8px 10px 8px 28px", color: "#f1f5f9", fontSize: 16, fontWeight: 700, fontFamily: "system-ui,-apple-system,'Segoe UI',sans-serif", boxSizing: "border-box" }
-      }))
-    :
-      /*#__PURE__*/React.createElement(React.Fragment, null,
-        /*#__PURE__*/React.createElement("div", {
-          style: { position: "relative", flex: 1 }
-        }, /*#__PURE__*/React.createElement("span", {
-          style: { position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: "#f59e0b", fontSize: 14, fontWeight: 700 }
-        }, lvlMethod === "pct" ? "%" : "+$"), /*#__PURE__*/React.createElement("input", {
-          type: "number",
-          value: form.pricing[markupKey] || "",
-          onChange: e => setForm(f => ({ ...f, pricing: { ...f.pricing, [markupKey]: e.target.value } })),
-          placeholder: lvlMethod === "pct" ? "25" : "3.00",
-          step: lvlMethod === "pct" ? "1" : "0.01",
-          "data-testid": "input-markup-" + lvl.key,
-          style: { width: "100%", background: "#1a2030", border: "1px solid #f59e0b44", borderRadius: 5, padding: "8px 10px 8px 28px", color: "#f59e0b", fontSize: 16, fontWeight: 700, fontFamily: "system-ui,-apple-system,'Segoe UI',sans-serif", boxSizing: "border-box" }
-        })),
-        /*#__PURE__*/React.createElement("span", { style: { fontSize: 14, color: "#64748b", fontWeight: 600 } }, "="),
-        /*#__PURE__*/React.createElement("div", {
-          style: { background: "#1a2030", border: "1px solid #22c55e44", borderRadius: 5, padding: "8px 12px", fontSize: 16, fontWeight: 700, color: calcPrice > 0 ? "#22c55e" : "#475569", whiteSpace: "nowrap", minWidth: 80, textAlign: "center" }
-        }, calcPrice > 0 ? fmt(calcPrice) : "$0.00")
-      ),
-    isWB && /*#__PURE__*/React.createElement("div", {
-      style: { position: "relative", flex: "0 0 90px" }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: { position: "absolute", left: 6, top: "50%", transform: "translateY(-50%)", color: "#3b82f6", fontSize: 11, fontWeight: 700 }
-    }, "+$"), /*#__PURE__*/React.createElement("input", {
-      type: "number",
-      value: form.pricing[piecePriceKey] || "",
-      onChange: e => setForm(f => ({ ...f, pricing: { ...f.pricing, [piecePriceKey]: e.target.value } })),
-      placeholder: "0.00",
-      step: "0.01",
-      "data-testid": "input-piece-price-" + lvl.key,
-      style: { width: "100%", background: "#1a2030", border: "1px solid #3b82f644", borderRadius: 5, padding: "6px 6px 6px 26px", color: "#3b82f6", fontSize: 13, fontWeight: 700, fontFamily: "system-ui,-apple-system,'Segoe UI',sans-serif", boxSizing: "border-box" }
-    }))));
-  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    /*#__PURE__*/React.createElement("td", { style: { padding: "3px 4px" } },
+      lvlMethod === "manual" ?
+        /*#__PURE__*/React.createElement("div", { style: { position: "relative" } },
+          /*#__PURE__*/React.createElement("span", { style: { position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontSize: 13, fontWeight: 700 } }, "$"),
+          /*#__PURE__*/React.createElement("input", {
+            type: "number", value: form.pricing[lvl.key],
+            onChange: e => setForm(f => ({ ...f, pricing: { ...f.pricing, [lvl.key]: e.target.value } })),
+            placeholder: "0.00", step: "0.01",
+            "data-testid": "input-price-" + lvl.key,
+            style: { width: "100%", background: "#0f1117", border: "1px solid #2d3748", borderRadius: 4, padding: "6px 8px 6px 24px", color: "#f1f5f9", fontSize: 14, fontWeight: 700, boxSizing: "border-box" }
+          }))
+      :
+        /*#__PURE__*/React.createElement("div", { style: { position: "relative" } },
+          /*#__PURE__*/React.createElement("span", { style: { position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: "#f59e0b", fontSize: 12, fontWeight: 700 } }, lvlMethod === "pct" ? "%" : "+$"),
+          /*#__PURE__*/React.createElement("input", {
+            type: "number", value: form.pricing[markupKey] || "",
+            onChange: e => setForm(f => ({ ...f, pricing: { ...f.pricing, [markupKey]: e.target.value } })),
+            placeholder: lvlMethod === "pct" ? "25" : "3.00",
+            step: lvlMethod === "pct" ? "1" : "0.01",
+            "data-testid": "input-markup-" + lvl.key,
+            style: { width: "100%", background: "#0f1117", border: "1px solid #f59e0b44", borderRadius: 4, padding: "6px 8px 6px 24px", color: "#f59e0b", fontSize: 14, fontWeight: 700, boxSizing: "border-box" }
+          }))
+    ),
+    /*#__PURE__*/React.createElement("td", { style: { padding: "3px 4px", textAlign: "center" } },
+      /*#__PURE__*/React.createElement("div", { style: { fontSize: 14, fontWeight: 700, color: sell > 0 ? "#22c55e" : "#475569", lineHeight: 1.2 } }, sell > 0 ? fmt(sell) : "—"),
+      isWB && sell > 0 && (Number(form.pricing[piecePriceKey]) || 0) > 0 && /*#__PURE__*/React.createElement("div", { style: { fontSize: 9, color: "#3b82f6", fontWeight: 600, lineHeight: 1 } }, "Pc:", fmt(sell + (Number(form.pricing[piecePriceKey]) || 0)))),
+    /*#__PURE__*/React.createElement("td", { style: { padding: "3px 4px", textAlign: "center", fontSize: 12, fontWeight: 600, color: marginPct !== null ? (Number(marginPct) > 0 ? "#22c55e" : "#ef4444") : "#475569" } },
+      marginPct !== null ? marginPct + "%" : "—"),
+    isWB && /*#__PURE__*/React.createElement("td", { style: { padding: "3px 4px" } },
+      /*#__PURE__*/React.createElement("div", { style: { position: "relative" } },
+        /*#__PURE__*/React.createElement("span", { style: { position: "absolute", left: 4, top: "50%", transform: "translateY(-50%)", color: "#3b82f6", fontSize: 10, fontWeight: 700 } }, "+$"),
+        /*#__PURE__*/React.createElement("input", {
+          type: "number", value: form.pricing[piecePriceKey] || "",
+          onChange: e => setForm(f => ({ ...f, pricing: { ...f.pricing, [piecePriceKey]: e.target.value } })),
+          placeholder: "0.00", step: "0.01",
+          "data-testid": "input-piece-price-" + lvl.key,
+          style: { width: "100%", background: "#0f1117", border: "1px solid #3b82f644", borderRadius: 4, padding: "5px 4px 5px 22px", color: "#3b82f6", fontSize: 12, fontWeight: 700, boxSizing: "border-box" }
+        })
+      ))
+    );
+  })))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       background: "linear-gradient(135deg, #dc262622, #f59e0b22)",
       border: "1px solid #f59e0b",
