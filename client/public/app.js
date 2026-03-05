@@ -19390,7 +19390,12 @@ function Inventory({
         level4: ((_prod$pricing20 = prod.pricing) === null || _prod$pricing20 === void 0 ? void 0 : _prod$pricing20.level4) || "",
         level5: ((_prod$pricing21 = prod.pricing) === null || _prod$pricing21 === void 0 ? void 0 : _prod$pricing21.level5) || "",
         sales: ((_prod$pricing22 = prod.pricing) === null || _prod$pricing22 === void 0 ? void 0 : _prod$pricing22.sales) || "",
-        piecePrice: (prod.pricing && prod.pricing.piecePrice) || ""
+        piecePrice: (prod.pricing && prod.pricing.piecePrice) || "",
+        level1Piece: (prod.pricing && prod.pricing.level1Piece) || "",
+        level2Piece: (prod.pricing && prod.pricing.level2Piece) || "",
+        level3Piece: (prod.pricing && prod.pricing.level3Piece) || "",
+        level4Piece: (prod.pricing && prod.pricing.level4Piece) || "",
+        level5Piece: (prod.pricing && prod.pricing.level5Piece) || ""
       },
       cutPricing: prod.cutPricing || {}
     });
@@ -19400,17 +19405,20 @@ function Inventory({
   };
   const saveProduct = () => {
     const costVal = Number(form.pricing.cost) || 0;
-    // Auto-calc cut pricing based on markup from cost
     const cutPricingSaved = {};
     (form.cutOptions || []).forEach(opt => {
       var _form$cutPricing;
       const cp = ((_form$cutPricing = form.cutPricing) === null || _form$cutPricing === void 0 ? void 0 : _form$cutPricing[opt]) || {};
       const markup = Number(cp.markup) || 0;
       const overridePrice = Number(cp.price) || 0;
-      cutPricingSaved[opt] = {
-        markup,
-        price: overridePrice > 0 ? overridePrice : costVal > 0 ? costVal * (1 + markup / 100) : 0
-      };
+      const saved = { markup, price: overridePrice > 0 ? overridePrice : costVal > 0 ? costVal * (1 + markup / 100) : 0 };
+      priceLevels.forEach(pl => {
+        const lvlData = cp[pl.id] || {};
+        const add = Number(lvlData.add) || 0;
+        const lvlPrice = Number(form.pricing[pl.id]) || 0;
+        saved[pl.id] = { add, price: lvlPrice + add };
+      });
+      cutPricingSaved[opt] = saved;
     });
     const p = {
       ...form,
@@ -19433,7 +19441,12 @@ function Inventory({
         level4: Number(form.pricing.level4) || 0,
         level5: Number(form.pricing.level5) || 0,
         sales: Number(form.pricing.sales) || 0,
-        piecePrice: Number(form.pricing.piecePrice) || 0
+        piecePrice: Number(form.pricing.piecePrice) || 0,
+        level1Piece: Number(form.pricing.level1Piece) || 0,
+        level2Piece: Number(form.pricing.level2Piece) || 0,
+        level3Piece: Number(form.pricing.level3Piece) || 0,
+        level4Piece: Number(form.pricing.level4Piece) || 0,
+        level5Piece: Number(form.pricing.level5Piece) || 0
       },
       cutPricing: cutPricingSaved,
       minWeightCase: form.catchWeight ? Number(form.minWeightCase) || 0 : undefined,
@@ -19476,7 +19489,12 @@ function Inventory({
         level4: "",
         level5: "",
         sales: "",
-        piecePrice: ""
+        piecePrice: "",
+        level1Piece: "",
+        level2Piece: "",
+        level3Piece: "",
+        level4Piece: "",
+        level5Piece: ""
       },
       cutPricing: {},
       minWeightCase: "",
@@ -21883,7 +21901,9 @@ function Inventory({
       fontWeight: 600,
       marginBottom: 12
     }
-  }, "Sell Price Levels"), priceLevels.map(pl => ({
+  }, "Sell Price Levels"), (form.catchWeight || form.fixedWeight) && /*#__PURE__*/React.createElement("div", {
+    style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0, marginBottom: 8, paddingLeft: 2 }
+  }, /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, color: "#64748b", fontWeight: 600 } }, "Per Pound"), /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, color: "#3b82f6", fontWeight: 600 } }, "Per Piece (+)")), priceLevels.map(pl => ({
     key: pl.id,
     label: pl.label,
     color: pl.color,
@@ -21895,6 +21915,10 @@ function Inventory({
     const marginPct = cost > 0 && sell > 0 ? ((sell - cost) / sell * 100).toFixed(1) : null;
     let recPrice = null;
     if (cost > 0 && lvl.method === "costPlus") recPrice = Math.round(cost * (1 + (lvl.markupValue || 0) / 100) * 100) / 100;else if (cost > 0 && lvl.method === "margin" && (lvl.markupValue || 0) < 100) recPrice = Math.round(cost / (1 - (lvl.markupValue || 0) / 100) * 100) / 100;
+    const piecePriceKey = lvl.key + "Piece";
+    const pieceAdd = Number(form.pricing[piecePriceKey]) || 0;
+    const pieceTotal = sell > 0 && pieceAdd > 0 ? sell + pieceAdd : 0;
+    const isWB = form.catchWeight || form.fixedWeight;
     return /*#__PURE__*/React.createElement("div", {
       key: lvl.key,
       style: {
@@ -21917,14 +21941,16 @@ function Inventory({
         color: "#e2e8f0",
         fontWeight: 700
       }
-    }, lvl.label), marginPct !== null && /*#__PURE__*/React.createElement("span", {
+    }, lvl.label), /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 10, alignItems: "center" } }, marginPct !== null && /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 12,
         color: Number(marginPct) > 0 ? "#22c55e" : "#ef4444",
         fontFamily: "'DM Mono',monospace",
         fontWeight: 600
       }
-    }, marginPct, "% GP")), /*#__PURE__*/React.createElement("div", {
+    }, marginPct, "% GP"), isWB && pieceTotal > 0 && /*#__PURE__*/React.createElement("span", {
+      style: { fontSize: 11, color: "#3b82f6", fontFamily: "'DM Mono',monospace", fontWeight: 600 }
+    }, "Pc: ", fmt(pieceTotal)))), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
         gap: 8,
@@ -21970,7 +21996,44 @@ function Inventory({
         fontFamily: "'DM Mono',monospace",
         boxSizing: "border-box"
       }
-    })), recPrice && /*#__PURE__*/React.createElement("button", {
+    })), isWB && /*#__PURE__*/React.createElement("div", {
+      style: { position: "relative", flex: 1 }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        position: "absolute",
+        left: 10,
+        top: "50%",
+        transform: "translateY(-50%)",
+        color: "#3b82f6",
+        fontSize: 14,
+        fontWeight: 700
+      }
+    }, "+$"), /*#__PURE__*/React.createElement("input", {
+      type: "number",
+      value: form.pricing[piecePriceKey] || "",
+      onChange: e => setForm(f => ({
+        ...f,
+        pricing: {
+          ...f.pricing,
+          [piecePriceKey]: e.target.value
+        }
+      })),
+      placeholder: "0.00",
+      step: "0.01",
+      "data-testid": "input-piece-price-" + lvl.key,
+      style: {
+        width: "100%",
+        background: "#1a2030",
+        border: "1px solid #3b82f644",
+        borderRadius: 6,
+        padding: "10px 12px 10px 36px",
+        color: "#3b82f6",
+        fontSize: 16,
+        fontWeight: 700,
+        fontFamily: "'DM Mono',monospace",
+        boxSizing: "border-box"
+      }
+    })), !isWB && recPrice && /*#__PURE__*/React.createElement("button", {
       onClick: () => setForm(f => ({
         ...f,
         pricing: {
@@ -21998,67 +22061,7 @@ function Inventory({
         fontFamily: "'DM Mono',monospace"
       }
     }, fmt(sell - cost))));
-  }), (form.catchWeight || form.fixedWeight) && /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: 14,
-      padding: "12px 14px",
-      background: "#0f1117",
-      borderRadius: 6,
-      border: "2px solid #3b82f6"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginBottom: 6
-    }
-  }, /*#__PURE__*/React.createElement("label", {
-    style: {
-      fontSize: 14,
-      color: "#3b82f6",
-      fontWeight: 700
-    }
-  }, "Piece Price (sell by piece)"), /*#__PURE__*/React.createElement("span", {
-    style: { fontSize: 11, color: "#64748b" }
-  }, "For selling this weight-based item per piece")), /*#__PURE__*/React.createElement("div", {
-    style: { position: "relative", maxWidth: 250 }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      position: "absolute",
-      left: 12,
-      top: "50%",
-      transform: "translateY(-50%)",
-      color: "#3b82f6",
-      fontSize: 16,
-      fontWeight: 700
-    }
-  }, "$"), /*#__PURE__*/React.createElement("input", {
-    type: "number",
-    value: form.pricing.piecePrice || "",
-    onChange: e => setForm(f => ({
-      ...f,
-      pricing: {
-        ...f.pricing,
-        piecePrice: e.target.value
-      }
-    })),
-    placeholder: "0.00",
-    step: "0.01",
-    "data-testid": "input-piece-price",
-    style: {
-      width: "100%",
-      background: "#1a2030",
-      border: "1px solid #3b82f6",
-      borderRadius: 6,
-      padding: "10px 12px 10px 32px",
-      color: "#3b82f6",
-      fontSize: 16,
-      fontWeight: 700,
-      fontFamily: "'DM Mono',monospace",
-      boxSizing: "border-box"
-    }
-  })))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       background: "linear-gradient(135deg, #dc262622, #f59e0b22)",
       border: "2px solid #f59e0b",
@@ -22155,10 +22158,10 @@ function Inventory({
       color: "#64748b",
       marginBottom: 12
     }
-  }, "Set markup % from cost, or override with a fixed price per cut"), /*#__PURE__*/React.createElement("div", {
+  }, "Add amount (+) above each price level per cut variation"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
-      gridTemplateColumns: "1.5fr 1fr 1fr 1fr",
+      gridTemplateColumns: "1.5fr " + priceLevels.map(() => "1fr").join(" "),
       gap: 6,
       padding: "4px 0",
       marginBottom: 4,
@@ -22167,140 +22170,91 @@ function Inventory({
       fontWeight: 600,
       textTransform: "uppercase"
     }
-  }, /*#__PURE__*/React.createElement("div", null, "Cut"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      textAlign: "center"
-    }
-  }, "Markup %"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      textAlign: "center"
-    }
-  }, "Price Override"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      textAlign: "right"
-    }
-  }, "Sell Price")), form.cutOptions.map((opt, ci) => {
+  }, /*#__PURE__*/React.createElement("div", null, "Cut"), priceLevels.map(pl => /*#__PURE__*/React.createElement("div", {
+    key: pl.id,
+    style: { textAlign: "center" }
+  }, pl.label))), form.cutOptions.map((opt, ci) => {
     var _form$cutPricing2;
     const cp = ((_form$cutPricing2 = form.cutPricing) === null || _form$cutPricing2 === void 0 ? void 0 : _form$cutPricing2[opt]) || {};
-    const cost = Number(form.pricing.cost) || 0;
-    const markup = Number(cp.markup) || 0;
-    const override = Number(cp.price) || 0;
-    const calcPrice = override > 0 ? override : cost > 0 ? cost * (1 + markup / 100) : 0;
     return /*#__PURE__*/React.createElement("div", {
       key: ci,
       style: {
         display: "grid",
-        gridTemplateColumns: "1.5fr 1fr 1fr 1fr",
+        gridTemplateColumns: "1.5fr " + priceLevels.map(() => "1fr").join(" "),
         gap: 6,
         alignItems: "center",
-        padding: "6px 0",
+        padding: "8px 0",
         borderBottom: ci < form.cutOptions.length - 1 ? "1px solid #2d3748" : "none"
       }
     }, /*#__PURE__*/React.createElement("div", {
       style: {
-        fontSize: 12,
-        fontWeight: 600,
+        fontSize: 13,
+        fontWeight: 700,
         color: "#e2e8f0"
       }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: "#a855f7",
-        marginRight: 4
-      }
-    }, "\u2702\uFE0F"), opt), /*#__PURE__*/React.createElement("div", {
-      style: {
-        position: "relative"
-      }
-    }, /*#__PURE__*/React.createElement("input", {
-      type: "number",
-      value: cp.markup || "",
-      onChange: e => setForm(f => {
-        var _f$cutPricing;
-        return {
-          ...f,
-          cutPricing: {
-            ...f.cutPricing,
-            [opt]: {
-              ...(((_f$cutPricing = f.cutPricing) === null || _f$cutPricing === void 0 ? void 0 : _f$cutPricing[opt]) || {}),
-              markup: e.target.value
+    }, "\u2702\uFE0F ", opt), priceLevels.map(pl => {
+      const levelPrice = Number(form.pricing[pl.id]) || 0;
+      const cutAdd = Number((cp[pl.id] || {}).add) || 0;
+      const cutOverride = Number((cp[pl.id] || {}).price) || 0;
+      const finalPrice = cutOverride > 0 ? cutOverride : levelPrice + cutAdd;
+      return /*#__PURE__*/React.createElement("div", {
+        key: pl.id,
+        style: { textAlign: "center" }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: { position: "relative", marginBottom: 4 }
+      }, /*#__PURE__*/React.createElement("span", {
+        style: {
+          position: "absolute",
+          left: 4,
+          top: "50%",
+          transform: "translateY(-50%)",
+          color: "#a855f7",
+          fontSize: 11,
+          fontWeight: 700
+        }
+      }, "+$"), /*#__PURE__*/React.createElement("input", {
+        type: "number",
+        value: (cp[pl.id] || {}).add || "",
+        onChange: e => setForm(f => {
+          var _f$cutPricing;
+          const prev = ((_f$cutPricing = f.cutPricing) === null || _f$cutPricing === void 0 ? void 0 : _f$cutPricing[opt]) || {};
+          return {
+            ...f,
+            cutPricing: {
+              ...f.cutPricing,
+              [opt]: {
+                ...prev,
+                [pl.id]: { ...(prev[pl.id] || {}), add: e.target.value }
+              }
             }
-          }
-        };
-      }),
-      placeholder: "0",
-      step: "1",
-      style: {
-        width: "100%",
-        background: "#0f1117",
-        border: "1px solid #a855f744",
-        borderRadius: 4,
-        padding: "5px 20px 5px 6px",
-        color: "#e2e8f0",
-        fontSize: 11,
-        textAlign: "center",
-        boxSizing: "border-box"
-      }
-    }), /*#__PURE__*/React.createElement("span", {
-      style: {
-        position: "absolute",
-        right: 6,
-        top: "50%",
-        transform: "translateY(-50%)",
-        fontSize: 10,
-        color: "#64748b"
-      }
-    }, "%")), /*#__PURE__*/React.createElement("div", {
-      style: {
-        position: "relative"
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        position: "absolute",
-        left: 6,
-        top: "50%",
-        transform: "translateY(-50%)",
-        fontSize: 10,
-        color: "#64748b"
-      }
-    }, "$"), /*#__PURE__*/React.createElement("input", {
-      type: "number",
-      value: cp.price || "",
-      onChange: e => setForm(f => {
-        var _f$cutPricing2;
-        return {
-          ...f,
-          cutPricing: {
-            ...f.cutPricing,
-            [opt]: {
-              ...(((_f$cutPricing2 = f.cutPricing) === null || _f$cutPricing2 === void 0 ? void 0 : _f$cutPricing2[opt]) || {}),
-              price: e.target.value
-            }
-          }
-        };
-      }),
-      placeholder: "auto",
-      step: "0.01",
-      style: {
-        width: "100%",
-        background: "#0f1117",
-        border: "1px solid #2d374844",
-        borderRadius: 4,
-        padding: "5px 6px 5px 18px",
-        color: "#e2e8f0",
-        fontSize: 11,
-        textAlign: "center",
-        boxSizing: "border-box"
-      }
-    })), /*#__PURE__*/React.createElement("div", {
-      style: {
-        textAlign: "right",
-        fontFamily: "'DM Mono',monospace",
-        fontSize: 12,
-        fontWeight: 700,
-        color: calcPrice > 0 ? "#22c55e" : "#475569"
-      }
-    }, calcPrice > 0 ? fmt(calcPrice) : "—"));
-  }), Number(form.pricing.cost || 0) === 0 && /*#__PURE__*/React.createElement("div", {
+          };
+        }),
+        placeholder: "0.00",
+        step: "0.01",
+        "data-testid": "input-cut-add-" + opt + "-" + pl.id,
+        style: {
+          width: "100%",
+          background: "#1a2030",
+          border: "1px solid #2d3748",
+          borderRadius: 4,
+          padding: "6px 4px 6px 28px",
+          color: "#a855f7",
+          fontSize: 13,
+          fontWeight: 700,
+          fontFamily: "'DM Mono',monospace",
+          textAlign: "right",
+          boxSizing: "border-box"
+        }
+      })), /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: 11,
+          fontFamily: "'DM Mono',monospace",
+          fontWeight: 600,
+          color: finalPrice > 0 ? "#22c55e" : "#475569"
+        }
+      }, finalPrice > 0 ? fmt(finalPrice) : "\u2014"));
+    }));
+  }), Number(form.pricing.cost || 0) === 0 && Number(form.pricing.level1 || 0) === 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 8,
       fontSize: 10,
@@ -22309,7 +22263,7 @@ function Inventory({
       background: "#f59e0b11",
       borderRadius: 4
     }
-  }, "\u26A0\uFE0F Enter a cost price above to auto-calculate cut markup prices")), (form.pricing.cost || form.pricing.level1) && /*#__PURE__*/React.createElement("div", {
+  }, "\u26A0\uFE0F Enter price levels above first, then set the + amount per cut")), (form.pricing.cost || form.pricing.level1) && /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 14,
       padding: 12,
