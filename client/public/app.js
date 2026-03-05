@@ -1994,7 +1994,7 @@ function printInventoryCountSheet(products, filterCat, filterVendor, suppliers) 
 function renderReceiptPrintHTML(rcpt, products) {
   const total = rcpt.total || 0;
   const voided = rcpt.status === "voided";
-  const payLabel = rcpt.paymentMethod === "cash" ? "💵 CASH" : rcpt.paymentMethod === "card" ? "💳 CARD" : "📝 CHECK";
+  const payLabel = rcpt.paymentMethod === "cash" ? "💵 CASH" : rcpt.paymentMethod === "card" ? "💳 CARD" : rcpt.paymentMethod === "credit" ? "📋 CREDIT" : "📝 CHECK";
   let linesHtml = "";
   rcpt.lines.forEach((l, idx) => {
     const prod = products.find(p => p.id === l.productId);
@@ -10060,7 +10060,7 @@ function Invoices({
     let rowsHtml = "";
     custReceipts.forEach((r, idx) => {
       const bg = idx % 2 === 0 ? "#ffffff" : "#f8faf9";
-      const payLabel = r.paymentMethod === "cash" ? "Cash" : r.paymentMethod === "card" ? "Card" : "Check";
+      const payLabel = r.paymentMethod === "cash" ? "Cash" : r.paymentMethod === "card" ? "Card" : r.paymentMethod === "credit" ? "Credit" : "Check";
       const itemsSummary = r.lines.map(l => { const p = products.find(pp => pp.id === l.productId); return (p ? p.name : l.productId) + " x" + l.qty; }).join(", ");
       rowsHtml += `<tr style="background:${bg};">
         <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;color:#374151;">${r.date}</td>
@@ -13149,7 +13149,7 @@ function Invoices({
       }
     }, fmt(r.total)), /*#__PURE__*/React.createElement(Badge, {
       text: r.paymentMethod,
-      color: r.paymentMethod === "cash" ? "#22c55e" : r.paymentMethod === "card" ? "#3b82f6" : "#f59e0b"
+      color: r.paymentMethod === "cash" ? "#22c55e" : r.paymentMethod === "card" ? "#3b82f6" : r.paymentMethod === "credit" ? "#ef4444" : "#f59e0b"
     }), /*#__PURE__*/React.createElement(Badge, {
       text: r.status || "completed",
       color: r.status === "voided" ? "#dc2626" : "#22c55e"
@@ -13251,6 +13251,10 @@ function Invoices({
     id: "check",
     label: "📝 Check",
     color: "#f59e0b"
+  }, {
+    id: "credit",
+    label: "📋 Credit",
+    color: "#ef4444"
   }].map(pm => /*#__PURE__*/React.createElement("button", {
     key: pm.id,
     onClick: () => setReceiptForm(f => ({
@@ -13824,7 +13828,7 @@ function Invoices({
         display: "flex",
         gap: 4
       }
-    }, ["cash", "card", "check"].map(pm => /*#__PURE__*/React.createElement("button", {
+    }, ["cash", "card", "check", "credit"].map(pm => /*#__PURE__*/React.createElement("button", {
       key: pm,
       onClick: () => setEditingReceipt(prev => ({
         ...prev,
@@ -13837,13 +13841,13 @@ function Invoices({
         cursor: "pointer",
         fontSize: 10,
         fontWeight: 600,
-        background: editingReceipt.paymentMethod === pm ? "#22c55e22" : "#2d3748",
-        color: editingReceipt.paymentMethod === pm ? "#22c55e" : "#94a3b8",
+        background: editingReceipt.paymentMethod === pm ? (pm === "credit" ? "#ef444422" : "#22c55e22") : "#2d3748",
+        color: editingReceipt.paymentMethod === pm ? (pm === "credit" ? "#ef4444" : pm === "card" ? "#3b82f6" : pm === "check" ? "#f59e0b" : "#22c55e") : "#94a3b8",
         textTransform: "capitalize"
       }
     }, pm))) : /*#__PURE__*/React.createElement(Badge, {
       text: rcpt.paymentMethod,
-      color: rcpt.paymentMethod === "cash" ? "#22c55e" : rcpt.paymentMethod === "card" ? "#3b82f6" : "#f59e0b"
+      color: rcpt.paymentMethod === "cash" ? "#22c55e" : rcpt.paymentMethod === "card" ? "#3b82f6" : rcpt.paymentMethod === "credit" ? "#ef4444" : "#f59e0b"
     }))), /*#__PURE__*/React.createElement("table", {
       style: {
         width: "100%",
