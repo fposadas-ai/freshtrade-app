@@ -2874,7 +2874,13 @@ function App() {
       padding: "24px 20px 16px",
       borderBottom: "1px solid #1e2535"
     }
-  }, /*#__PURE__*/React.createElement("div", {
+  }, settings.company.logo ? /*#__PURE__*/React.createElement("div", {
+    style: { display: "flex", alignItems: "center", justifyContent: "center" }
+  }, /*#__PURE__*/React.createElement("img", {
+    src: settings.company.logo,
+    alt: settings.company.name || "Logo",
+    style: { maxHeight: 40, maxWidth: 180, objectFit: "contain" }
+  })) : /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       alignItems: "center",
@@ -2900,7 +2906,7 @@ function App() {
       color: "#f1f5f9",
       letterSpacing: "0.5px"
     }
-  }, "FRESHTRADE"), /*#__PURE__*/React.createElement("div", {
+  }, (settings.company.name || "FRESHTRADE").toUpperCase()), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 10,
       color: "#64748b",
