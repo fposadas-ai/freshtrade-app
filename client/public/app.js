@@ -3272,6 +3272,21 @@ class ErrorBoundary extends React.Component {
 }
 // SHARED COMPONENTS
 // ============================================================
+const DataTable = ({ headers, rows }) => /*#__PURE__*/React.createElement("div", {
+  style: { overflowX: "auto" }
+}, /*#__PURE__*/React.createElement("table", {
+  style: { width: "100%", borderCollapse: "collapse", fontSize: 13 }
+}, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, headers.map((h, i) => /*#__PURE__*/React.createElement("th", {
+  key: i,
+  style: { textAlign: "left", padding: "10px 12px", color: "#94a3b8", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #1e2535", whiteSpace: "nowrap" }
+}, h)))), /*#__PURE__*/React.createElement("tbody", null, (rows || []).map((row, ri) => /*#__PURE__*/React.createElement("tr", {
+  key: ri,
+  style: { borderBottom: "1px solid #1e2535" }
+}, (Array.isArray(row) ? row : []).map((cell, ci) => /*#__PURE__*/React.createElement("td", {
+  key: ci,
+  style: { padding: "10px 12px", color: "#e2e8f0", whiteSpace: "nowrap" }
+}, cell)))))));
+
 const PageHeader = ({
   title,
   subtitle,
