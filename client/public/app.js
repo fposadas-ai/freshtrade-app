@@ -3078,7 +3078,9 @@ function App() {
     setProducts: setProducts,
     showToast: showToast,
     priceLevels: priceLevels,
-    suppliers: suppliers
+    suppliers: suppliers,
+    customers: customers,
+    setCustomers: setCustomers
   }), activeModule === "customers" && /*#__PURE__*/React.createElement(Customers, {
     customers: customers,
     setCustomers: setCustomers,
@@ -19018,7 +19020,9 @@ function Inventory({
   setProducts,
   showToast,
   priceLevels,
-  suppliers
+  suppliers,
+  customers,
+  setCustomers
 }) {
   var _priceLevels$find2;
   const [showAdd, setShowAdd] = useState(false);
@@ -19407,7 +19411,13 @@ function Inventory({
         level4Markup: (prod.pricing && prod.pricing.level4Markup) || "",
         level5Markup: (prod.pricing && prod.pricing.level5Markup) || ""
       },
-      cutPricing: prod.cutPricing || {}
+      cutPricing: prod.cutPricing || {},
+      customerPricing: (() => {
+        const saved = prod.customerPricing || [];
+        if (saved.length > 0) return saved;
+        const fromCustomers = customers.filter(c => c.specialPricing && c.specialPricing[prod.id]).map(c => ({ customerId: c.id, customerName: c.name, price: c.specialPricing[prod.id] }));
+        return fromCustomers;
+      })()
     });
     setEditProduct(prod);
     setActiveTab("details");
@@ -19469,6 +19479,7 @@ function Inventory({
         level5Markup: Number(form.pricing.level5Markup) || 0
       },
       cutPricing: cutPricingSaved,
+      customerPricing: (form.customerPricing || []).filter(cp => cp.customerId && Number(cp.price) > 0).map(cp => ({ customerId: cp.customerId, customerName: cp.customerName || "", price: Number(cp.price) })),
       minWeightCase: form.catchWeight ? Number(form.minWeightCase) || 0 : undefined,
       maxWeightCase: form.catchWeight ? Number(form.maxWeightCase) || 0 : undefined,
       minWeightPiece: form.catchWeight ? Number(form.minWeightPiece) || 0 : undefined,
@@ -19483,6 +19494,19 @@ function Inventory({
       setProducts(prev => [...prev, p]);
       showToast(`Product "${form.name}" added to inventory`);
     }
+    const custPriceEntries = (form.customerPricing || []).filter(cp => cp.customerId && Number(cp.price) > 0);
+    setCustomers(prev => prev.map(c => {
+      const entry = custPriceEntries.find(cp => cp.customerId === c.id);
+      if (entry) {
+        return { ...c, specialPricing: { ...(c.specialPricing || {}), [p.id]: Number(entry.price) } };
+      }
+      if (c.specialPricing && c.specialPricing[p.id]) {
+        const sp = { ...c.specialPricing };
+        delete sp[p.id];
+        return { ...c, specialPricing: sp };
+      }
+      return c;
+    }));
     setShowAdd(false);
     setEditProduct(null);
     setForm({
@@ -19527,6 +19551,7 @@ function Inventory({
         level5Markup: ""
       },
       cutPricing: {},
+      customerPricing: [],
       minWeightCase: "",
       maxWeightCase: "",
       minWeightPiece: "",
@@ -21914,22 +21939,22 @@ function Inventory({
     }, "(", m === "costPlus" ? `+${mv}%` : m === "margin" ? `${mv}%M` : "—", ")"));
   }))), /*#__PURE__*/React.createElement("div", {
     style: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
+      display: "flex",
+      flexDirection: "column",
       gap: 14
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       background: "#1a2030",
       borderRadius: 8,
-      padding: 16
+      padding: 20
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      fontSize: 13,
+      fontSize: 15,
       color: "#f1f5f9",
-      fontWeight: 600,
-      marginBottom: 12
+      fontWeight: 700,
+      marginBottom: 14
     }
   }, "Sell Price Levels"), priceLevels.map(pl => ({
     key: pl.id,
@@ -22182,7 +22207,7 @@ function Inventory({
         fontWeight: 700,
         color: "#e2e8f0"
       }
-    }, "\u2702\uFE0F ", opt), priceLevels.map(pl => {
+    }, "\u2702\uFE0F ", opt),  priceLevels.map(pl => {
       const levelPrice = Number(form.pricing[pl.id]) || 0;
       const cutAdd = Number((cp[pl.id] || {}).add) || 0;
       const cutOverride = Number((cp[pl.id] || {}).price) || 0;
@@ -22195,11 +22220,11 @@ function Inventory({
       }, /*#__PURE__*/React.createElement("span", {
         style: {
           position: "absolute",
-          left: 4,
+          left: 6,
           top: "50%",
           transform: "translateY(-50%)",
           color: "#a855f7",
-          fontSize: 11,
+          fontSize: 13,
           fontWeight: 700
         }
       }, "+$"), /*#__PURE__*/React.createElement("input", {
@@ -22227,9 +22252,9 @@ function Inventory({
           background: "#1a2030",
           border: "1px solid #2d3748",
           borderRadius: 4,
-          padding: "6px 4px 6px 28px",
+          padding: "10px 8px 10px 30px",
           color: "#a855f7",
-          fontSize: 13,
+          fontSize: 15,
           fontWeight: 700,
           fontFamily: "'DM Mono',monospace",
           textAlign: "right",
@@ -22237,9 +22262,9 @@ function Inventory({
         }
       })), /*#__PURE__*/React.createElement("div", {
         style: {
-          fontSize: 11,
+          fontSize: 13,
           fontFamily: "'DM Mono',monospace",
-          fontWeight: 600,
+          fontWeight: 700,
           color: finalPrice > 0 ? "#22c55e" : "#475569"
         }
       }, finalPrice > 0 ? fmt(finalPrice) : "\u2014"));
@@ -22253,97 +22278,52 @@ function Inventory({
       background: "#f59e0b11",
       borderRadius: 4
     }
-  }, "\u26A0\uFE0F Enter price levels above first, then set the + amount per cut")), (form.pricing.cost || form.pricing.level1) && /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: 14,
-      padding: 12,
-      background: "#0f1117",
-      borderRadius: 6,
-      border: "1px solid #2d3748"
-    }
+  }, "\u26A0\uFE0F Enter price levels above first, then set the + amount per cut")))),
+  /*#__PURE__*/React.createElement("div", {
+    style: { background: "#1a2030", borderRadius: 8, padding: 20 }
   }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 11,
-      color: "#64748b",
-      fontWeight: 600,
-      marginBottom: 8
-    }
-  }, "PRICE LADDER"), [{
-    k: "cost",
-    label: "💰 Cost",
-    c: "#ef4444"
-  }, ...Object.entries(form.pricing).filter(([k, v]) => k !== "cost" && v).map(([k, v]) => {
-    var _priceLevels$find3, _priceLevels$find4;
-    return {
-      k,
-      label: k === "sales" ? "🔥 Sale" : ((_priceLevels$find3 = priceLevels.find(p => p.id === k)) === null || _priceLevels$find3 === void 0 ? void 0 : _priceLevels$find3.shortLabel) || k.replace("level", "Lvl "),
-      c: k === "sales" ? "#f59e0b" : ((_priceLevels$find4 = priceLevels.find(p => p.id === k)) === null || _priceLevels$find4 === void 0 ? void 0 : _priceLevels$find4.color) || "#e2e8f0"
-    };
-  })].filter(x => form.pricing[x.k]).map(x => {
-    const val = Number(form.pricing[x.k]) || 0;
-    const cost = Number(form.pricing.cost) || 0;
-    const margin = cost > 0 && x.k !== "cost" ? ((val - cost) / cost * 100).toFixed(1) : null;
-    return /*#__PURE__*/React.createElement("div", {
-      key: x.k,
-      style: {
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        fontSize: 11,
-        marginBottom: 4,
-        padding: "3px 0"
-      }
+    style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { width: 32, height: 32, borderRadius: 8, background: "#8b5cf622", display: "flex", alignItems: "center", justifyContent: "center", color: "#8b5cf6", fontSize: 16, fontWeight: 800 }
+  }, "\uD83D\uDC64"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 15, color: "#8b5cf6", fontWeight: 700 }
+  }, "Customer-Specific Pricing"), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 11, color: "#94a3b8" }
+  }, "Set a special price for individual customers on this product"))),
+  (form.customerPricing || []).map((cp, idx) => /*#__PURE__*/React.createElement("div", {
+    key: idx,
+    style: { display: "flex", gap: 10, alignItems: "center", marginBottom: 10, padding: "10px 14px", background: "#0f1117", borderRadius: 6, border: "1px solid #2d3748" }
+  },
+    /*#__PURE__*/React.createElement("select", {
+      value: cp.customerId || "",
+      onChange: e => setForm(f => { const arr = [...(f.customerPricing || [])]; arr[idx] = { ...arr[idx], customerId: e.target.value, customerName: (customers.find(c => c.id === e.target.value) || {}).name || "" }; return { ...f, customerPricing: arr }; }),
+      "data-testid": "select-cust-price-" + idx,
+      style: { flex: 1, background: "#1a2030", border: "1px solid #2d3748", borderRadius: 6, padding: "10px 12px", color: "#e2e8f0", fontSize: 14, fontWeight: 600 }
+    }, /*#__PURE__*/React.createElement("option", { value: "" }, "Select Customer"), customers.map(c => /*#__PURE__*/React.createElement("option", { key: c.id, value: c.id }, c.name))),
+    /*#__PURE__*/React.createElement("div", {
+      style: { position: "relative", flex: "0 0 140px" }
     }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: x.c == "#e2e8f0" ? "#94a3b8" : x.c
-      }
-    }, x.label), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        gap: 12,
-        alignItems: "center"
-      }
-    }, margin !== null && /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 9,
-        color: Number(margin) > 0 ? "#22c55e" : "#ef4444",
-        fontFamily: "'DM Mono',monospace"
-      }
-    }, margin, "%"), /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontFamily: "'DM Mono',monospace",
-        fontWeight: 600,
-        color: x.c
-      }
-    }, "$", val.toFixed(2))));
-  }), form.cutOptions && form.cutOptions.length > 0 && form.cutOptions.map(opt => {
-    var _form$cutPricing3;
-    const cp = ((_form$cutPricing3 = form.cutPricing) === null || _form$cutPricing3 === void 0 ? void 0 : _form$cutPricing3[opt]) || {};
-    const cost = Number(form.pricing.cost) || 0;
-    const price = Number(cp.price) || 0 > 0 ? Number(cp.price) : cost * (1 + (Number(cp.markup) || 0) / 100);
-    if (price <= 0) return null;
-    return /*#__PURE__*/React.createElement("div", {
-      key: opt,
-      style: {
-        display: "flex",
-        justifyContent: "space-between",
-        fontSize: 11,
-        marginBottom: 4,
-        padding: "3px 0",
-        borderTop: "1px dashed #2d3748"
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: "#a855f7"
-      }
-    }, "\u2702\uFE0F ", opt), /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontFamily: "'DM Mono',monospace",
-        fontWeight: 600,
-        color: "#a855f7"
-      }
-    }, "$", price.toFixed(2)));
-  }))))), /*#__PURE__*/React.createElement("div", {
+      style: { position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#8b5cf6", fontSize: 16, fontWeight: 700 }
+    }, "$"), /*#__PURE__*/React.createElement("input", {
+      type: "number",
+      value: cp.price || "",
+      onChange: e => setForm(f => { const arr = [...(f.customerPricing || [])]; arr[idx] = { ...arr[idx], price: e.target.value }; return { ...f, customerPricing: arr }; }),
+      placeholder: "0.00",
+      step: "0.01",
+      "data-testid": "input-cust-price-" + idx,
+      style: { width: "100%", background: "#1a2030", border: "1px solid #8b5cf644", borderRadius: 6, padding: "10px 12px 10px 32px", color: "#8b5cf6", fontSize: 16, fontWeight: 700, fontFamily: "'DM Mono',monospace", boxSizing: "border-box" }
+    })),
+    /*#__PURE__*/React.createElement("button", {
+      onClick: () => setForm(f => { const arr = [...(f.customerPricing || [])]; arr.splice(idx, 1); return { ...f, customerPricing: arr }; }),
+      "data-testid": "btn-remove-cust-price-" + idx,
+      style: { background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 18, padding: "4px 8px" }
+    }, "\u2715")
+  )),
+  /*#__PURE__*/React.createElement("button", {
+    onClick: () => setForm(f => ({ ...f, customerPricing: [...(f.customerPricing || []), { customerId: "", customerName: "", price: "" }] })),
+    "data-testid": "btn-add-cust-price",
+    style: { marginTop: 8, padding: "10px 20px", borderRadius: 6, border: "1px dashed #8b5cf644", background: "#8b5cf611", color: "#8b5cf6", fontWeight: 600, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, width: "100%" , justifyContent: "center" }
+  }, "+ Add Customer Price"))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       justifyContent: "flex-end",
