@@ -20154,12 +20154,31 @@ function Inventory({
         padding: "4px 6px",
         textAlign: "center"
       }
-    }, /*#__PURE__*/React.createElement(Btn, {
-      variant: "secondary",
-      size: "sm",
-      icon: "edit",
-      onClick: () => openEdit(p)
-    })));
+    }, /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 4, justifyContent: "center" } },
+      /*#__PURE__*/React.createElement(Btn, {
+        variant: "secondary",
+        size: "sm",
+        icon: "edit",
+        onClick: () => openEdit(p),
+        "data-testid": "btn-edit-product-" + p.id
+      }),
+      /*#__PURE__*/React.createElement("button", {
+        onClick: () => {
+          const copy = { ...p, id: genId("P"), name: p.name + " (Copy)" };
+          setProducts(prev => [...prev, copy]);
+          showToast("Product copied");
+        },
+        title: "Duplicate",
+        "data-testid": "btn-copy-product-" + p.id,
+        style: { background: "none", border: "1px solid #2d3748", borderRadius: 4, color: "#3b82f6", cursor: "pointer", padding: "4px 6px", fontSize: 13 }
+      }, "\u2398"),
+      /*#__PURE__*/React.createElement("button", {
+        onClick: () => { if (confirm("Delete \"" + p.name + "\"?")) setProducts(prev => prev.filter(pr => pr.id !== p.id)); },
+        title: "Delete",
+        "data-testid": "btn-delete-product-" + p.id,
+        style: { background: "none", border: "1px solid #2d3748", borderRadius: 4, color: "#ef4444", cursor: "pointer", padding: "4px 6px", fontSize: 13 }
+      }, "\u2715")
+    )));
   })))), /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "8px 14px",
@@ -20456,12 +20475,31 @@ function Inventory({
       style: {
         textAlign: "center"
       }
-    }, /*#__PURE__*/React.createElement(Btn, {
-      variant: "secondary",
-      size: "sm",
-      icon: "edit",
-      onClick: () => openEdit(p)
-    })));
+    }, /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 4, justifyContent: "center" } },
+      /*#__PURE__*/React.createElement(Btn, {
+        variant: "secondary",
+        size: "sm",
+        icon: "edit",
+        onClick: () => openEdit(p),
+        "data-testid": "btn-edit-product-grid-" + p.id
+      }),
+      /*#__PURE__*/React.createElement("button", {
+        onClick: () => {
+          const copy = { ...p, id: genId("P"), name: p.name + " (Copy)" };
+          setProducts(prev => [...prev, copy]);
+          showToast("Product copied");
+        },
+        title: "Duplicate",
+        "data-testid": "btn-copy-product-grid-" + p.id,
+        style: { background: "none", border: "1px solid #2d3748", borderRadius: 4, color: "#3b82f6", cursor: "pointer", padding: "4px 6px", fontSize: 13 }
+      }, "\u2398"),
+      /*#__PURE__*/React.createElement("button", {
+        onClick: () => { if (confirm("Delete \"" + p.name + "\"?")) setProducts(prev => prev.filter(pr => pr.id !== p.id)); },
+        title: "Delete",
+        "data-testid": "btn-delete-product-grid-" + p.id,
+        style: { background: "none", border: "1px solid #2d3748", borderRadius: 4, color: "#ef4444", cursor: "pointer", padding: "4px 6px", fontSize: 13 }
+      }, "\u2715")
+    )));
   }))))), showCountSheet && /*#__PURE__*/React.createElement(Modal, {
     title: "Print Physical Inventory Count Sheet",
     onClose: () => setShowCountSheet(false),
@@ -21848,9 +21886,9 @@ function Inventory({
       background: "#0f1117",
       border: "2px solid #ef4444",
       borderRadius: 8,
-      padding: "12px 14px 12px 34px",
+      padding: "14px 16px 14px 36px",
       color: "#ef4444",
-      fontSize: 18,
+      fontSize: 20,
       fontWeight: 700,
       boxSizing: "border-box"
     }
@@ -21997,16 +22035,16 @@ function Inventory({
         marginBottom: 8
       }
     }, /*#__PURE__*/React.createElement("label", {
-      style: { fontSize: 14, color: "#e2e8f0", fontWeight: 700 }
-    }, lvl.label), /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center" } },
+      style: { fontSize: 15, color: "#e2e8f0", fontWeight: 700 }
+    }, lvl.label), /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 10, alignItems: "center" } },
       marginPct !== null && /*#__PURE__*/React.createElement("span", {
-        style: { fontSize: 12, color: Number(marginPct) > 0 ? "#22c55e" : "#ef4444", fontFamily: "'DM Mono',monospace", fontWeight: 600 }
+        style: { fontSize: 14, color: Number(marginPct) > 0 ? "#22c55e" : "#ef4444", fontWeight: 600 }
       }, marginPct, "% GP"),
       cost > 0 && sell > 0 && /*#__PURE__*/React.createElement("span", {
-        style: { fontSize: 12, color: "#64748b", fontFamily: "'DM Mono',monospace" }
+        style: { fontSize: 13, color: "#64748b" }
       }, "+", fmt(sell - cost)),
       isWB && pieceTotal > 0 && /*#__PURE__*/React.createElement("span", {
-        style: { fontSize: 11, color: "#3b82f6", fontFamily: "'DM Mono',monospace", fontWeight: 600, background: "#3b82f622", padding: "2px 6px", borderRadius: 4 }
+        style: { fontSize: 11, color: "#3b82f6", fontFamily: "system-ui,-apple-system,'Segoe UI',sans-serif", fontWeight: 600, background: "#3b82f622", padding: "2px 6px", borderRadius: 4 }
       }, "Pc: ", fmt(pieceTotal)))),
     /*#__PURE__*/React.createElement("div", {
       style: { display: "flex", gap: 4, marginBottom: 8 }
@@ -22039,14 +22077,14 @@ function Inventory({
         placeholder: "0.00",
         step: "0.01",
         "data-testid": "input-price-" + lvl.key,
-        style: { width: "100%", background: "#1a2030", border: "1px solid #2d3748", borderRadius: 6, padding: "10px 12px 10px 32px", color: "#f1f5f9", fontSize: 16, fontWeight: 700, fontFamily: "'DM Mono',monospace", boxSizing: "border-box" }
+        style: { width: "100%", background: "#1a2030", border: "1px solid #2d3748", borderRadius: 6, padding: "12px 14px 12px 34px", color: "#f1f5f9", fontSize: 18, fontWeight: 700, fontFamily: "system-ui,-apple-system,'Segoe UI',sans-serif", boxSizing: "border-box" }
       }))
     :
       /*#__PURE__*/React.createElement(React.Fragment, null,
         /*#__PURE__*/React.createElement("div", {
           style: { position: "relative", flex: 1 }
         }, /*#__PURE__*/React.createElement("span", {
-          style: { position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#f59e0b", fontSize: 14, fontWeight: 700 }
+          style: { position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#f59e0b", fontSize: 16, fontWeight: 700 }
         }, lvlMethod === "pct" ? "%" : "+$"), /*#__PURE__*/React.createElement("input", {
           type: "number",
           value: form.pricing[markupKey] || "",
@@ -22054,13 +22092,13 @@ function Inventory({
           placeholder: lvlMethod === "pct" ? "25" : "3.00",
           step: lvlMethod === "pct" ? "1" : "0.01",
           "data-testid": "input-markup-" + lvl.key,
-          style: { width: "100%", background: "#1a2030", border: "1px solid #f59e0b44", borderRadius: 6, padding: "10px 12px 10px 32px", color: "#f59e0b", fontSize: 16, fontWeight: 700, fontFamily: "'DM Mono',monospace", boxSizing: "border-box" }
+          style: { width: "100%", background: "#1a2030", border: "1px solid #f59e0b44", borderRadius: 6, padding: "12px 14px 12px 34px", color: "#f59e0b", fontSize: 18, fontWeight: 700, fontFamily: "system-ui,-apple-system,'Segoe UI',sans-serif", boxSizing: "border-box" }
         })),
         /*#__PURE__*/React.createElement("span", {
-          style: { fontSize: 14, color: "#64748b", fontWeight: 600 }
+          style: { fontSize: 16, color: "#64748b", fontWeight: 600 }
         }, "="),
         /*#__PURE__*/React.createElement("div", {
-          style: { background: "#1a2030", border: "1px solid #22c55e44", borderRadius: 6, padding: "10px 14px", fontFamily: "'DM Mono',monospace", fontSize: 16, fontWeight: 700, color: calcPrice > 0 ? "#22c55e" : "#475569", whiteSpace: "nowrap", minWidth: 80, textAlign: "center" }
+          style: { background: "#1a2030", border: "1px solid #22c55e44", borderRadius: 6, padding: "12px 16px", fontFamily: "system-ui,-apple-system,'Segoe UI',sans-serif", fontSize: 18, fontWeight: 700, color: calcPrice > 0 ? "#22c55e" : "#475569", whiteSpace: "nowrap", minWidth: 90, textAlign: "center" }
         }, calcPrice > 0 ? fmt(calcPrice) : "$0.00")
       ),
     isWB && /*#__PURE__*/React.createElement("div", {
@@ -22074,7 +22112,7 @@ function Inventory({
       placeholder: "0.00",
       step: "0.01",
       "data-testid": "input-piece-price-" + lvl.key,
-      style: { width: "100%", background: "#1a2030", border: "1px solid #3b82f644", borderRadius: 6, padding: "8px 8px 8px 30px", color: "#3b82f6", fontSize: 14, fontWeight: 700, fontFamily: "'DM Mono',monospace", boxSizing: "border-box" }
+      style: { width: "100%", background: "#1a2030", border: "1px solid #3b82f644", borderRadius: 6, padding: "8px 8px 8px 30px", color: "#3b82f6", fontSize: 14, fontWeight: 700, fontFamily: "system-ui,-apple-system,'Segoe UI',sans-serif", boxSizing: "border-box" }
     }))));
   })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -22256,14 +22294,14 @@ function Inventory({
           color: "#a855f7",
           fontSize: 15,
           fontWeight: 700,
-          fontFamily: "'DM Mono',monospace",
+          fontFamily: "system-ui,-apple-system,'Segoe UI',sans-serif",
           textAlign: "right",
           boxSizing: "border-box"
         }
       })), /*#__PURE__*/React.createElement("div", {
         style: {
           fontSize: 13,
-          fontFamily: "'DM Mono',monospace",
+          fontFamily: "system-ui,-apple-system,'Segoe UI',sans-serif",
           fontWeight: 700,
           color: finalPrice > 0 ? "#22c55e" : "#475569"
         }
@@ -22311,7 +22349,7 @@ function Inventory({
       placeholder: "0.00",
       step: "0.01",
       "data-testid": "input-cust-price-" + idx,
-      style: { width: "100%", background: "#1a2030", border: "1px solid #8b5cf644", borderRadius: 6, padding: "10px 12px 10px 32px", color: "#8b5cf6", fontSize: 16, fontWeight: 700, fontFamily: "'DM Mono',monospace", boxSizing: "border-box" }
+      style: { width: "100%", background: "#1a2030", border: "1px solid #8b5cf644", borderRadius: 6, padding: "10px 12px 10px 32px", color: "#8b5cf6", fontSize: 16, fontWeight: 700, fontFamily: "system-ui,-apple-system,'Segoe UI',sans-serif", boxSizing: "border-box" }
     })),
     /*#__PURE__*/React.createElement("button", {
       onClick: () => setForm(f => { const arr = [...(f.customerPricing || [])]; arr.splice(idx, 1); return { ...f, customerPricing: arr }; }),
@@ -22529,7 +22567,7 @@ function Customers({
       const openBal = arGetCustBalance(c.id, invoices, arPayments, creditMemos);
       return [/*#__PURE__*/React.createElement("span", {
         style: {
-          fontFamily: "'DM Mono',monospace",
+          fontFamily: "system-ui,-apple-system,'Segoe UI',sans-serif",
           fontSize: 11,
           color: "#64748b"
         }
