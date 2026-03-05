@@ -19395,7 +19395,17 @@ function Inventory({
         level2Piece: (prod.pricing && prod.pricing.level2Piece) || "",
         level3Piece: (prod.pricing && prod.pricing.level3Piece) || "",
         level4Piece: (prod.pricing && prod.pricing.level4Piece) || "",
-        level5Piece: (prod.pricing && prod.pricing.level5Piece) || ""
+        level5Piece: (prod.pricing && prod.pricing.level5Piece) || "",
+        level1Method: (prod.pricing && prod.pricing.level1Method) || "manual",
+        level2Method: (prod.pricing && prod.pricing.level2Method) || "manual",
+        level3Method: (prod.pricing && prod.pricing.level3Method) || "manual",
+        level4Method: (prod.pricing && prod.pricing.level4Method) || "manual",
+        level5Method: (prod.pricing && prod.pricing.level5Method) || "manual",
+        level1Markup: (prod.pricing && prod.pricing.level1Markup) || "",
+        level2Markup: (prod.pricing && prod.pricing.level2Markup) || "",
+        level3Markup: (prod.pricing && prod.pricing.level3Markup) || "",
+        level4Markup: (prod.pricing && prod.pricing.level4Markup) || "",
+        level5Markup: (prod.pricing && prod.pricing.level5Markup) || ""
       },
       cutPricing: prod.cutPricing || {}
     });
@@ -19446,7 +19456,17 @@ function Inventory({
         level2Piece: Number(form.pricing.level2Piece) || 0,
         level3Piece: Number(form.pricing.level3Piece) || 0,
         level4Piece: Number(form.pricing.level4Piece) || 0,
-        level5Piece: Number(form.pricing.level5Piece) || 0
+        level5Piece: Number(form.pricing.level5Piece) || 0,
+        level1Method: form.pricing.level1Method || "manual",
+        level2Method: form.pricing.level2Method || "manual",
+        level3Method: form.pricing.level3Method || "manual",
+        level4Method: form.pricing.level4Method || "manual",
+        level5Method: form.pricing.level5Method || "manual",
+        level1Markup: Number(form.pricing.level1Markup) || 0,
+        level2Markup: Number(form.pricing.level2Markup) || 0,
+        level3Markup: Number(form.pricing.level3Markup) || 0,
+        level4Markup: Number(form.pricing.level4Markup) || 0,
+        level5Markup: Number(form.pricing.level5Markup) || 0
       },
       cutPricing: cutPricingSaved,
       minWeightCase: form.catchWeight ? Number(form.minWeightCase) || 0 : undefined,
@@ -19494,7 +19514,17 @@ function Inventory({
         level2Piece: "",
         level3Piece: "",
         level4Piece: "",
-        level5Piece: ""
+        level5Piece: "",
+        level1Method: "manual",
+        level2Method: "manual",
+        level3Method: "manual",
+        level4Method: "manual",
+        level5Method: "manual",
+        level1Markup: "",
+        level2Markup: "",
+        level3Markup: "",
+        level4Markup: "",
+        level5Markup: ""
       },
       cutPricing: {},
       minWeightCase: "",
@@ -21901,9 +21931,7 @@ function Inventory({
       fontWeight: 600,
       marginBottom: 12
     }
-  }, "Sell Price Levels"), (form.catchWeight || form.fixedWeight) && /*#__PURE__*/React.createElement("div", {
-    style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0, marginBottom: 8, paddingLeft: 2 }
-  }, /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, color: "#64748b", fontWeight: 600 } }, "Per Pound"), /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, color: "#3b82f6", fontWeight: 600 } }, "Per Piece (+)")), priceLevels.map(pl => ({
+  }, "Sell Price Levels"), priceLevels.map(pl => ({
     key: pl.id,
     label: pl.label,
     color: pl.color,
@@ -21911,19 +21939,27 @@ function Inventory({
     markupValue: pl.markupValue
   })).map(lvl => {
     const cost = Number(form.pricing.cost) || 0;
-    const sell = Number(form.pricing[lvl.key]) || 0;
+    const methodKey = lvl.key + "Method";
+    const markupKey = lvl.key + "Markup";
+    const lvlMethod = form.pricing[methodKey] || "manual";
+    const lvlMarkup = Number(form.pricing[markupKey]) || 0;
+    let calcPrice = 0;
+    if (lvlMethod === "pct" && cost > 0 && lvlMarkup > 0) calcPrice = Math.round(cost * (1 + lvlMarkup / 100) * 100) / 100;
+    else if (lvlMethod === "flat" && cost > 0) calcPrice = Math.round((cost + lvlMarkup) * 100) / 100;
+    const sell = lvlMethod !== "manual" && calcPrice > 0 ? calcPrice : (Number(form.pricing[lvl.key]) || 0);
     const marginPct = cost > 0 && sell > 0 ? ((sell - cost) / sell * 100).toFixed(1) : null;
-    let recPrice = null;
-    if (cost > 0 && lvl.method === "costPlus") recPrice = Math.round(cost * (1 + (lvl.markupValue || 0) / 100) * 100) / 100;else if (cost > 0 && lvl.method === "margin" && (lvl.markupValue || 0) < 100) recPrice = Math.round(cost / (1 - (lvl.markupValue || 0) / 100) * 100) / 100;
     const piecePriceKey = lvl.key + "Piece";
     const pieceAdd = Number(form.pricing[piecePriceKey]) || 0;
     const pieceTotal = sell > 0 && pieceAdd > 0 ? sell + pieceAdd : 0;
     const isWB = form.catchWeight || form.fixedWeight;
+    if (lvlMethod !== "manual" && calcPrice > 0 && Number(form.pricing[lvl.key]) !== calcPrice) {
+      setTimeout(() => setForm(f => ({ ...f, pricing: { ...f.pricing, [lvl.key]: calcPrice } })), 0);
+    }
     return /*#__PURE__*/React.createElement("div", {
       key: lvl.key,
       style: {
         marginBottom: 12,
-        padding: "10px 12px",
+        padding: "12px 14px",
         background: "#0f1117",
         borderRadius: 6,
         border: "1px solid #2d3748"
@@ -21933,134 +21969,88 @@ function Inventory({
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
-        marginBottom: 6
+        marginBottom: 8
       }
     }, /*#__PURE__*/React.createElement("label", {
+      style: { fontSize: 14, color: "#e2e8f0", fontWeight: 700 }
+    }, lvl.label), /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center" } },
+      marginPct !== null && /*#__PURE__*/React.createElement("span", {
+        style: { fontSize: 12, color: Number(marginPct) > 0 ? "#22c55e" : "#ef4444", fontFamily: "'DM Mono',monospace", fontWeight: 600 }
+      }, marginPct, "% GP"),
+      cost > 0 && sell > 0 && /*#__PURE__*/React.createElement("span", {
+        style: { fontSize: 12, color: "#64748b", fontFamily: "'DM Mono',monospace" }
+      }, "+", fmt(sell - cost)),
+      isWB && pieceTotal > 0 && /*#__PURE__*/React.createElement("span", {
+        style: { fontSize: 11, color: "#3b82f6", fontFamily: "'DM Mono',monospace", fontWeight: 600, background: "#3b82f622", padding: "2px 6px", borderRadius: 4 }
+      }, "Pc: ", fmt(pieceTotal)))),
+    /*#__PURE__*/React.createElement("div", {
+      style: { display: "flex", gap: 4, marginBottom: 8 }
+    }, ["manual", "pct", "flat"].map(m => /*#__PURE__*/React.createElement("button", {
+      key: m,
+      onClick: () => setForm(f => ({ ...f, pricing: { ...f.pricing, [methodKey]: m } })),
+      "data-testid": "btn-method-" + lvl.key + "-" + m,
       style: {
-        fontSize: 14,
-        color: "#e2e8f0",
-        fontWeight: 700
-      }
-    }, lvl.label), /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 10, alignItems: "center" } }, marginPct !== null && /*#__PURE__*/React.createElement("span", {
-      style: {
+        padding: "4px 12px",
+        borderRadius: 4,
+        border: lvlMethod === m ? "1px solid #22c55e" : "1px solid #2d3748",
+        background: lvlMethod === m ? "#22c55e22" : "#1a2030",
+        color: lvlMethod === m ? "#22c55e" : "#64748b",
         fontSize: 12,
-        color: Number(marginPct) > 0 ? "#22c55e" : "#ef4444",
-        fontFamily: "'DM Mono',monospace",
-        fontWeight: 600
+        fontWeight: 600,
+        cursor: "pointer"
       }
-    }, marginPct, "% GP"), isWB && pieceTotal > 0 && /*#__PURE__*/React.createElement("span", {
-      style: { fontSize: 11, color: "#3b82f6", fontFamily: "'DM Mono',monospace", fontWeight: 600 }
-    }, "Pc: ", fmt(pieceTotal)))), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        gap: 8,
-        alignItems: "center"
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        position: "relative",
-        flex: 1
-      }
+    }, m === "manual" ? "Manual $" : m === "pct" ? "Cost + %" : "Cost + $"))),
+    /*#__PURE__*/React.createElement("div", {
+      style: { display: "flex", gap: 8, alignItems: "center" }
+    }, lvlMethod === "manual" ?
+      /*#__PURE__*/React.createElement("div", {
+        style: { position: "relative", flex: 1 }
+      }, /*#__PURE__*/React.createElement("span", {
+        style: { position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontSize: 16, fontWeight: 700 }
+      }, "$"), /*#__PURE__*/React.createElement("input", {
+        type: "number",
+        value: form.pricing[lvl.key],
+        onChange: e => setForm(f => ({ ...f, pricing: { ...f.pricing, [lvl.key]: e.target.value } })),
+        placeholder: "0.00",
+        step: "0.01",
+        "data-testid": "input-price-" + lvl.key,
+        style: { width: "100%", background: "#1a2030", border: "1px solid #2d3748", borderRadius: 6, padding: "10px 12px 10px 32px", color: "#f1f5f9", fontSize: 16, fontWeight: 700, fontFamily: "'DM Mono',monospace", boxSizing: "border-box" }
+      }))
+    :
+      /*#__PURE__*/React.createElement(React.Fragment, null,
+        /*#__PURE__*/React.createElement("div", {
+          style: { position: "relative", flex: 1 }
+        }, /*#__PURE__*/React.createElement("span", {
+          style: { position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#f59e0b", fontSize: 14, fontWeight: 700 }
+        }, lvlMethod === "pct" ? "%" : "+$"), /*#__PURE__*/React.createElement("input", {
+          type: "number",
+          value: form.pricing[markupKey] || "",
+          onChange: e => setForm(f => ({ ...f, pricing: { ...f.pricing, [markupKey]: e.target.value } })),
+          placeholder: lvlMethod === "pct" ? "25" : "3.00",
+          step: lvlMethod === "pct" ? "1" : "0.01",
+          "data-testid": "input-markup-" + lvl.key,
+          style: { width: "100%", background: "#1a2030", border: "1px solid #f59e0b44", borderRadius: 6, padding: "10px 12px 10px 32px", color: "#f59e0b", fontSize: 16, fontWeight: 700, fontFamily: "'DM Mono',monospace", boxSizing: "border-box" }
+        })),
+        /*#__PURE__*/React.createElement("span", {
+          style: { fontSize: 14, color: "#64748b", fontWeight: 600 }
+        }, "="),
+        /*#__PURE__*/React.createElement("div", {
+          style: { background: "#1a2030", border: "1px solid #22c55e44", borderRadius: 6, padding: "10px 14px", fontFamily: "'DM Mono',monospace", fontSize: 16, fontWeight: 700, color: calcPrice > 0 ? "#22c55e" : "#475569", whiteSpace: "nowrap", minWidth: 80, textAlign: "center" }
+        }, calcPrice > 0 ? fmt(calcPrice) : "$0.00")
+      ),
+    isWB && /*#__PURE__*/React.createElement("div", {
+      style: { position: "relative", flex: "0 0 100px" }
     }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        position: "absolute",
-        left: 12,
-        top: "50%",
-        transform: "translateY(-50%)",
-        color: "#94a3b8",
-        fontSize: 16,
-        fontWeight: 700
-      }
-    }, "$"), /*#__PURE__*/React.createElement("input", {
-      type: "number",
-      value: form.pricing[lvl.key],
-      onChange: e => setForm(f => ({
-        ...f,
-        pricing: {
-          ...f.pricing,
-          [lvl.key]: e.target.value
-        }
-      })),
-      placeholder: recPrice ? recPrice.toFixed(2) : "0.00",
-      step: "0.01",
-      "data-testid": "input-price-" + lvl.key,
-      style: {
-        width: "100%",
-        background: "#1a2030",
-        border: "1px solid #2d3748",
-        borderRadius: 6,
-        padding: "10px 12px 10px 32px",
-        color: "#f1f5f9",
-        fontSize: 16,
-        fontWeight: 700,
-        fontFamily: "'DM Mono',monospace",
-        boxSizing: "border-box"
-      }
-    })), isWB && /*#__PURE__*/React.createElement("div", {
-      style: { position: "relative", flex: 1 }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        position: "absolute",
-        left: 10,
-        top: "50%",
-        transform: "translateY(-50%)",
-        color: "#3b82f6",
-        fontSize: 14,
-        fontWeight: 700
-      }
+      style: { position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: "#3b82f6", fontSize: 12, fontWeight: 700 }
     }, "+$"), /*#__PURE__*/React.createElement("input", {
       type: "number",
       value: form.pricing[piecePriceKey] || "",
-      onChange: e => setForm(f => ({
-        ...f,
-        pricing: {
-          ...f.pricing,
-          [piecePriceKey]: e.target.value
-        }
-      })),
+      onChange: e => setForm(f => ({ ...f, pricing: { ...f.pricing, [piecePriceKey]: e.target.value } })),
       placeholder: "0.00",
       step: "0.01",
       "data-testid": "input-piece-price-" + lvl.key,
-      style: {
-        width: "100%",
-        background: "#1a2030",
-        border: "1px solid #3b82f644",
-        borderRadius: 6,
-        padding: "10px 12px 10px 36px",
-        color: "#3b82f6",
-        fontSize: 16,
-        fontWeight: 700,
-        fontFamily: "'DM Mono',monospace",
-        boxSizing: "border-box"
-      }
-    })), !isWB && recPrice && /*#__PURE__*/React.createElement("button", {
-      onClick: () => setForm(f => ({
-        ...f,
-        pricing: {
-          ...f.pricing,
-          [lvl.key]: recPrice.toFixed(2)
-        }
-      })),
-      title: `Set to recommended: $${recPrice.toFixed(2)}`,
-      style: {
-        padding: "8px 12px",
-        borderRadius: 6,
-        border: "1px solid #2d3748",
-        background: "#1a2030",
-        color: "#94a3b8",
-        fontSize: 12,
-        fontWeight: 600,
-        cursor: "pointer",
-        whiteSpace: "nowrap"
-      }
-    }, "$", recPrice.toFixed(2)), cost > 0 && sell > 0 && /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 12,
-        color: "#64748b",
-        whiteSpace: "nowrap",
-        fontFamily: "'DM Mono',monospace"
-      }
-    }, fmt(sell - cost))));
+      style: { width: "100%", background: "#1a2030", border: "1px solid #3b82f644", borderRadius: 6, padding: "8px 8px 8px 30px", color: "#3b82f6", fontSize: 14, fontWeight: 700, fontFamily: "'DM Mono',monospace", boxSizing: "border-box" }
+    }))));
   })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       background: "linear-gradient(135deg, #dc262622, #f59e0b22)",
