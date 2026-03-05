@@ -3140,7 +3140,7 @@ function App() {
     setProducts: setProducts,
     invoices: invoices,
     showToast: showToast
-  }), activeModule === "ar" && /*#__PURE__*/React.createElement(AccountsReceivable, {
+  }), activeModule === "ar" && /*#__PURE__*/React.createElement(ErrorBoundary, null, /*#__PURE__*/React.createElement(AccountsReceivable, {
     arPayments: arPayments,
     setArPayments: setArPayments,
     arDeposits: arDeposits,
@@ -3153,7 +3153,7 @@ function App() {
     routes: routes,
     showToast: showToast,
     settings: settings
-  }), activeModule === "autopurchase" && /*#__PURE__*/React.createElement(AutoPurchase, {
+  })), activeModule === "autopurchase" && /*#__PURE__*/React.createElement(AutoPurchase, {
     products: products,
     suppliers: suppliers,
     purchaseOrders: purchaseOrders,
@@ -3255,6 +3255,21 @@ function App() {
 }
 
 // ============================================================
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  componentDidCatch(error, info) { console.error("ErrorBoundary caught:", error, info); }
+  render() {
+    if (this.state.hasError) {
+      return React.createElement("div", { style: { padding: 40, color: "#ef4444" } },
+        React.createElement("h2", null, "Something went wrong"),
+        React.createElement("pre", { style: { whiteSpace: "pre-wrap", fontSize: 13, color: "#f59e0b", marginTop: 12 } }, String(this.state.error)),
+        React.createElement("button", { onClick: () => this.setState({ hasError: false, error: null }), style: { marginTop: 16, padding: "8px 16px", background: "#22c55e", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" } }, "Try Again")
+      );
+    }
+    return this.props.children;
+  }
+}
 // SHARED COMPONENTS
 // ============================================================
 const PageHeader = ({

@@ -16,7 +16,7 @@ export function serveStaticEarly(app: Express) {
 
 export function serveStaticFallback(app: Express) {
   app.use("/{*path}", (_req, res) => {
-    res.sendFile(path.resolve(distPath, "index.html"));
+    res.sendFile(path.resolve(distPath, "freshtrade.html"));
   });
 }
 
