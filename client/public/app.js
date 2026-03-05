@@ -3007,16 +3007,21 @@ function App() {
     }
   }, activeModule === "dashboard" && /*#__PURE__*/React.createElement(Dashboard, {
     invoices: invoices,
+    setInvoices: setInvoices,
     products: products,
+    setProducts: setProducts,
     customers: customers,
     routes: routes,
     salesOrders: salesOrders,
+    setSalesOrders: setSalesOrders,
     creditMemos: creditMemos,
     salespeople: salespeople,
     deliveries: deliveries,
     purchaseOrders: purchaseOrders,
     setActiveModule: setActiveModule,
-    arPayments: arPayments
+    arPayments: arPayments,
+    showToast: showToast,
+    settings: settings
   }), activeModule === "salesorders" && /*#__PURE__*/React.createElement(SalesOrders, {
     salesOrders: salesOrders,
     setSalesOrders: setSalesOrders,
@@ -5228,16 +5233,21 @@ const SpreadsheetGrid = ({
 // ============================================================
 function Dashboard({
   invoices,
+  setInvoices,
   products,
+  setProducts,
   customers,
   routes,
   salesOrders,
+  setSalesOrders,
   creditMemos,
   salespeople,
   deliveries,
   purchaseOrders,
   setActiveModule,
-  arPayments
+  arPayments,
+  showToast,
+  settings
 }) {
   const openInvoices = invoices.filter(i => i.status === "open");
   const totalAR = openInvoices.reduce((s, i) => s + Math.max(0, arGetInvBalance(i, arPayments, creditMemos)), 0);
@@ -5245,6 +5255,61 @@ function Dashboard({
   const todayInvoices = invoices.filter(i => i.date === today());
   const pendingSOs = salesOrders.filter(so => ["draft", "confirmed", "picking"].includes(so.status));
   const readySOs = salesOrders.filter(so => so.status === "ready");
+
+  const [qpcProduct, setQpcProduct] = useState("");
+  const [qpcNewPrice, setQpcNewPrice] = useState("");
+  const [qpcNewCost, setQpcNewCost] = useState("");
+  const [qpcApplied, setQpcApplied] = useState(false);
+
+  const qpcProd = products.find(p => p.id === qpcProduct);
+  const qpcIsWeight = qpcProd ? (qpcProd.catchWeight || qpcProd.fixedWeight) : false;
+  const todaySOs = salesOrders.filter(so => so.date === today() && so.status !== "cancelled" && so.lines && so.lines.some(l => l.productId === qpcProduct));
+  const todayInvs = invoices.filter(inv => inv.date === today() && inv.status !== "voided" && inv.lines && inv.lines.some(l => l.productId === qpcProduct));
+
+  const applyQuickPriceChange = () => {
+    const newPrice = Number(qpcNewPrice);
+    const newCost = Number(qpcNewCost);
+    if (!qpcProduct || (!newPrice && !newCost)) { showToast("Enter a new price or cost"); return; }
+    let soCount = 0, invCount = 0;
+    if (newPrice > 0) {
+      setSalesOrders(prev => prev.map(so => {
+        if (so.date !== today() || so.status === "cancelled" || !so.lines) return so;
+        const hasProduct = so.lines.some(l => l.productId === qpcProduct);
+        if (!hasProduct) return so;
+        soCount++;
+        const updatedLines = so.lines.map(l => {
+          if (l.productId !== qpcProduct) return l;
+          const isWB = l.pricePerLb !== undefined && l.pricePerLb !== null;
+          const lineTotal = isWB ? Math.round((l.weight || 0) * newPrice * 100) / 100 : Math.round((l.qty || 0) * newPrice * 100) / 100;
+          return { ...l, pricePerLb: isWB ? newPrice : l.pricePerLb, priceEach: !isWB ? newPrice : l.priceEach, total: lineTotal };
+        });
+        const subtotal = updatedLines.reduce((s, l) => s + (Number(l.total) || 0), 0);
+        return { ...so, lines: updatedLines, subtotal: Math.round(subtotal * 100) / 100, total: Math.round(subtotal * 100) / 100 };
+      }));
+      setInvoices(prev => prev.map(inv => {
+        if (inv.date !== today() || inv.status === "voided" || !inv.lines) return inv;
+        const hasProduct = inv.lines.some(l => l.productId === qpcProduct);
+        if (!hasProduct) return inv;
+        invCount++;
+        const updatedLines = inv.lines.map(l => {
+          if (l.productId !== qpcProduct) return l;
+          const isWB = l.pricePerLb !== undefined && l.pricePerLb !== null;
+          const lineTotal = isWB ? Math.round((l.weight || 0) * newPrice * 100) / 100 : Math.round((l.qty || 0) * newPrice * 100) / 100;
+          return { ...l, pricePerLb: isWB ? newPrice : l.pricePerLb, priceEach: !isWB ? newPrice : l.priceEach, total: lineTotal };
+        });
+        const subtotal = updatedLines.reduce((s, l) => s + (Number(l.total) || 0), 0);
+        const taxRate = (settings && settings.preferences && settings.preferences.taxEnabled) ? (settings.preferences.taxRate || 0) : 0;
+        const tax = inv.taxAmount !== undefined ? Math.round(subtotal * (taxRate / 100) * 100) / 100 : 0;
+        return { ...inv, lines: updatedLines, subtotal: Math.round(subtotal * 100) / 100, total: Math.round((subtotal + tax) * 100) / 100, taxAmount: inv.taxAmount !== undefined ? tax : undefined };
+      }));
+    }
+    if (newCost > 0 && qpcProd) {
+      setProducts(prev => prev.map(p => p.id === qpcProduct ? { ...p, pricing: { ...p.pricing, cost: newCost } } : p));
+    }
+    setQpcApplied(true);
+    showToast(`Price updated — ${soCount} sales order${soCount !== 1 ? "s" : ""}, ${invCount} invoice${invCount !== 1 ? "s" : ""} changed`);
+  };
+
   return /*#__PURE__*/React.createElement("div", {
     style: {
       padding: 28
@@ -5288,7 +5353,74 @@ function Dashboard({
     sub: "Generated today",
     color: "#a855f7",
     icon: "invoice"
-  })), /*#__PURE__*/React.createElement("div", {
+  })), /*#__PURE__*/React.createElement(Card, {
+    title: "\u26A1 Quick Price Change"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap", marginBottom: qpcProduct ? 16 : 0 }
+  }, /*#__PURE__*/React.createElement("div", { style: { flex: 2, minWidth: 200 } }, /*#__PURE__*/React.createElement("label", {
+    style: { display: "block", fontSize: 11, color: "#94a3b8", fontWeight: 600, marginBottom: 4 }
+  }, "Product"), /*#__PURE__*/React.createElement("select", {
+    value: qpcProduct,
+    "data-testid": "select-qpc-product",
+    onChange: e => { setQpcProduct(e.target.value); setQpcNewPrice(""); setQpcNewCost(""); setQpcApplied(false); const p = products.find(pp => pp.id === e.target.value); if (p && p.pricing) setQpcNewCost(String(p.pricing.cost || "")); },
+    style: { width: "100%", background: "#0f1117", border: "1px solid #2d3748", borderRadius: 6, padding: "8px 10px", color: "#e2e8f0", fontSize: 13 }
+  }, /*#__PURE__*/React.createElement("option", { value: "" }, "Select product..."), products.sort((a, b) => (a.name || "").localeCompare(b.name || "")).map(p => /*#__PURE__*/React.createElement("option", { key: p.id, value: p.id }, p.name)))), /*#__PURE__*/React.createElement("div", { style: { flex: 1, minWidth: 120 } }, /*#__PURE__*/React.createElement("label", {
+    style: { display: "block", fontSize: 11, color: "#94a3b8", fontWeight: 600, marginBottom: 4 }
+  }, "New Sell Price", qpcIsWeight ? " (per lb)" : " (each)"), /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    step: "0.01",
+    value: qpcNewPrice,
+    "data-testid": "input-qpc-price",
+    onChange: e => { setQpcNewPrice(e.target.value); setQpcApplied(false); },
+    placeholder: "0.00",
+    style: { width: "100%", background: "#0f1117", border: "1px solid #2d3748", borderRadius: 6, padding: "8px 10px", color: "#e2e8f0", fontSize: 13 }
+  })), /*#__PURE__*/React.createElement("div", { style: { flex: 1, minWidth: 120 } }, /*#__PURE__*/React.createElement("label", {
+    style: { display: "block", fontSize: 11, color: "#94a3b8", fontWeight: 600, marginBottom: 4 }
+  }, "Cost Price", qpcIsWeight ? " (per lb)" : " (each)"), /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    step: "0.01",
+    value: qpcNewCost,
+    "data-testid": "input-qpc-cost",
+    onChange: e => { setQpcNewCost(e.target.value); setQpcApplied(false); },
+    placeholder: "0.00",
+    style: { width: "100%", background: "#0f1117", border: "1px solid #2d3748", borderRadius: 6, padding: "8px 10px", color: "#e2e8f0", fontSize: 13 }
+  })), /*#__PURE__*/React.createElement(Btn, {
+    icon: "check",
+    onClick: applyQuickPriceChange,
+    disabled: !qpcProduct || (!qpcNewPrice && !qpcNewCost),
+    "data-testid": "button-qpc-apply"
+  }, "Apply")), qpcProduct && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: { display: "flex", gap: 12, marginBottom: 10, flexWrap: "wrap" }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { background: "#1a2030", borderRadius: 8, padding: "10px 14px", fontSize: 12 }
+  }, /*#__PURE__*/React.createElement("span", { style: { color: "#64748b" } }, "Current Cost: "), /*#__PURE__*/React.createElement("span", {
+    style: { color: "#f59e0b", fontWeight: 700, fontFamily: "'DM Mono',monospace" }
+  }, fmt((qpcProd && qpcProd.pricing ? qpcProd.pricing.cost : 0) || 0), qpcIsWeight ? "/lb" : "")), /*#__PURE__*/React.createElement("div", {
+    style: { background: "#1a2030", borderRadius: 8, padding: "10px 14px", fontSize: 12 }
+  }, /*#__PURE__*/React.createElement("span", { style: { color: "#64748b" } }, "Today\u2019s SOs: "), /*#__PURE__*/React.createElement("span", {
+    style: { color: "#3b82f6", fontWeight: 700 }
+  }, todaySOs.length)), /*#__PURE__*/React.createElement("div", {
+    style: { background: "#1a2030", borderRadius: 8, padding: "10px 14px", fontSize: 12 }
+  }, /*#__PURE__*/React.createElement("span", { style: { color: "#64748b" } }, "Today\u2019s Invoices: "), /*#__PURE__*/React.createElement("span", {
+    style: { color: "#a855f7", fontWeight: 700 }
+  }, todayInvs.length))), (todaySOs.length > 0 || todayInvs.length > 0) && /*#__PURE__*/React.createElement(DataTable, {
+    headers: ["Type", "Doc #", "Customer", "Qty", qpcIsWeight ? "Weight" : "", "Current Price", "Line Total"].filter(Boolean),
+    rows: [...todaySOs.map(so => {
+      const cust = customers.find(c => c.id === so.customerId);
+      return so.lines.filter(l => l.productId === qpcProduct).map(l => {
+        const isWB = l.pricePerLb !== undefined && l.pricePerLb !== null;
+        return [/*#__PURE__*/React.createElement(Badge, { text: "SO", color: "#3b82f6" }), so.id, (cust ? cust.name : so.customerId) || "\u2014", l.qty || 0, qpcIsWeight ? ((l.weight || 0).toFixed(2) + " lb") : null, /*#__PURE__*/React.createElement("span", { style: { fontFamily: "'DM Mono',monospace" } }, fmt(isWB ? l.pricePerLb : l.priceEach)), /*#__PURE__*/React.createElement("span", { style: { fontFamily: "'DM Mono',monospace", fontWeight: 600 } }, fmt(l.total))].filter(x => x !== null);
+      });
+    }).flat(), ...todayInvs.map(inv => {
+      const cust = customers.find(c => c.id === inv.customerId);
+      return inv.lines.filter(l => l.productId === qpcProduct).map(l => {
+        const isWB = l.pricePerLb !== undefined && l.pricePerLb !== null;
+        return [/*#__PURE__*/React.createElement(Badge, { text: "INV", color: "#a855f7" }), inv.id, (cust ? cust.name : inv.customerId) || "\u2014", l.qty || 0, qpcIsWeight ? ((l.weight || 0).toFixed(2) + " lb") : null, /*#__PURE__*/React.createElement("span", { style: { fontFamily: "'DM Mono',monospace" } }, fmt(isWB ? l.pricePerLb : l.priceEach)), /*#__PURE__*/React.createElement("span", { style: { fontFamily: "'DM Mono',monospace", fontWeight: 600 } }, fmt(l.total))].filter(x => x !== null);
+      });
+    }).flat()]
+  }), qpcApplied && /*#__PURE__*/React.createElement("div", {
+    style: { marginTop: 10, padding: "8px 14px", background: "#16a34a22", borderRadius: 6, color: "#22c55e", fontSize: 12, fontWeight: 600 }
+  }, "\u2705 Prices updated successfully"))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
       gridTemplateColumns: "1fr 1fr",
