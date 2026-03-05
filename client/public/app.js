@@ -19057,6 +19057,8 @@ function Inventory({
   var _priceLevels$find2;
   const [showAdd, setShowAdd] = useState(false);
   const [editProduct, setEditProduct] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [deleteTyped, setDeleteTyped] = useState("");
   const [filterCat, setFilterCat] = useState("all");
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("details"); // details or pricing
@@ -20220,7 +20222,7 @@ function Inventory({
         style: { background: "none", border: "1px solid #2d3748", borderRadius: 4, color: p.active === false ? "#f59e0b" : "#22c55e", cursor: "pointer", padding: "4px 6px", fontSize: 13 }
       }, p.active === false ? "\u25CB" : "\u25CF"),
       /*#__PURE__*/React.createElement("button", {
-        onClick: () => { if (confirm("Delete \"" + p.name + "\"?")) setProducts(prev => prev.filter(pr => pr.id !== p.id)); },
+        onClick: () => { setDeleteConfirm(p); setDeleteTyped(""); },
         title: "Delete",
         "data-testid": "btn-delete-product-" + p.id,
         style: { background: "none", border: "1px solid #2d3748", borderRadius: 4, color: "#ef4444", cursor: "pointer", padding: "4px 6px", fontSize: 13 }
@@ -20555,13 +20557,47 @@ function Inventory({
         style: { background: "none", border: "1px solid #2d3748", borderRadius: 4, color: p.active === false ? "#f59e0b" : "#22c55e", cursor: "pointer", padding: "4px 6px", fontSize: 13 }
       }, p.active === false ? "\u25CB" : "\u25CF"),
       /*#__PURE__*/React.createElement("button", {
-        onClick: () => { if (confirm("Delete \"" + p.name + "\"?")) setProducts(prev => prev.filter(pr => pr.id !== p.id)); },
+        onClick: () => { setDeleteConfirm(p); setDeleteTyped(""); },
         title: "Delete",
         "data-testid": "btn-delete-product-grid-" + p.id,
         style: { background: "none", border: "1px solid #2d3748", borderRadius: 4, color: "#ef4444", cursor: "pointer", padding: "4px 6px", fontSize: 13 }
       }, "\u2715")
     )));
-  }))))), showCountSheet && /*#__PURE__*/React.createElement(Modal, {
+  }))))), deleteConfirm && /*#__PURE__*/React.createElement(Modal, {
+    title: "Confirm Delete Product",
+    onClose: () => setDeleteConfirm(null),
+    width: 420
+  }, /*#__PURE__*/React.createElement("div", { style: { textAlign: "center", padding: "8px 0" } },
+    /*#__PURE__*/React.createElement("div", { style: { fontSize: 40, marginBottom: 8 } }, "\u26A0\uFE0F"),
+    /*#__PURE__*/React.createElement("div", { style: { fontSize: 15, color: "#f1f5f9", fontWeight: 700, marginBottom: 6 } }, "Are you sure you want to delete this product?"),
+    /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, color: "#ef4444", fontWeight: 700, marginBottom: 12, padding: "6px 12px", background: "#ef444415", borderRadius: 6, display: "inline-block" } }, deleteConfirm.name),
+    /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, color: "#94a3b8", marginBottom: 10 } }, "This action cannot be undone. Type the product name below to confirm:"),
+    /*#__PURE__*/React.createElement("input", {
+      value: deleteTyped,
+      onChange: e => setDeleteTyped(e.target.value),
+      placeholder: "Type product name to confirm",
+      "data-testid": "input-delete-confirm",
+      autoFocus: true,
+      style: { width: "100%", background: "#0f1117", border: "1px solid #2d3748", borderRadius: 6, padding: "10px 12px", color: "#f1f5f9", fontSize: 14, textAlign: "center", boxSizing: "border-box", marginBottom: 14 }
+    }),
+    /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 10, justifyContent: "center" } },
+      /*#__PURE__*/React.createElement(Btn, { variant: "secondary", onClick: () => setDeleteConfirm(null) }, "Cancel"),
+      /*#__PURE__*/React.createElement("button", {
+        onClick: () => {
+          setProducts(prev => prev.filter(pr => pr.id !== deleteConfirm.id));
+          showToast("Product \"" + deleteConfirm.name + "\" deleted");
+          setDeleteConfirm(null);
+        },
+        disabled: deleteTyped.trim().toLowerCase() !== deleteConfirm.name.trim().toLowerCase(),
+        "data-testid": "btn-confirm-delete",
+        style: {
+          padding: "8px 20px", borderRadius: 6, border: "none", fontWeight: 700, fontSize: 13, cursor: deleteTyped.trim().toLowerCase() === deleteConfirm.name.trim().toLowerCase() ? "pointer" : "not-allowed",
+          background: deleteTyped.trim().toLowerCase() === deleteConfirm.name.trim().toLowerCase() ? "#ef4444" : "#374151",
+          color: deleteTyped.trim().toLowerCase() === deleteConfirm.name.trim().toLowerCase() ? "#fff" : "#6b7280",
+          transition: "all 0.2s"
+        }
+      }, "Delete Permanently"))
+  )), showCountSheet && /*#__PURE__*/React.createElement(Modal, {
     title: "Print Physical Inventory Count Sheet",
     onClose: () => setShowCountSheet(false),
     width: 520
