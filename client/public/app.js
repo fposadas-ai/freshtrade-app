@@ -19,6 +19,19 @@ const initialCreditMemos = [];
 const initialDeliveries = [];
 const initialPurchaseOrders = [];
 const CATEGORIES = ["Seafood", "Beef", "Pork", "Poultry", "Deli", "Lamb", "Veal", "Grocery", "Frozen", "Dairy"];
+const SUB_CATEGORIES = {
+  Seafood: ["Fin Fish", "Shellfish", "Smoked", "Breaded", "Value Added", "Other"],
+  Beef: ["Chuck", "Rib", "Loin", "Round", "Brisket", "Short Plate", "Flank", "Ground", "Offal", "Other"],
+  Pork: ["Loin", "Shoulder", "Belly", "Ham", "Ribs", "Ground", "Offal", "Other"],
+  Poultry: ["Whole", "Parts", "Breast", "Thigh/Leg", "Wings", "Ground", "Other"],
+  Deli: ["Sliced Meats", "Cheese", "Prepared", "Salads", "Other"],
+  Lamb: ["Rack", "Leg", "Shoulder", "Loin", "Ground", "Other"],
+  Veal: ["Loin", "Rack", "Shoulder", "Leg", "Ground", "Offal", "Other"],
+  Grocery: ["Dry Goods", "Canned", "Sauces", "Spices", "Oil/Vinegar", "Other"],
+  Frozen: ["Vegetables", "Fruits", "Prepared", "Desserts", "Other"],
+  Dairy: ["Milk", "Cheese", "Butter", "Cream", "Yogurt", "Other"]
+};
+const COUNTRIES_OF_ORIGIN = ["USA", "Canada", "Mexico", "Brazil", "Argentina", "Chile", "Norway", "Scotland", "Iceland", "Ireland", "Australia", "New Zealand", "Japan", "China", "Vietnam", "Thailand", "India", "Indonesia", "Ecuador", "Peru", "Spain", "Italy", "France", "Netherlands", "Denmark", "Poland", "Uruguay", "South Africa", "Philippines", "South Korea", "Taiwan", "Other"];
 const STATUS_COLORS = {
   open: "#f59e0b",
   paid: "#10b981",
@@ -19039,6 +19052,9 @@ function Inventory({
   const [form, setForm] = useState({
     name: "",
     category: "Seafood",
+    subCategory: "",
+    countryOfOrigin: "",
+    countryOfOriginOther: "",
     piecesPerBox: 1,
     soldByPiece: true,
     catchWeight: false,
@@ -19377,6 +19393,9 @@ function Inventory({
       ...prod,
       avgWeightPerCase: prod.avgWeightPerCase || "",
       avgWeightPerPiece: prod.avgWeightPerPiece || "",
+      subCategory: prod.subCategory || "",
+      countryOfOrigin: prod.countryOfOrigin || "",
+      countryOfOriginOther: prod.countryOfOriginOther || "",
       fixedWeight: prod.fixedWeight || false,
       caseWeightLbs: prod.caseWeightLbs || "",
       innerPacks: prod.innerPacks || "",
@@ -19512,6 +19531,9 @@ function Inventory({
     setForm({
       name: "",
       category: "Seafood",
+      subCategory: "",
+      countryOfOrigin: "",
+      countryOfOriginOther: "",
       piecesPerBox: 1,
       soldByPiece: true,
       catchWeight: false,
@@ -20343,9 +20365,11 @@ function Inventory({
         alignItems: "center"
       }
     }, /*#__PURE__*/React.createElement(Badge, {
-      text: p.category,
+      text: p.subCategory ? p.category + " › " + p.subCategory : p.category,
       color: catColors[p.category] || "#6b7280"
-    }), /*#__PURE__*/React.createElement(Badge, {
+    }), p.countryOfOrigin && /*#__PURE__*/React.createElement("span", {
+      style: { fontSize: 9, color: "#94a3b8", background: "#1e293b", padding: "1px 4px", borderRadius: 3, fontWeight: 600 }
+    }, "\uD83C\uDF0D", p.countryOfOrigin === "Other" ? (p.countryOfOriginOther || "Other") : p.countryOfOrigin), /*#__PURE__*/React.createElement(Badge, {
       text: p.billedBy,
       color: p.billedBy === "LBS" ? "#3b82f6" : p.billedBy === "PIECE" ? "#22c55e" : "#a855f7"
     }), p.catchWeight && /*#__PURE__*/React.createElement("span", {
@@ -21334,6 +21358,31 @@ function Inventory({
     key: c,
     value: c
   }, c)))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr 1fr",
+      gap: 12,
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement(Select, {
+    label: "Sub-Category",
+    value: form.subCategory || "",
+    onChange: e => setForm(f => ({ ...f, subCategory: e.target.value })),
+    "data-testid": "select-sub-category"
+  }, /*#__PURE__*/React.createElement("option", { value: "" }, "— None —"), (SUB_CATEGORIES[form.category] || []).map(sc => /*#__PURE__*/React.createElement("option", { key: sc, value: sc }, sc))),
+  /*#__PURE__*/React.createElement(Select, {
+    label: "Country of Origin (COOL)",
+    value: form.countryOfOrigin || "",
+    onChange: e => setForm(f => ({ ...f, countryOfOrigin: e.target.value })),
+    "data-testid": "select-cool"
+  }, /*#__PURE__*/React.createElement("option", { value: "" }, "— Select —"), COUNTRIES_OF_ORIGIN.map(co => /*#__PURE__*/React.createElement("option", { key: co, value: co }, co))),
+  form.countryOfOrigin === "Other" && /*#__PURE__*/React.createElement(Input, {
+    label: "Specify Country",
+    value: form.countryOfOriginOther || "",
+    onChange: e => setForm(f => ({ ...f, countryOfOriginOther: e.target.value })),
+    placeholder: "Enter country name",
+    "data-testid": "input-cool-other"
+  })), /*#__PURE__*/React.createElement("div", {
     style: {
       background: "#1a2030",
       borderRadius: 8,
