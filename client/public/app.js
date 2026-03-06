@@ -3069,6 +3069,8 @@ function App() {
   }), activeModule === "catchweight" && /*#__PURE__*/React.createElement(CatchWeight, {
     invoices: invoices,
     setInvoices: setInvoices,
+    salesOrders: salesOrders,
+    setSalesOrders: setSalesOrders,
     products: products,
     customers: customers,
     showToast: showToast
@@ -14276,6 +14278,8 @@ function Invoices({
 function CatchWeight({
   invoices,
   setInvoices,
+  salesOrders,
+  setSalesOrders,
   products,
   customers,
   showToast
@@ -14290,8 +14294,19 @@ function CatchWeight({
     const prod = products.find(p => p.id === line.productId);
     return (prod === null || prod === void 0 ? void 0 : prod.catchWeight) && (!line.pieceWeights || line.pieceWeights.length === 0 || line.pieceWeights.some(w => !w));
   }));
-  const invData = invoices.find(i => i.id === selectedInv);
-  const cwLines = (invData === null || invData === void 0 ? void 0 : invData.lines.map((l, i) => ({
+  // Sales orders with catch-weight items that need weighing
+  const pendingSalesOrders = (salesOrders || []).filter(so => so.status !== "cancelled" && so.status !== "invoiced" && so.lines.some(line => {
+    const prod = products.find(p => p.id === line.productId);
+    return (prod === null || prod === void 0 ? void 0 : prod.catchWeight) && (!line.pieceWeights || line.pieceWeights.length === 0 || line.pieceWeights.some(w => !w));
+  }));
+  // Combined pending list: sales orders + invoices
+  const allPending = [
+    ...pendingSalesOrders.map(so => ({ ...so, _type: "so" })),
+    ...pendingInvoices.map(inv => ({ ...inv, _type: "inv" }))
+  ];
+  const selectedDoc = allPending.find(d => d.id === selectedInv) || invoices.find(i => i.id === selectedInv) || (salesOrders || []).find(s => s.id === selectedInv);
+  const selectedType = selectedDoc ? (selectedDoc._type || (selectedDoc.id && selectedDoc.id.startsWith("SO") ? "so" : "inv")) : null;
+  const cwLines = (selectedDoc === null || selectedDoc === void 0 ? void 0 : selectedDoc.lines.map((l, i) => ({
     ...l,
     lineIdx: i
   })).filter(l => {
@@ -14302,7 +14317,7 @@ function CatchWeight({
   // Initialize per-piece weight slots when selecting an invoice
   const selectInvoice = invId => {
     setSelectedInv(invId);
-    const inv = invoices.find(i => i.id === invId);
+    const inv = invoices.find(i => i.id === invId) || (salesOrders || []).find(s => s.id === invId);
     if (!inv) {
       setWeights({});
       return;
@@ -14332,9 +14347,9 @@ function CatchWeight({
   };
   const applyWeights = () => {
     if (!selectedInv) return;
-    setInvoices(prev => prev.map(inv => {
-      if (inv.id !== selectedInv) return inv;
-      const newLines = inv.lines.map((line, i) => {
+    const isSODoc = selectedType === "so" || (selectedInv.startsWith && selectedInv.startsWith("SO"));
+    const applyToDoc = doc => {
+      const newLines = doc.lines.map((line, i) => {
         var _prod$pricing14;
         const pieceArr = weights[i];
         if (!pieceArr) return line;
@@ -14342,24 +14357,31 @@ function CatchWeight({
         if (!(prod !== null && prod !== void 0 && prod.catchWeight)) return line;
         const pieceWeights = pieceArr.map(w => Number(w) || 0);
         const totalWeight = pieceWeights.reduce((s, w) => s + w, 0);
-        const pricePerLb = line.pricePerLb || ((_prod$pricing14 = prod.pricing) === null || _prod$pricing14 === void 0 ? void 0 : _prod$pricing14.level3) || 0;
+        const pricePerLb = line.pricePerLb || line.priceEach || ((_prod$pricing14 = prod.pricing) === null || _prod$pricing14 === void 0 ? void 0 : _prod$pricing14.level3) || 0;
         const newTotal = totalWeight * pricePerLb;
         return {
           ...line,
           pieceWeights,
           actualWeight: Math.round(totalWeight * 100) / 100,
-          total: Math.round(newTotal * 100) / 100
+          total: Math.round(newTotal * 100) / 100,
+          estTotal: Math.round(newTotal * 100) / 100
         };
       });
-      const newSubtotal = newLines.reduce((s, l) => s + l.total, 0);
+      const newSubtotal = newLines.reduce((s, l) => s + (l.total || l.estTotal || 0), 0);
       return {
-        ...inv,
+        ...doc,
         lines: newLines,
         subtotal: Math.round(newSubtotal * 100) / 100,
         total: Math.round(newSubtotal * 100) / 100
       };
-    }));
-    showToast("Individual piece weights applied — invoice updated!");
+    };
+    if (isSODoc && setSalesOrders) {
+      setSalesOrders(prev => prev.map(so => so.id === selectedInv ? applyToDoc(so) : so));
+      showToast("Individual piece weights applied — sales order updated!");
+    } else {
+      setInvoices(prev => prev.map(inv => inv.id === selectedInv ? applyToDoc(inv) : inv));
+      showToast("Individual piece weights applied — invoice updated!");
+    }
     setWeights({});
     setSelectedInv("");
   };
@@ -14375,7 +14397,7 @@ function CatchWeight({
   };
 
   // Catch weight history (all weighed items)
-  const cwHistory = invoices.flatMap(inv => inv.lines.filter(line => {
+  const cwHistory = [...invoices, ...(salesOrders || [])].flatMap(inv => inv.lines.filter(line => {
     const prod = products.find(p => p.id === line.productId);
     return (prod === null || prod === void 0 ? void 0 : prod.catchWeight) && line.pieceWeights && line.pieceWeights.length > 0;
   }).map(line => {
@@ -14441,32 +14463,33 @@ function CatchWeight({
       marginBottom: 14,
       color: "#f1f5f9"
     }
-  }, "Pending Weight Capture"), pendingInvoices.length === 0 ? /*#__PURE__*/React.createElement("div", {
+  }, "Pending Weight Capture"), allPending.length === 0 ? /*#__PURE__*/React.createElement("div", {
     style: {
       color: "#475569",
       fontSize: 13,
       padding: "20px 0"
     }
-  }, "All invoices have been weighed \u2713") : pendingInvoices.map(inv => {
-    const cust = customers.find(c => c.id === inv.customerId);
-    const cwCount = inv.lines.filter(l => {
+  }, "All orders have been weighed \u2713") : allPending.map(doc => {
+    const cust = customers.find(c => c.id === doc.customerId);
+    const cwCount = doc.lines.filter(l => {
       var _products$find3;
       return (_products$find3 = products.find(p => p.id === l.productId)) === null || _products$find3 === void 0 ? void 0 : _products$find3.catchWeight;
     }).length;
-    const totalPieces = inv.lines.reduce((s, l) => {
+    const totalPieces = doc.lines.reduce((s, l) => {
       const prod = products.find(p => p.id === l.productId);
       return s + (prod !== null && prod !== void 0 && prod.catchWeight ? l.qty || 1 : 0);
     }, 0);
+    const isSO = doc._type === "so";
     return /*#__PURE__*/React.createElement("div", {
-      key: inv.id,
-      onClick: () => selectInvoice(inv.id),
+      key: doc.id,
+      onClick: () => selectInvoice(doc.id),
       style: {
         padding: 14,
         borderRadius: 10,
-        border: `2px solid ${selectedInv === inv.id ? "#22c55e" : "#2d3748"}`,
+        border: `2px solid ${selectedInv === doc.id ? "#22c55e" : "#2d3748"}`,
         marginBottom: 8,
         cursor: "pointer",
-        background: selectedInv === inv.id ? "#22c55e11" : "#1a2030",
+        background: selectedInv === doc.id ? "#22c55e11" : "#1a2030",
         transition: "all 0.15s"
       }
     }, /*#__PURE__*/React.createElement("div", {
@@ -14477,13 +14500,16 @@ function CatchWeight({
     }, /*#__PURE__*/React.createElement("span", {
       style: {
         fontFamily: "'DM Mono',monospace",
-        color: "#22c55e",
+        color: isSO ? "#3b82f6" : "#22c55e",
         fontWeight: 700
       }
-    }, inv.id), /*#__PURE__*/React.createElement(Badge, {
-      text: `${totalPieces} pcs to weigh`,
-      color: "#f59e0b"
-    })), /*#__PURE__*/React.createElement("div", {
+    }, doc.id), /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center" } },
+      isSO && /*#__PURE__*/React.createElement(Badge, { text: "Sales Order", color: "#3b82f6" }),
+      !isSO && /*#__PURE__*/React.createElement(Badge, { text: "Invoice", color: "#22c55e" }),
+      /*#__PURE__*/React.createElement(Badge, {
+        text: `${totalPieces} pcs to weigh`,
+        color: "#f59e0b"
+      }))), /*#__PURE__*/React.createElement("div", {
       style: {
         fontSize: 12,
         color: "#94a3b8",
@@ -14496,7 +14522,7 @@ function CatchWeight({
       marginBottom: 14,
       color: "#f1f5f9"
     }
-  }, invData ? `Enter Weights — ${invData.id}` : "Select an invoice to enter weights"), !invData ? /*#__PURE__*/React.createElement("div", {
+  }, selectedDoc ? `Enter Weights — ${selectedDoc.id}` : "Select an order to enter weights"), !selectedDoc ? /*#__PURE__*/React.createElement("div", {
     style: {
       color: "#475569",
       fontSize: 13,
