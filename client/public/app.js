@@ -1428,7 +1428,8 @@ function LabelPrinterChooser({
 }
 
 // Build HTML for a professional invoice (8.5" × 11" letter)
-function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStatement) {
+function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStatement, company) {
+  company = company || {};
   const subtotal = inv.subtotal || inv.lines.reduce((s, l) => s + (l.total || 0), 0);
   const deliveryCharge = Number(inv.deliveryCharge) || 0;
   const gasCharge = Number(inv.gasCharge) || 0;
@@ -1544,23 +1545,25 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
   });
 
   // ── Reusable HTML fragments ──
+  const coName = company.name || "FreshTrade Distribution";
+  const coAddr = company.address || "";
+  const coPhone = company.phone || "";
+  const coEmail = company.email || "";
+  const coLogo = company.logo || "";
+  const coWebsite = company.website || "";
   const fullHeader = `
     <table style="width:100%;border-collapse:collapse;">
       <tr>
         <td style="vertical-align:middle;padding:0;width:45%;">
-          <div style="display:flex;align-items:center;gap:10px;">
-            <div style="width:40px;height:40px;background:linear-gradient(135deg,#059669,#10b981);border-radius:8px;display:flex;align-items:center;justify-content:center;">
-              <span style="font-size:20px;line-height:1;">🐟</span>
-            </div>
-            <div>
-              <div style="font-size:20px;font-weight:800;color:#111827;letter-spacing:-0.4px;line-height:1;">FreshTrade</div>
-              <div style="font-size:7px;font-weight:700;color:#059669;letter-spacing:2.5px;text-transform:uppercase;margin-top:1px;">DISTRIBUTION</div>
-            </div>
-          </div>
+          ${coLogo ? '<img src="' + coLogo + '" alt="' + coName + '" style="max-height:60px;max-width:180px;object-fit:contain;" />' : '<div style="display:flex;align-items:center;gap:10px;"><div style="width:40px;height:40px;background:linear-gradient(135deg,#059669,#10b981);border-radius:8px;display:flex;align-items:center;justify-content:center;"><span style="font-size:20px;line-height:1;">\uD83D\uDC1F</span></div><div><div style="font-size:20px;font-weight:800;color:#111827;letter-spacing:-0.4px;line-height:1;">' + coName + '</div></div></div>'}
         </td>
         <td style="vertical-align:middle;text-align:right;padding:0;">
-          <div style="font-size:8.5px;color:#9ca3af;line-height:1.5;">1200 Port Blvd, Miami FL 33132</div>
-          <div style="font-size:8.5px;color:#9ca3af;">(305) 555-0100 · orders@freshtrade.com</div>
+          <div style="font-size:14px;font-weight:800;color:#111827;letter-spacing:-0.3px;line-height:1.3;">${coName}</div>
+          ${coAddr ? '<div style="font-size:9px;color:#6b7280;line-height:1.5;margin-top:2px;">' + coAddr + '</div>' : ''}
+          <div style="font-size:9px;color:#6b7280;line-height:1.4;">
+            ${coPhone ? coPhone : ''}${coPhone && coEmail ? ' · ' : ''}${coEmail ? coEmail : ''}
+          </div>
+          ${coWebsite ? '<div style="font-size:8px;color:#9ca3af;line-height:1.4;">' + coWebsite + '</div>' : ''}
         </td>
       </tr>
     </table>
@@ -1614,15 +1617,7 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
     <table style="width:100%;border-collapse:collapse;margin-bottom:8px;">
       <tr>
         <td style="vertical-align:middle;padding:0;width:45%;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <div style="width:28px;height:28px;background:linear-gradient(135deg,#059669,#10b981);border-radius:6px;display:flex;align-items:center;justify-content:center;">
-              <span style="font-size:14px;line-height:1;">🐟</span>
-            </div>
-            <div>
-              <span style="font-size:14px;font-weight:800;color:#111827;">FreshTrade</span>
-              <span style="font-size:7px;font-weight:700;color:#059669;letter-spacing:1.5px;text-transform:uppercase;margin-left:4px;">DISTRIBUTION</span>
-            </div>
-          </div>
+          ${coLogo ? '<img src="' + coLogo + '" alt="' + coName + '" style="max-height:36px;max-width:120px;object-fit:contain;" />' : '<div style="display:flex;align-items:center;gap:8px;"><div style="width:28px;height:28px;background:linear-gradient(135deg,#059669,#10b981);border-radius:6px;display:flex;align-items:center;justify-content:center;"><span style="font-size:14px;line-height:1;">\uD83D\uDC1F</span></div><div><span style="font-size:14px;font-weight:800;color:#111827;">' + coName + '</span></div></div>'}
         </td>
         <td style="text-align:right;vertical-align:middle;padding:0;">
           <span style="font-size:9px;color:#9ca3af;">Invoice</span>
@@ -1708,9 +1703,9 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
     <div style="margin-top:6px;padding:4px 0;border-top:1px solid #e5e7eb;">
       <table style="width:100%;border-collapse:collapse;">
         <tr>
-          <td style="font-size:7px;color:#c0c0c0;">FreshTrade Distribution · 1200 Port Blvd, Miami FL 33132</td>
+          <td style="font-size:7px;color:#c0c0c0;">${coName}${coAddr ? ' · ' + coAddr : ''}</td>
           <td style="font-size:7px;color:#c0c0c0;text-align:center;">${totalPages > 1 ? '<span style="font-weight:700;color:#6b7280;font-size:8px;">Page ' + pageNum + ' of ' + totalPages + '</span>' : 'Thank you for your business'}</td>
-          <td style="font-size:7px;color:#c0c0c0;text-align:right;">(305) 555-0100 · orders@freshtrade.com</td>
+          <td style="font-size:7px;color:#c0c0c0;text-align:right;">${coPhone}${coPhone && coEmail ? ' · ' : ''}${coEmail}</td>
         </tr>
       </table>
     </div>`;
@@ -13276,7 +13271,7 @@ function Invoices({
       icon: "print",
       onClick: () => {
         const cust = customers.find(c => c.id === inv.customerId);
-        const html = renderInvoicePrintHTML(inv, cust, products, settings.preferences.categoryOrder, (settings.invoice && settings.invoice.coolStatement) || '');
+        const html = renderInvoicePrintHTML(inv, cust, products, settings.preferences.categoryOrder, (settings.invoice && settings.invoice.coolStatement) || '', settings.company);
         printLetterDocument(html, `Invoice ${inv.id}`);
       }
     }, "Print Invoice")))));
@@ -26530,7 +26525,7 @@ function Routes({
           return /*#__PURE__*/React.createElement("div", {
             key: inv.id,
             dangerouslySetInnerHTML: {
-              __html: renderInvoicePrintHTML(inv, c, products, settings === null || settings === void 0 || (_settings$preferences5 = settings.preferences) === null || _settings$preferences5 === void 0 ? void 0 : _settings$preferences5.categoryOrder, (settings === null || settings === void 0 ? void 0 : (settings.invoice && settings.invoice.coolStatement)) || '')
+              __html: renderInvoicePrintHTML(inv, c, products, settings === null || settings === void 0 || (_settings$preferences5 = settings.preferences) === null || _settings$preferences5 === void 0 ? void 0 : _settings$preferences5.categoryOrder, (settings === null || settings === void 0 ? void 0 : (settings.invoice && settings.invoice.coolStatement)) || '', settings === null || settings === void 0 ? void 0 : settings.company)
             },
             style: {
               marginBottom: 30,
