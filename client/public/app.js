@@ -921,7 +921,7 @@ function printLetterDocument(htmlContent, title = "FreshTrade") {
 
 // Print a single Zebra label (1.5" × 3.0") — opens a small window per label
 function printZebraLabel(labelHtml, title = "Zebra Label") {
-  const win = window.open("", "_blank", "width=340,height=220");
+  const win = window.open("", "_blank", "width=400,height=600");
   if (!win) {
     alert("Please allow popups to print.");
     return;
@@ -932,7 +932,9 @@ function printZebraLabel(labelHtml, title = "Zebra Label") {
   @page { size: 3in 1.5in; margin: 0; }
   *, *::before, *::after { box-sizing: border-box; }
   body { margin: 0; padding: 0; font-family: 'DM Sans', Arial, sans-serif; color: #111; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .label-container { width: 3in; height: 1.5in; overflow: hidden; }
+  .label-strip { display: flex; flex-direction: column; }
+  .label-item { width: 3in; height: 1.5in; overflow: hidden; page-break-after: always; }
+  .label-item:last-child { page-break-after: auto; }
   @media print {
     body { background: #fff; }
     .no-print { display: none !important; }
@@ -943,14 +945,15 @@ function printZebraLabel(labelHtml, title = "Zebra Label") {
     .no-print-bar button { padding: 6px 16px; border-radius: 5px; border: none; cursor: pointer; font-weight: 700; font-size: 12px; }
     .no-print-bar .print-btn { background: #22c55e; color: #000; }
     .no-print-bar .close-btn { background: #334155; color: #e2e8f0; }
-    .label-container { border: 1px dashed #475569; border-radius: 4px; }
+    .label-item { border: 1px dashed #475569; border-radius: 4px; margin-bottom: 8px; }
+    .label-count { color: #94a3b8; font-size: 12px; margin-bottom: 10px; font-weight: 600; }
   }
 </style></head><body>
 <div class="no-print no-print-bar">
-  <button class="print-btn" onclick="window.print()">🖨️ Print Label</button>
-  <button class="close-btn" onclick="window.close()">✕ Close</button>
+  <button class="print-btn" onclick="window.print()">\uD83D\uDDA8\uFE0F Print All Labels</button>
+  <button class="close-btn" onclick="window.close()">\u2715 Close</button>
 </div>
-<div class="label-container">${labelHtml}</div>
+<div class="label-strip">${labelHtml}</div>
 </body></html>`);
   win.document.close();
 }
@@ -972,7 +975,7 @@ function renderProductLabelHTML(lbl) {
     const w = Math.random() > 0.5 ? 2 : 1;
     bars += `<div style="width:${w}px;background:#111;height:100%;flex-shrink:0"></div>`;
   });
-  return `<div style="width:3in;height:1.5in;font-family:'DM Sans',Arial,sans-serif;overflow:hidden;background:#fff;display:flex;flex-direction:column;box-sizing:border-box;">
+  return `<div class="label-item" style="width:3in;height:1.5in;font-family:'DM Sans',Arial,sans-serif;overflow:hidden;background:#fff;display:flex;flex-direction:column;box-sizing:border-box;">
     <div style="background:${cc};color:#fff;padding:3px 8px;display:flex;justify-content:space-between;align-items:center;">
       <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">${lbl.category || ""}</span>
       <span style="font-size:8px;font-weight:700">${lbl.catchWeight ? "CATCH WEIGHT" : "FIXED WEIGHT"}</span>
@@ -1023,7 +1026,7 @@ function renderShippingLabelHTML(lbl) {
     const w = i % 3 === 0 ? 2 : 1;
     bars += `<div style="width:${w}px;background:#111;height:100%;flex-shrink:0"></div>`;
   });
-  return `<div style="width:3in;height:1.5in;font-family:'DM Sans',Arial,sans-serif;overflow:hidden;background:#fff;display:flex;flex-direction:column;box-sizing:border-box;">
+  return `<div class="label-item" style="width:3in;height:1.5in;font-family:'DM Sans',Arial,sans-serif;overflow:hidden;background:#fff;display:flex;flex-direction:column;box-sizing:border-box;">
     <div style="background:${cc};color:#fff;padding:3px 7px;display:flex;justify-content:space-between;align-items:center;">
       <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">${lbl.category}</span>
       <span style="font-size:9px;font-weight:700">PCS ${lbl.pieceNum}/${lbl.totalPieces}</span>
@@ -1107,15 +1110,15 @@ function printAvery5363Labels(labels, title) {
   for (let i = 0; i < labels.length; i += PER_PAGE) {
     pages.push(labels.slice(i, i + PER_PAGE));
   }
-  const emptyCell = '<td style="padding:0;vertical-align:top;"><div style="width:4in;height:2in;"></div></td>';
+  const emptyCell = '<td style="padding:0;vertical-align:top;width:4in;height:2in;"></td>';
   const pagesHtml = pages.map((pageLbls, pi) => {
     let rows = '';
     for (let r = 0; r < ROWS; r++) {
-      let rowHtml = '<tr>';
+      let rowHtml = '<tr style="height:2in;">';
       for (let c = 0; c < COLS; c++) {
         const idx = r * COLS + c;
         if (idx < pageLbls.length) {
-          rowHtml += '<td style="padding:0;vertical-align:top;">' + renderShippingLabelAvery5363(pageLbls[idx]) + '</td>';
+          rowHtml += '<td style="padding:0;vertical-align:top;width:4in;height:2in;">' + renderShippingLabelAvery5363(pageLbls[idx]) + '</td>';
         } else {
           rowHtml += emptyCell;
         }
@@ -1123,10 +1126,23 @@ function printAvery5363Labels(labels, title) {
       rowHtml += '</tr>';
       rows += rowHtml;
     }
-    return '<div style="page-break-after:' + (pi < pages.length - 1 ? 'always' : 'auto') + ';"><table style="width:8in;border-collapse:collapse;margin:0.25in auto;"><tbody>' + rows + '</tbody></table></div>';
+    return '<div style="page-break-after:' + (pi < pages.length - 1 ? 'always' : 'auto') + ';padding:0.5in 0.15625in 0;"><table style="width:100%;border-collapse:collapse;table-layout:fixed;"><tbody>' + rows + '</tbody></table></div>';
   }).join('');
-  const html = '<div style="font-family:\'DM Sans\',Arial,sans-serif;">' + pagesHtml + '</div>';
-  printLetterDocument(html, title || 'Shipping Labels (Avery 5363)');
+  const win = window.open("", "_blank", "width=850,height=1100");
+  if (!win) { alert("Please allow popups to print."); return; }
+  win.document.write('<!DOCTYPE html><html><head><title>' + (title || 'Shipping Labels (Avery 5363)') + '</title>' +
+    '<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">' +
+    '<style>' +
+    '@page { size: letter; margin: 0; }' +
+    '*, *::before, *::after { box-sizing: border-box; }' +
+    'body { margin: 0; padding: 0; font-family: "DM Sans", Arial, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }' +
+    '@media print { .no-print { display: none !important; } }' +
+    '@media screen { .no-print-bar { display: flex; gap: 8px; padding: 12px; background: #1a1a2e; justify-content: center; } .no-print-bar button { padding: 8px 20px; border-radius: 5px; border: none; cursor: pointer; font-weight: 700; font-size: 13px; } .print-btn { background: #22c55e; color: #000; } .close-btn { background: #334155; color: #e2e8f0; } }' +
+    '</style></head><body>' +
+    '<div class="no-print no-print-bar"><button class="print-btn" onclick="window.print()">\uD83D\uDDA8\uFE0F Print Labels</button><button class="close-btn" onclick="window.close()">\u2715 Close</button></div>' +
+    pagesHtml +
+    '</body></html>');
+  win.document.close();
 }
 
 // ============================================================
