@@ -3829,7 +3829,12 @@ const SpreadsheetGrid = ({
       // Recalculate totals
       const ul = updated[idx];
       if (mode === "po") {
-        updated[idx].total = (Number(ul.qtyOrdered) || 0) * (Number(ul.costPerUnit) || 0);
+        const poIsWB = prod && (prod.catchWeight || prod.fixedWeight);
+        if (poIsWB && ul.estWeight) {
+          updated[idx].total = (Number(ul.estWeight) || 0) * (Number(ul.costPerUnit) || 0);
+        } else {
+          updated[idx].total = (Number(ul.qtyOrdered) || 0) * (Number(ul.costPerUnit) || 0);
+        }
         updated[idx].priceSet = !!ul.costPerUnit;
       } else if (isWB) {
         const weight = mode === "invoice" ? Number(ul.actualWeight) || Number(ul.nominalWeight) || 0 : Number(ul.estWeight) || 0;
@@ -3865,13 +3870,15 @@ const SpreadsheetGrid = ({
       const wtTotal = isWeightBased && price ? wt * price : 0;
       let newLine;
       if (mode === "po") {
+        const costVal = field === "costPerUnit" ? Number(value) : null;
+        const poIsWB = prod.catchWeight || prod.fixedWeight;
         newLine = {
           productId: pid,
           qtyOrdered: field === "qtyOrdered" ? Number(value) : 0,
           qtyReceived: 0,
-          costPerUnit: field === "costPerUnit" ? Number(value) : null,
+          costPerUnit: costVal,
           priceSet: field === "costPerUnit",
-          total: 0,
+          total: poIsWB && wt && costVal ? wt * costVal : (field === "qtyOrdered" ? Number(value) : 0) * (costVal || 0),
           unit: defaultUnit,
           cutOption: "",
           estWeight: wt
@@ -3905,7 +3912,11 @@ const SpreadsheetGrid = ({
         };
       }
       if (mode === "po") {
-        newLine.total = (Number(newLine.qtyOrdered) || 0) * (Number(newLine.costPerUnit) || 0);
+        if (newLine.estWeight && newLine.estWeight > 0 && newLine.costPerUnit) {
+          newLine.total = (Number(newLine.estWeight) || 0) * (Number(newLine.costPerUnit) || 0);
+        } else {
+          newLine.total = (Number(newLine.qtyOrdered) || 0) * (Number(newLine.costPerUnit) || 0);
+        }
       }
       setLines([...lines, newLine]);
     }
@@ -3963,7 +3974,8 @@ const SpreadsheetGrid = ({
         priceSet: false,
         total: 0,
         unit: defaultUnit,
-        cutOption: ""
+        cutOption: "",
+        estWeight: isWB ? wt : null
       };
     } else if (mode === "invoice") {
       newLine = {
@@ -16377,14 +16389,22 @@ function Purchasing({
     }));
   };
   const calculatePOTotal = () => {
-    const linesTotal = poForm.lines.reduce((s, l) => s + (l.priceSet ? l.qtyOrdered * l.costPerUnit : 0), 0);
+    const linesTotal = poForm.lines.reduce((s, l) => {
+      if (!l.priceSet) return s;
+      if (l.estWeight && l.estWeight > 0) return s + l.estWeight * l.costPerUnit;
+      return s + l.qtyOrdered * l.costPerUnit;
+    }, 0);
     const shipping = Number(poForm.shippingCost) || 0;
     const tax = Number(poForm.tax) || 0;
     return linesTotal + shipping + tax;
   };
   const savePO = (status = "draft") => {
     if (!poForm.supplierId || poForm.lines.length === 0) return;
-    const subtotal = poForm.lines.reduce((s, l) => s + (l.priceSet ? l.qtyOrdered * l.costPerUnit : 0), 0);
+    const subtotal = poForm.lines.reduce((s, l) => {
+      if (!l.priceSet) return s;
+      if (l.estWeight && l.estWeight > 0) return s + l.estWeight * l.costPerUnit;
+      return s + l.qtyOrdered * l.costPerUnit;
+    }, 0);
     const total = calculatePOTotal();
     const hasUnpricedItems = poForm.lines.some(l => !l.priceSet);
     const po = {
