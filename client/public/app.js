@@ -2861,7 +2861,7 @@ function App() {
       right: 24,
       padding: "12px 20px",
       borderRadius: 10,
-      background: toast.type === "success" ? "#166534" : toast.type === "error" ? "#991b1b" : "#1e40af",
+      background: toast.type === "success" ? "#166534" : toast.type === "error" ? "#991b1b" : toast.type === "warning" ? "#92400e" : "#1e40af",
       color: "#fff",
       fontSize: 13,
       fontWeight: 500,
@@ -3261,7 +3261,7 @@ function App() {
       right: 24,
       padding: "12px 20px",
       borderRadius: 10,
-      background: toast.type === "success" ? "#166534" : toast.type === "error" ? "#991b1b" : "#1e40af",
+      background: toast.type === "success" ? "#166534" : toast.type === "error" ? "#991b1b" : toast.type === "warning" ? "#92400e" : "#1e40af",
       color: "#fff",
       fontSize: 13,
       fontWeight: 500,
@@ -24142,6 +24142,22 @@ function Routes({
   const toggleStmtCheck = id => setStmtChecked(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const markPrinted = (id, field) => setPrintStatus(prev => ({ ...prev, [id]: { ...(prev[id] || {}), [field]: true } }));
   const getPrintStatus = id => printStatus[id] || {};
+  const needsCatchWeight = order => {
+    if (!order || !order.lines) return false;
+    return order.lines.some(line => {
+      const prod = products.find(p => p.id === line.productId);
+      if (!(prod && prod.catchWeight)) return false;
+      if (!line.pieceWeights || line.pieceWeights.length === 0) return true;
+      return line.pieceWeights.some(w => !w || Number(w) <= 0);
+    });
+  };
+  const getRouteWeightReady = routeId => {
+    const r = routes.find(rt => rt.id === routeId);
+    if (!r) return { ready: 0, total: 0, allReady: true };
+    const routeInvs = invoices.filter(inv => inv.routeId === routeId || (r.customers || []).includes(inv.customerId));
+    const needsW = routeInvs.filter(o => needsCatchWeight(o));
+    return { ready: routeInvs.length - needsW.length, total: routeInvs.length, allReady: needsW.length === 0, pending: needsW.length };
+  };
   const [routeOptions, setRouteOptions] = useState(() => {
     const opts = {};
     routes.forEach(r => {
@@ -24489,6 +24505,7 @@ function Routes({
     const statusColor = orderType === "so" ? "#3b82f6" : "#22c55e";
     const statusLabel = orderType === "so" ? "SO" : "INV";
     const ps = getPrintStatus(order.id);
+    const cwNeeded = !isPool && needsCatchWeight(order);
     return /*#__PURE__*/React.createElement("div", {
       style: {
         display: "grid",
@@ -24570,8 +24587,9 @@ function Routes({
     !isPool && /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 3, justifyContent: "center" } },
       /*#__PURE__*/React.createElement("span", { title: "Pick Slip", style: { fontSize: 10, padding: "1px 3px", borderRadius: 3, background: ps.pick ? "#22c55e22" : "#1e293b", color: ps.pick ? "#22c55e" : "#475569", fontWeight: 700, cursor: "default" } }, ps.pick ? "\u2713P" : "P"),
       /*#__PURE__*/React.createElement("span", { title: "Labels", style: { fontSize: 10, padding: "1px 3px", borderRadius: 3, background: ps.label ? "#3b82f622" : "#1e293b", color: ps.label ? "#3b82f6" : "#475569", fontWeight: 700, cursor: "default" } }, ps.label ? "\u2713L" : "L"),
-      /*#__PURE__*/React.createElement("span", { title: "Invoice", style: { fontSize: 10, padding: "1px 3px", borderRadius: 3, background: ps.invoice ? "#f59e0b22" : "#1e293b", color: ps.invoice ? "#f59e0b" : "#475569", fontWeight: 700, cursor: "default" } }, ps.invoice ? "\u2713I" : "I")),
+      /*#__PURE__*/React.createElement("span", { title: cwNeeded ? "\u2696\uFE0F Catch weights needed before printing invoice" : "Invoice", style: { fontSize: 10, padding: "1px 3px", borderRadius: 3, background: cwNeeded ? "#ef444422" : ps.invoice ? "#f59e0b22" : "#1e293b", color: cwNeeded ? "#ef4444" : ps.invoice ? "#f59e0b" : "#475569", fontWeight: 700, cursor: "default" } }, cwNeeded ? "\u26A0I" : ps.invoice ? "\u2713I" : "I")),
     !isPool && /*#__PURE__*/React.createElement("div", { style: { display: "flex", justifyContent: "center" } },
+      cwNeeded ? /*#__PURE__*/React.createElement("span", { title: "Catch weights required — cannot print invoice", style: { fontSize: 11, color: "#ef4444", cursor: "not-allowed" } }, "\u26A0") :
       /*#__PURE__*/React.createElement("input", { type: "checkbox", title: "Print Invoice", checked: printChecked.has(order.id), onChange: () => togglePrintCheck(order.id), style: { accentColor: "#f59e0b", width: 14, height: 14, cursor: "pointer" } })),
     !isPool && /*#__PURE__*/React.createElement("div", { style: { display: "flex", justifyContent: "center" } },
       /*#__PURE__*/React.createElement("input", { type: "checkbox", title: "Include Statement", checked: stmtChecked.has(order.id), onChange: () => toggleStmtCheck(order.id), style: { accentColor: "#a855f7", width: 14, height: 14, cursor: "pointer" } })),
@@ -25222,17 +25240,30 @@ function Routes({
       variant: "secondary",
       icon: "dollar",
       onClick: () => handlePrint("collection", r.id)
-    }, "\uD83D\uDCB5 Collection"), /*#__PURE__*/React.createElement(Btn, {
-      size: "sm",
-      variant: "secondary",
-      onClick: () => handlePrint("allInvoices", r.id)
-    }, "\uD83E\uDDFE Print Invoices"),
-    printChecked.size > 0 && /*#__PURE__*/React.createElement(Btn, {
-      size: "sm",
-      onClick: () => {
-        handlePrint("allInvoices", r.id);
-      }
-    }, "\u2713 Print ", printChecked.size, " Selected", stmtChecked.size > 0 ? ` + ${stmtChecked.size} Stmts` : ""),
+    }, "\uD83D\uDCB5 Collection"), (() => {
+      const wStatus = getRouteWeightReady(r.id);
+      return /*#__PURE__*/React.createElement(React.Fragment, null,
+        /*#__PURE__*/React.createElement(Btn, {
+          size: "sm",
+          variant: wStatus.allReady ? "secondary" : "ghost",
+          onClick: () => {
+            if (!wStatus.allReady) { showToast(`\u26A0 ${wStatus.pending} order(s) still need catch weights entered before printing invoices`, "warning"); return; }
+            handlePrint("allInvoices", r.id);
+          },
+          style: !wStatus.allReady ? { opacity: 0.5, border: "1px solid #ef444444", color: "#ef4444" } : {}
+        }, !wStatus.allReady ? `\u26A0 ${wStatus.pending} Need Weights` : "\uD83E\uDDFE Print Invoices"),
+        printChecked.size > 0 && /*#__PURE__*/React.createElement(Btn, {
+          size: "sm",
+          onClick: () => {
+            const uncheckedNeedW = [...printChecked].some(id => {
+              const o = invoices.find(i => i.id === id) || salesOrders.find(s => s.id === id);
+              return o && needsCatchWeight(o);
+            });
+            if (uncheckedNeedW) { showToast("\u26A0 Some selected orders still need catch weights — remove them or enter weights first", "warning"); return; }
+            handlePrint("allInvoices", r.id);
+          }
+        }, "\u2713 Print ", printChecked.size, " Selected", stmtChecked.size > 0 ? ` + ${stmtChecked.size} Stmts` : ""));
+    })(),
     /*#__PURE__*/React.createElement("button", {
       onClick: () => {
         const rOrders = orders.all;
@@ -26486,7 +26517,7 @@ function Routes({
 
       // ── ALL INVOICES PRINT ──
       if (printMode === "allInvoices") {
-        const routeInvs = orders.invs;
+        const routeInvs = printChecked.size > 0 ? orders.invs.filter(inv => printChecked.has(inv.id)) : orders.invs;
         return /*#__PURE__*/React.createElement("div", null, routeInvs.length === 0 ? /*#__PURE__*/React.createElement("div", {
           style: {
             textAlign: "center",
@@ -26577,7 +26608,13 @@ function Routes({
           if (printRouteId) {
             if (printMode === "pickSlip") markRoutePrinted(printRouteId, "pick");
             if (printMode === "shipLabels") markRoutePrinted(printRouteId, "label");
-            if (printMode === "allInvoices") markRoutePrinted(printRouteId, "invoice");
+            if (printMode === "allInvoices") {
+              if (printChecked.size > 0) {
+                printChecked.forEach(id => markPrinted(id, "invoice"));
+              } else {
+                markRoutePrinted(printRouteId, "invoice");
+              }
+            }
           }
         }
       }
