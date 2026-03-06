@@ -1101,8 +1101,8 @@ function renderShippingLabelAvery5363(lbl) {
 }
 
 function printAvery5363Labels(labels, title) {
-  const COLS = 2;
-  const ROWS = 7;
+  const COLS = 3;
+  const ROWS = 8;
   const PER_PAGE = COLS * ROWS;
   const pages = [];
   for (let i = 0; i < labels.length; i += PER_PAGE) {
@@ -1110,15 +1110,12 @@ function printAvery5363Labels(labels, title) {
   }
   const LBL_W = '2.8125in';
   const LBL_H = '1.375in';
-  const COL_GAP = '0.1875in';
   const emptyCell = '<td style="padding:0;vertical-align:top;width:' + LBL_W + ';height:' + LBL_H + ';"></td>';
-  const gapCell = '<td style="width:' + COL_GAP + ';padding:0;"></td>';
   const pagesHtml = pages.map((pageLbls, pi) => {
     let rows = '';
     for (let r = 0; r < ROWS; r++) {
       let rowHtml = '<tr style="height:' + LBL_H + ';">';
       for (let c = 0; c < COLS; c++) {
-        if (c > 0) rowHtml += gapCell;
         const idx = r * COLS + c;
         if (idx < pageLbls.length) {
           rowHtml += '<td style="padding:0;vertical-align:top;width:' + LBL_W + ';height:' + LBL_H + ';">' + renderShippingLabelAvery5363(pageLbls[idx]) + '</td>';
@@ -1129,7 +1126,7 @@ function printAvery5363Labels(labels, title) {
       rowHtml += '</tr>';
       rows += rowHtml;
     }
-    return '<div style="page-break-after:' + (pi < pages.length - 1 ? 'always' : 'auto') + ';padding:0.8125in 0.96875in 0;"><table style="border-collapse:collapse;table-layout:fixed;"><tbody>' + rows + '</tbody></table></div>';
+    return '<div style="page-break-after:' + (pi < pages.length - 1 ? 'always' : 'auto') + ';padding:0in 0.09375in 0;"><table style="border-collapse:collapse;table-layout:fixed;width:100%;"><tbody>' + rows + '</tbody></table></div>';
   }).join('');
   const win = window.open("", "_blank", "width=850,height=1100");
   if (!win) { alert("Please allow popups to print."); return; }
