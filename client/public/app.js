@@ -1022,9 +1022,7 @@ function renderShippingLabelHTML(lbl, opts) {
   const showWeight = o.shippingShowWeight !== false;
   const showOrder = o.shippingShowOrder !== false;
   const showBarcode = o.shippingShowBarcode !== false;
-  const fSize = o.shippingFontSize || "standard";
-  const _fsMap = { compact: { cat: 7, product: 9, shipTo: 6, name: 8, addr: 6, label: 6, val: 7, order: 7, barH: 10 }, standard: { cat: 9, product: 11, shipTo: 7, name: 9, addr: 7.5, label: 7, val: 8, order: 8, barH: 14 }, large: { cat: 10, product: 13, shipTo: 8, name: 10, addr: 8.5, label: 8, val: 9, order: 9, barH: 16 } };
-  const fs = _fsMap[fSize] || _fsMap.standard;
+  const fs = { cat: Number(o.shippingFontCategory) || 9, product: Number(o.shippingFontProduct) || 11, name: Number(o.shippingFontCustomer) || 9, addr: Number(o.shippingFontAddress) || 7.5, label: Number(o.shippingFontLabel) || 7, val: Number(o.shippingFontValue) || 8, order: Number(o.shippingFontOrder) || 8, barH: Number(o.shippingFontBarcode) || 14, shipTo: Math.max((Number(o.shippingFontLabel) || 7) - 1, 5) };
   const catColor = {
     Seafood: "#0284c7",
     Beef: "#b91c1c",
@@ -1083,7 +1081,7 @@ function renderShippingLabelHTML(lbl, opts) {
 }
 
 // ============================================================
-// AVERY 5363 SHIPPING LABELS — 2" × 4", 10 per sheet (2 cols × 5 rows)
+// AVERY 5363 SHIPPING LABELS — 1-3/8" × 2-13/16", 24 per sheet (3 cols × 8 rows)
 // For use with label printer / standard letter paper with peel-off labels
 // ============================================================
 function renderShippingLabelAvery5363(lbl) {
@@ -1096,9 +1094,8 @@ function renderShippingLabelAvery5363(lbl) {
   const showDeliveryDate = o.shippingShowDeliveryDate !== false;
   const showWeight = o.shippingShowWeight !== false;
   const showOrder = o.shippingShowOrder !== false;
-  const fSize = o.shippingFontSize || "standard";
-  const _fsMap2 = { compact: { cat: 6, product: 7, shipTo: 5, name: 7, addr: 5.5, label: 5, val: 6, order: 7 }, standard: { cat: 7, product: 9, shipTo: 6, name: 8, addr: 7, label: 6, val: 7, order: 8 }, large: { cat: 8, product: 10, shipTo: 7, name: 9, addr: 8, label: 7, val: 8, order: 9 } };
-  const fs = _fsMap2[fSize] || _fsMap2.standard;
+  const sc = 0.78;
+  const fs = { cat: Math.round((Number(o.shippingFontCategory) || 9) * sc), product: Math.round((Number(o.shippingFontProduct) || 11) * sc), name: Math.round((Number(o.shippingFontCustomer) || 9) * sc), addr: Math.round(((Number(o.shippingFontAddress) || 7.5) * sc) * 10) / 10, label: Math.round((Number(o.shippingFontLabel) || 7) * sc), val: Math.round((Number(o.shippingFontValue) || 8) * sc), order: Math.round((Number(o.shippingFontOrder) || 8) * sc), shipTo: Math.max(Math.round((Number(o.shippingFontLabel) || 7) * sc) - 1, 4) };
   const catColor = { Seafood: "#0284c7", Beef: "#b91c1c", Pork: "#c2410c", Poultry: "#b45309", Deli: "#7c3aed" };
   const cc = catColor[lbl.category] || "#374151";
   return `<div style="width:2.8125in;height:1.375in;font-family:'DM Sans',Arial,sans-serif;overflow:hidden;background:#fff;display:flex;flex-direction:column;box-sizing:border-box;">
@@ -2395,7 +2392,14 @@ const defaultSettings = {
     shippingShowBarcode: true,
     shippingShowUnitCount: true,
     shippingShowDeliveryDate: true,
-    shippingFontSize: "standard",
+    shippingFontCategory: 9,
+    shippingFontProduct: 11,
+    shippingFontCustomer: 9,
+    shippingFontAddress: 7.5,
+    shippingFontLabel: 7,
+    shippingFontValue: 8,
+    shippingFontOrder: 8,
+    shippingFontBarcode: 14,
     defaultSellByDays: 7,
     showCompanyName: false,
     fontSize: "standard",
@@ -2662,6 +2666,13 @@ function App() {
   const [arPayments, setArPayments] = useState(init("arPayments", []));
   const [arDeposits, setArDeposits] = useState(init("arDeposits", []));
   const [settings, setSettings] = useState(init("settings", defaultSettings));
+  // Migrate legacy shippingFontSize preset to individual numeric sizes
+  if (settings.labelsZebra && settings.labelsZebra.shippingFontSize && !settings.labelsZebra.shippingFontCategory) {
+    const _legacyMap = { compact: { shippingFontCategory: 7, shippingFontProduct: 9, shippingFontCustomer: 8, shippingFontAddress: 6, shippingFontLabel: 6, shippingFontValue: 7, shippingFontOrder: 7, shippingFontBarcode: 10 }, standard: { shippingFontCategory: 9, shippingFontProduct: 11, shippingFontCustomer: 9, shippingFontAddress: 7.5, shippingFontLabel: 7, shippingFontValue: 8, shippingFontOrder: 8, shippingFontBarcode: 14 }, large: { shippingFontCategory: 10, shippingFontProduct: 13, shippingFontCustomer: 10, shippingFontAddress: 8.5, shippingFontLabel: 8, shippingFontValue: 9, shippingFontOrder: 9, shippingFontBarcode: 16 } };
+    const _migrated = _legacyMap[settings.labelsZebra.shippingFontSize] || _legacyMap.standard;
+    settings.labelsZebra = { ...settings.labelsZebra, ..._migrated };
+    delete settings.labelsZebra.shippingFontSize;
+  }
   window.__labelSettings = settings.labelsZebra || {};
   const [dbStatus, setDbStatus] = useState(saved ? "loaded" : "new");
   const [loggedInUser, setLoggedInUser] = useState(null);
@@ -5808,7 +5819,8 @@ function buildLabels(so, products, customers, routes) {
 
 // 1.5" × 3" label rendered at 96 dpi → 144px × 288px
 function ShippingPreviewBlock({ settings }) {
-  const pfs = { compact: { cat: 6, product: 8, shipTo: 5, name: 7, addr: 6, label: 5, val: 6, order: 6, barH: 8 }, standard: { cat: 8, product: 10, shipTo: 6, name: 8, addr: 7, label: 6, val: 7, order: 7, barH: 10 }, large: { cat: 9, product: 12, shipTo: 7, name: 9, addr: 8, label: 7, val: 8, order: 8, barH: 12 } }[settings.labelsZebra.shippingFontSize || "standard"] || { cat: 8, product: 10, shipTo: 6, name: 8, addr: 7, label: 6, val: 7, order: 7, barH: 10 };
+  const z = settings.labelsZebra;
+  const pfs = { cat: Number(z.shippingFontCategory) || 9, product: Number(z.shippingFontProduct) || 11, name: Number(z.shippingFontCustomer) || 9, addr: Number(z.shippingFontAddress) || 7.5, label: Number(z.shippingFontLabel) || 7, val: Number(z.shippingFontValue) || 8, order: Number(z.shippingFontOrder) || 8, barH: Number(z.shippingFontBarcode) || 14, shipTo: Math.max((Number(z.shippingFontLabel) || 7) - 1, 5) };
   return /*#__PURE__*/React.createElement("div", {
     style: { width: "100%", aspectRatio: "3/1.5", background: "#fff", borderRadius: 4, overflow: "hidden", border: "1px solid #111", fontSize: 0, display: "flex", flexDirection: "column" }
   },
@@ -36853,6 +36865,20 @@ function SystemSettings({
       marginTop: 3
     }
   }, hint));
+  const NumberInput = ({ label, value, onChange, min = 4, max = 20, step = 0.5 }) => /*#__PURE__*/React.createElement("div", {
+    style: { marginBottom: 8 }
+  }, /*#__PURE__*/React.createElement("label", {
+    style: { display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 3 }
+  }, label), /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    value: value,
+    min: min,
+    max: max,
+    step: step,
+    onChange: e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v >= min && v <= max) onChange(v); },
+    "data-testid": "input-" + label.toLowerCase().replace(/\s+/g, "-"),
+    style: { width: "100%", padding: "6px 8px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 13, background: "#fff", color: "#111", boxSizing: "border-box" }
+  }));
   const Dropdown = ({
     label,
     value,
@@ -37728,12 +37754,19 @@ function SystemSettings({
     label: "Barcode",
     value: settings.labelsZebra.shippingShowBarcode !== false,
     onChange: v => update("labelsZebra", "shippingShowBarcode", v)
-  }), /*#__PURE__*/React.createElement(Dropdown, {
-    label: "Shipping Label Font Size",
-    value: settings.labelsZebra.shippingFontSize || "standard",
-    onChange: v => update("labelsZebra", "shippingFontSize", v),
-    options: [{ value: "compact", label: "Compact (smaller text)" }, { value: "standard", label: "Standard" }, { value: "large", label: "Large (bigger text)" }]
-  }), /*#__PURE__*/React.createElement(SectionLabel, null, "Text & Barcode Size"), /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement(SectionLabel, null, "Shipping Label Font Sizes (pt)"),
+  /*#__PURE__*/React.createElement("div", {
+    style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }
+  },
+    /*#__PURE__*/React.createElement(NumberInput, { label: "Category Bar", value: settings.labelsZebra.shippingFontCategory || 9, onChange: v => update("labelsZebra", "shippingFontCategory", v), min: 4, max: 20, step: 0.5 }),
+    /*#__PURE__*/React.createElement(NumberInput, { label: "Product Name", value: settings.labelsZebra.shippingFontProduct || 11, onChange: v => update("labelsZebra", "shippingFontProduct", v), min: 4, max: 20, step: 0.5 }),
+    /*#__PURE__*/React.createElement(NumberInput, { label: "Customer Name", value: settings.labelsZebra.shippingFontCustomer || 9, onChange: v => update("labelsZebra", "shippingFontCustomer", v), min: 4, max: 20, step: 0.5 }),
+    /*#__PURE__*/React.createElement(NumberInput, { label: "Address", value: settings.labelsZebra.shippingFontAddress || 7.5, onChange: v => update("labelsZebra", "shippingFontAddress", v), min: 4, max: 20, step: 0.5 }),
+    /*#__PURE__*/React.createElement(NumberInput, { label: "Section Headings", value: settings.labelsZebra.shippingFontLabel || 7, onChange: v => update("labelsZebra", "shippingFontLabel", v), min: 4, max: 20, step: 0.5 }),
+    /*#__PURE__*/React.createElement(NumberInput, { label: "Route / Date", value: settings.labelsZebra.shippingFontValue || 8, onChange: v => update("labelsZebra", "shippingFontValue", v), min: 4, max: 20, step: 0.5 }),
+    /*#__PURE__*/React.createElement(NumberInput, { label: "Order Number", value: settings.labelsZebra.shippingFontOrder || 8, onChange: v => update("labelsZebra", "shippingFontOrder", v), min: 4, max: 20, step: 0.5 }),
+    /*#__PURE__*/React.createElement(NumberInput, { label: "Barcode Height", value: settings.labelsZebra.shippingFontBarcode || 14, onChange: v => update("labelsZebra", "shippingFontBarcode", v), min: 6, max: 30, step: 1 })),
+  /*#__PURE__*/React.createElement(SectionLabel, null, "Text & Barcode Size"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
       gridTemplateColumns: "1fr 1fr",
