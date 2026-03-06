@@ -1011,7 +1011,17 @@ function renderProductLabelHTML(lbl) {
 }
 
 // Render a shipping label to an HTML string for Zebra printing (1.5" × 3")
-function renderShippingLabelHTML(lbl) {
+function renderShippingLabelHTML(lbl, opts) {
+  const o = opts || window.__labelSettings || {};
+  const showCategory = o.shippingShowCategory !== false;
+  const showProduct = o.shippingShowProduct !== false;
+  const showUnitCount = o.shippingShowUnitCount !== false;
+  const showAddress = o.shippingShowAddress !== false;
+  const showRoute = o.shippingShowRoute !== false;
+  const showDeliveryDate = o.shippingShowDeliveryDate !== false;
+  const showWeight = o.shippingShowWeight !== false;
+  const showOrder = o.shippingShowOrder !== false;
+  const showBarcode = o.shippingShowBarcode !== false;
   const catColor = {
     Seafood: "#0284c7",
     Beef: "#b91c1c",
@@ -1021,42 +1031,48 @@ function renderShippingLabelHTML(lbl) {
   };
   const cc = catColor[lbl.category] || "#374151";
   let bars = "";
-  const chars = (lbl.barcode || "").split("").slice(0, 30);
-  chars.forEach((_, i) => {
-    const w = i % 3 === 0 ? 2 : 1;
-    bars += `<div style="width:${w}px;background:#111;height:100%;flex-shrink:0"></div>`;
-  });
+  if (showBarcode) {
+    const chars = (lbl.barcode || "").split("").slice(0, 30);
+    chars.forEach((_, i) => {
+      const w = i % 3 === 0 ? 2 : 1;
+      bars += `<div style="width:${w}px;background:#111;height:100%;flex-shrink:0"></div>`;
+    });
+  }
   return `<div class="label-item" style="width:3in;height:1.5in;font-family:'DM Sans',Arial,sans-serif;overflow:hidden;background:#fff;display:flex;flex-direction:column;box-sizing:border-box;">
-    <div style="background:${cc};color:#fff;padding:3px 7px;display:flex;justify-content:space-between;align-items:center;">
+    ${showCategory ? `<div style="background:${cc};color:#fff;padding:3px 7px;display:flex;justify-content:space-between;align-items:center;">
       <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">${lbl.category}</span>
-      <span style="font-size:9px;font-weight:700">${lbl.unitLabel || "PCS"} ${lbl.pieceNum}/${lbl.totalPieces}</span>
-    </div>
-    <div style="padding:3px 7px 1px;border-bottom:1px solid #e5e7eb;">
+      ${showUnitCount ? `<span style="font-size:9px;font-weight:700">${lbl.unitLabel || "PCS"} ${lbl.pieceNum}/${lbl.totalPieces}</span>` : ""}
+    </div>` : (showUnitCount ? `<div style="padding:2px 7px;text-align:right;font-size:9px;font-weight:700;color:#111;border-bottom:1px solid #e5e7eb">${lbl.unitLabel || "PCS"} ${lbl.pieceNum}/${lbl.totalPieces}</div>` : "")}
+    ${showProduct ? `<div style="padding:3px 7px 1px;border-bottom:1px solid #e5e7eb;">
       <div style="font-size:11px;font-weight:700;color:#111;line-height:1.2;overflow:hidden;max-height:28px">${lbl.productName}</div>
-    </div>
+    </div>` : ""}
     <div style="display:flex;flex:1;overflow:hidden;">
       <div style="flex:1;padding:3px 6px;border-right:1px solid #e5e7eb;display:flex;flex-direction:column;justify-content:space-between;">
-        <div>
+        ${showAddress ? `<div>
           <div style="font-size:7px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:0.3px">Ship To</div>
           <div style="font-size:9px;font-weight:700;color:#111;line-height:1.2">${lbl.customerName}</div>
           <div style="font-size:7.5px;color:#374151;line-height:1.3;margin-top:1px">${lbl.address}</div>
-        </div>
-        <div style="margin-top:3px">
+        </div>` : ""}
+        ${showRoute ? `<div style="margin-top:3px">
           <div style="font-size:7px;color:#6b7280;font-weight:700;text-transform:uppercase">Route / Driver</div>
           <div style="font-size:8px;font-weight:600;color:#111">${lbl.routeName}</div>
           <div style="font-size:7.5px;color:#374151">${lbl.driverName}</div>
-        </div>
+        </div>` : ""}
+        ${showDeliveryDate && lbl.deliveryDate ? `<div style="margin-top:3px">
+          <div style="font-size:7px;color:#6b7280;font-weight:700;text-transform:uppercase">Delivery</div>
+          <div style="font-size:8px;font-weight:600;color:#111">${lbl.deliveryDate}</div>
+        </div>` : ""}
       </div>
       <div style="width:90px;padding:3px 5px;display:flex;flex-direction:column;justify-content:space-between;">
-        ${lbl.catchWeight ? `<div style="border:1.5px solid #f59e0b;border-radius:3px;padding:3px 4px;background:#fffbeb;">
+        ${showWeight ? (lbl.catchWeight ? `<div style="border:1.5px solid #f59e0b;border-radius:3px;padding:3px 4px;background:#fffbeb;">
           <div style="font-size:7px;color:#92400e;font-weight:700;text-transform:uppercase">⚖️ Act. Weight</div>
           <div style="font-size:9px;color:#92400e;font-weight:700;border-bottom:1px solid #d97706;min-height:16px;margin-top:2px">${lbl.estWeightEach ? "~" + Number(lbl.estWeightEach).toFixed(2) + " lbs" : "_____ lbs"}</div>
-        </div>` : `<div style="font-size:7.5px;color:#6b7280;font-style:italic">Fixed weight</div>`}
+        </div>` : `<div style="font-size:7.5px;color:#6b7280;font-style:italic">Fixed weight</div>`) : ""}
         <div style="margin-top:auto;">
-          <div style="font-size:7px;color:#6b7280;text-transform:uppercase;font-weight:700">Order #</div>
-          <div style="font-size:8px;font-weight:700;color:#111;font-family:monospace">${lbl.soId}</div>
-          <div style="display:flex;gap:0.5px;margin-top:3px;height:14px">${bars}</div>
-          <div style="font-size:6.5px;color:#374151;margin-top:1px;font-family:monospace;letter-spacing:-0.3px">${(lbl.barcode || "").slice(0, 20)}</div>
+          ${showOrder ? `<div style="font-size:7px;color:#6b7280;text-transform:uppercase;font-weight:700">Order #</div>
+          <div style="font-size:8px;font-weight:700;color:#111;font-family:monospace">${lbl.soId}</div>` : ""}
+          ${showBarcode ? `<div style="display:flex;gap:0.5px;margin-top:3px;height:14px">${bars}</div>
+          <div style="font-size:6.5px;color:#374151;margin-top:1px;font-family:monospace;letter-spacing:-0.3px">${(lbl.barcode || "").slice(0, 20)}</div>` : ""}
         </div>
       </div>
     </div>
@@ -1068,32 +1084,45 @@ function renderShippingLabelHTML(lbl) {
 // For use with label printer / standard letter paper with peel-off labels
 // ============================================================
 function renderShippingLabelAvery5363(lbl) {
+  const o = window.__labelSettings || {};
+  const showCategory = o.shippingShowCategory !== false;
+  const showProduct = o.shippingShowProduct !== false;
+  const showUnitCount = o.shippingShowUnitCount !== false;
+  const showAddress = o.shippingShowAddress !== false;
+  const showRoute = o.shippingShowRoute !== false;
+  const showDeliveryDate = o.shippingShowDeliveryDate !== false;
+  const showWeight = o.shippingShowWeight !== false;
+  const showOrder = o.shippingShowOrder !== false;
   const catColor = { Seafood: "#0284c7", Beef: "#b91c1c", Pork: "#c2410c", Poultry: "#b45309", Deli: "#7c3aed" };
   const cc = catColor[lbl.category] || "#374151";
   return `<div style="width:2.8125in;height:1.375in;font-family:'DM Sans',Arial,sans-serif;overflow:hidden;background:#fff;display:flex;flex-direction:column;box-sizing:border-box;">
-    <div style="background:${cc};color:#fff;padding:2px 5px;display:flex;justify-content:space-between;align-items:center;">
+    ${showCategory ? `<div style="background:${cc};color:#fff;padding:2px 5px;display:flex;justify-content:space-between;align-items:center;">
       <span style="font-size:7px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px">${lbl.category || ''}</span>
-      <span style="font-size:7px;font-weight:700">${lbl.unitLabel || "PCS"} ${lbl.pieceNum}/${lbl.totalPieces}</span>
-    </div>
-    <div style="padding:2px 5px 1px;border-bottom:1px solid #e5e7eb;">
+      ${showUnitCount ? `<span style="font-size:7px;font-weight:700">${lbl.unitLabel || "PCS"} ${lbl.pieceNum}/${lbl.totalPieces}</span>` : ""}
+    </div>` : (showUnitCount ? `<div style="padding:1px 5px;text-align:right;font-size:7px;font-weight:700;color:#111;border-bottom:1px solid #e5e7eb">${lbl.unitLabel || "PCS"} ${lbl.pieceNum}/${lbl.totalPieces}</div>` : "")}
+    ${showProduct ? `<div style="padding:2px 5px 1px;border-bottom:1px solid #e5e7eb;">
       <div style="font-size:9px;font-weight:700;color:#111;line-height:1.15;overflow:hidden;max-height:22px">${lbl.productName}</div>
-    </div>
+    </div>` : ""}
     <div style="display:flex;flex:1;overflow:hidden;">
       <div style="flex:1;padding:2px 5px;border-right:1px solid #e5e7eb;display:flex;flex-direction:column;justify-content:space-between;">
-        <div>
+        ${showAddress ? `<div>
           <div style="font-size:6px;color:#6b7280;font-weight:700;text-transform:uppercase">SHIP TO</div>
           <div style="font-size:8px;font-weight:700;color:#111;line-height:1.15">${lbl.customerName}</div>
           <div style="font-size:7px;color:#374151;line-height:1.2;margin-top:1px;overflow:hidden;max-height:18px">${lbl.address}</div>
-        </div>
-        <div>
+        </div>` : ""}
+        ${showRoute ? `<div>
           <div style="font-size:7px;font-weight:600;color:#111">${lbl.routeName} \xB7 ${lbl.driverName}</div>
-        </div>
+        </div>` : ""}
+        ${showDeliveryDate && lbl.deliveryDate ? `<div>
+          <div style="font-size:6px;color:#6b7280;font-weight:700;text-transform:uppercase">DELIVERY</div>
+          <div style="font-size:7px;font-weight:600;color:#111">${lbl.deliveryDate}</div>
+        </div>` : ""}
       </div>
       <div style="width:80px;padding:2px 4px;display:flex;flex-direction:column;justify-content:space-between;">
-        ${lbl.catchWeight ? '<div style="border:1px solid #f59e0b;border-radius:2px;padding:1px 3px;background:#fffbeb;"><div style="font-size:6px;color:#92400e;font-weight:700;text-transform:uppercase">\u2696 Wt</div><div style="font-size:8px;color:#92400e;font-weight:700;border-bottom:1px solid #d97706;min-height:12px">' + (lbl.estWeightEach ? '~' + Number(lbl.estWeightEach).toFixed(2) : '_____') + '</div></div>' : '<div style="font-size:6.5px;color:#6b7280;font-style:italic">Fixed wt</div>'}
+        ${showWeight ? (lbl.catchWeight ? '<div style="border:1px solid #f59e0b;border-radius:2px;padding:1px 3px;background:#fffbeb;"><div style="font-size:6px;color:#92400e;font-weight:700;text-transform:uppercase">\u2696 Wt</div><div style="font-size:8px;color:#92400e;font-weight:700;border-bottom:1px solid #d97706;min-height:12px">' + (lbl.estWeightEach ? '~' + Number(lbl.estWeightEach).toFixed(2) : '_____') + '</div></div>' : '<div style="font-size:6.5px;color:#6b7280;font-style:italic">Fixed wt</div>') : ""}
         <div style="margin-top:auto;">
-          <div style="font-size:6px;color:#6b7280;text-transform:uppercase;font-weight:700">Order</div>
-          <div style="font-size:8px;font-weight:700;color:#111;font-family:monospace">${lbl.soId}</div>
+          ${showOrder ? `<div style="font-size:6px;color:#6b7280;text-transform:uppercase;font-weight:700">Order</div>
+          <div style="font-size:8px;font-weight:700;color:#111;font-family:monospace">${lbl.soId}</div>` : ""}
         </div>
       </div>
     </div>
@@ -2354,6 +2383,12 @@ const defaultSettings = {
     shippingShowRoute: true,
     shippingShowAddress: true,
     shippingShowOrder: true,
+    shippingShowCategory: true,
+    shippingShowProduct: true,
+    shippingShowWeight: true,
+    shippingShowBarcode: true,
+    shippingShowUnitCount: true,
+    shippingShowDeliveryDate: true,
     defaultSellByDays: 7,
     showCompanyName: false,
     fontSize: "standard",
@@ -2375,6 +2410,12 @@ const defaultSettings = {
     shippingShowRoute: true,
     shippingShowAddress: true,
     shippingShowOrder: true,
+    shippingShowCategory: true,
+    shippingShowProduct: true,
+    shippingShowWeight: true,
+    shippingShowBarcode: true,
+    shippingShowUnitCount: true,
+    shippingShowDeliveryDate: true,
     defaultSellByDays: 7,
     showCompanyName: true,
     showProductDescription: true,
@@ -2614,6 +2655,7 @@ function App() {
   const [arPayments, setArPayments] = useState(init("arPayments", []));
   const [arDeposits, setArDeposits] = useState(init("arDeposits", []));
   const [settings, setSettings] = useState(init("settings", defaultSettings));
+  window.__labelSettings = settings.labelsZebra || {};
   const [dbStatus, setDbStatus] = useState(saved ? "loaded" : "new");
   const [loggedInUser, setLoggedInUser] = useState(null);
   const [loginError, setLoginError] = useState("");
@@ -37595,17 +37637,41 @@ function SystemSettings({
     value: settings.labelsZebra.defaultSellByDays,
     onChange: v => update("labelsZebra", "defaultSellByDays", Number(v))
   }), /*#__PURE__*/React.createElement(SectionLabel, null, "Shipping Label Fields"), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Route & Driver",
-    value: settings.labelsZebra.shippingShowRoute,
-    onChange: v => update("labelsZebra", "shippingShowRoute", v)
+    label: "Category Color Bar",
+    value: settings.labelsZebra.shippingShowCategory !== false,
+    onChange: v => update("labelsZebra", "shippingShowCategory", v)
   }), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Customer Address",
-    value: settings.labelsZebra.shippingShowAddress,
+    label: "Product Name",
+    value: settings.labelsZebra.shippingShowProduct !== false,
+    onChange: v => update("labelsZebra", "shippingShowProduct", v)
+  }), /*#__PURE__*/React.createElement(Toggle, {
+    label: "Unit Count (CS/PCS)",
+    value: settings.labelsZebra.shippingShowUnitCount !== false,
+    onChange: v => update("labelsZebra", "shippingShowUnitCount", v)
+  }), /*#__PURE__*/React.createElement(Toggle, {
+    label: "Customer Name & Address",
+    value: settings.labelsZebra.shippingShowAddress !== false,
     onChange: v => update("labelsZebra", "shippingShowAddress", v)
   }), /*#__PURE__*/React.createElement(Toggle, {
+    label: "Route & Driver",
+    value: settings.labelsZebra.shippingShowRoute !== false,
+    onChange: v => update("labelsZebra", "shippingShowRoute", v)
+  }), /*#__PURE__*/React.createElement(Toggle, {
+    label: "Delivery Date",
+    value: settings.labelsZebra.shippingShowDeliveryDate !== false,
+    onChange: v => update("labelsZebra", "shippingShowDeliveryDate", v)
+  }), /*#__PURE__*/React.createElement(Toggle, {
+    label: "Weight / Catch Weight",
+    value: settings.labelsZebra.shippingShowWeight !== false,
+    onChange: v => update("labelsZebra", "shippingShowWeight", v)
+  }), /*#__PURE__*/React.createElement(Toggle, {
     label: "Order Number",
-    value: settings.labelsZebra.shippingShowOrder,
+    value: settings.labelsZebra.shippingShowOrder !== false,
     onChange: v => update("labelsZebra", "shippingShowOrder", v)
+  }), /*#__PURE__*/React.createElement(Toggle, {
+    label: "Barcode",
+    value: settings.labelsZebra.shippingShowBarcode !== false,
+    onChange: v => update("labelsZebra", "shippingShowBarcode", v)
   }), /*#__PURE__*/React.createElement(SectionLabel, null, "Text & Barcode Size"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
@@ -37765,16 +37831,64 @@ function SystemSettings({
       fontSize: 10,
       color: "#f59e0b"
     }
-  }, "Zebra thermal \u2014 ", settings.labelsZebra.width, "\u2033 \xD7 ", settings.labelsZebra.height, "\u2033"))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      justifyContent: "flex-end",
-      marginTop: 12
-    }
+  }, "Product label preview"),
+  /*#__PURE__*/React.createElement(SectionLabel, null, "Live Preview \u2014 Shipping Label (3\u2033 \xD7 1.5\u2033)"),
+  /*#__PURE__*/React.createElement("div", {
+    style: { background: "#fff", borderRadius: 8, padding: 6, border: "2px solid #3b82f644", marginTop: 10 }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { width: "100%", aspectRatio: "3/1.5", background: "#fff", borderRadius: 4, overflow: "hidden", border: "1px solid #111", fontSize: 0, display: "flex", flexDirection: "column" }
+  },
+    (settings.labelsZebra.shippingShowCategory !== false) ? /*#__PURE__*/React.createElement("div", {
+      style: { background: "#0284c7", color: "#fff", padding: "3px 7px", display: "flex", justifyContent: "space-between", alignItems: "center" }
+    }, /*#__PURE__*/React.createElement("span", { style: { fontSize: 8, fontWeight: 700, textTransform: "uppercase" } }, "SEAFOOD"),
+      (settings.labelsZebra.shippingShowUnitCount !== false) && /*#__PURE__*/React.createElement("span", { style: { fontSize: 8, fontWeight: 700 } }, "CS 1/3"))
+    : ((settings.labelsZebra.shippingShowUnitCount !== false) && /*#__PURE__*/React.createElement("div", {
+      style: { padding: "2px 7px", textAlign: "right", fontSize: 8, fontWeight: 700, color: "#111", borderBottom: "1px solid #eee" }
+    }, "CS 1/3")),
+    (settings.labelsZebra.shippingShowProduct !== false) && /*#__PURE__*/React.createElement("div", {
+      style: { padding: "3px 7px 1px", borderBottom: "1px solid #eee" }
+    }, /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "#111" } }, "Atlantic Salmon Fillet")),
+    /*#__PURE__*/React.createElement("div", {
+      style: { display: "flex", flex: 1, overflow: "hidden" }
+    },
+      /*#__PURE__*/React.createElement("div", {
+        style: { flex: 1, padding: "3px 6px", borderRight: "1px solid #eee", display: "flex", flexDirection: "column", justifyContent: "space-between" }
+      },
+        (settings.labelsZebra.shippingShowAddress !== false) && /*#__PURE__*/React.createElement("div", null,
+          /*#__PURE__*/React.createElement("div", { style: { fontSize: 6, color: "#6b7280", fontWeight: 700, textTransform: "uppercase" } }, "SHIP TO"),
+          /*#__PURE__*/React.createElement("div", { style: { fontSize: 8, fontWeight: 700, color: "#111" } }, "Oceano Restaurant"),
+          /*#__PURE__*/React.createElement("div", { style: { fontSize: 7, color: "#374151" } }, "456 Brickell Ave, Miami FL")),
+        (settings.labelsZebra.shippingShowRoute !== false) && /*#__PURE__*/React.createElement("div", { style: { marginTop: 2 } },
+          /*#__PURE__*/React.createElement("div", { style: { fontSize: 6, color: "#6b7280", fontWeight: 700, textTransform: "uppercase" } }, "ROUTE / DRIVER"),
+          /*#__PURE__*/React.createElement("div", { style: { fontSize: 7, fontWeight: 600, color: "#111" } }, "Route A \u2014 Mike")),
+        (settings.labelsZebra.shippingShowDeliveryDate !== false) && /*#__PURE__*/React.createElement("div", { style: { marginTop: 2 } },
+          /*#__PURE__*/React.createElement("div", { style: { fontSize: 6, color: "#6b7280", fontWeight: 700, textTransform: "uppercase" } }, "DELIVERY"),
+          /*#__PURE__*/React.createElement("div", { style: { fontSize: 7, fontWeight: 600, color: "#111" } }, "2026-03-10"))),
+      /*#__PURE__*/React.createElement("div", {
+        style: { width: 80, padding: "3px 5px", display: "flex", flexDirection: "column", justifyContent: "space-between" }
+      },
+        (settings.labelsZebra.shippingShowWeight !== false) && /*#__PURE__*/React.createElement("div", {
+          style: { border: "1px solid #f59e0b", borderRadius: 3, padding: "2px 3px", background: "#fffbeb" }
+        }, /*#__PURE__*/React.createElement("div", { style: { fontSize: 6, color: "#92400e", fontWeight: 700 } }, "\u2696\uFE0F ACT. WEIGHT"),
+          /*#__PURE__*/React.createElement("div", { style: { fontSize: 8, color: "#92400e", fontWeight: 700, borderBottom: "1px solid #d97706", minHeight: 12, marginTop: 1 } }, "~8.50 lbs")),
+        /*#__PURE__*/React.createElement("div", { style: { marginTop: "auto" } },
+          (settings.labelsZebra.shippingShowOrder !== false) && /*#__PURE__*/React.createElement("div", null,
+            /*#__PURE__*/React.createElement("div", { style: { fontSize: 6, color: "#6b7280", textTransform: "uppercase", fontWeight: 700 } }, "ORDER #"),
+            /*#__PURE__*/React.createElement("div", { style: { fontSize: 7, fontWeight: 700, color: "#111", fontFamily: "monospace" } }, "SO-1234")),
+          (settings.labelsZebra.shippingShowBarcode !== false) && /*#__PURE__*/React.createElement("div", {
+            style: { display: "flex", gap: 0.5, marginTop: 2, height: 10 }
+          }, Array.from({ length: 16 }).map((_, i) => /*#__PURE__*/React.createElement("div", {
+            key: i, style: { width: i % 3 === 0 ? 2 : 1, background: "#111", height: "100%" }
+          })))))))),
+  /*#__PURE__*/React.createElement("div", {
+    style: { textAlign: "center", marginTop: 6, fontSize: 10, color: "#3b82f6" }
+  }, "Shipping label preview"))),
+  /*#__PURE__*/React.createElement("div", {
+    style: { display: "flex", justifyContent: "flex-end", marginTop: 12 }
   }, /*#__PURE__*/React.createElement(Btn, {
     icon: "save",
-    onClick: () => showToast("Zebra label settings saved")
-  }, "Save Zebra Settings"))), /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
+    onClick: () => showToast("Label settings saved")
+  }, "Save Label Settings"))), /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       alignItems: "center",
