@@ -1698,8 +1698,17 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
   const coolLine = coolStatement ? `<div style="font-size:8px;color:#6b7280;font-style:italic;margin-top:4px;text-align:center;">${coolStatement}</div>` : '';
   const nonUsaProducts = inv.lines.filter(l => { const pr = products.find(pp => pp.id === l.productId); return pr && pr.countryOfOrigin && pr.countryOfOrigin !== "USA"; }).map(l => { const pr = products.find(pp => pp.id === l.productId); return pr.name + ': Product of ' + pr.countryOfOrigin; });
   const coolPerProduct = nonUsaProducts.length > 0 ? `<div style="font-size:7px;color:#6b7280;margin-top:2px;text-align:center;">${nonUsaProducts.join(' · ')}</div>` : '';
+  const delivInstr = inv.notes || (customer && customer.notes) || '';
+  const aboveFooter = `
+    <table style="width:100%;border-collapse:collapse;margin-top:6px;">
+      <tr>
+        <td style="vertical-align:top;padding:4px 8px;font-size:8px;color:#374151;font-weight:600;font-style:italic;">All product is from USA unless otherwise stated</td>
+        ${delivInstr ? '<td style="vertical-align:top;padding:4px 8px;text-align:right;font-size:8px;color:#374151;"><span style="font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;font-size:7px;">Delivery Instructions: </span>' + delivInstr + '</td>' : '<td></td>'}
+      </tr>
+    </table>`;
   const pageFooter = pageNum => `
     ${coolLine}${coolPerProduct}
+    ${aboveFooter}
     <div style="margin-top:6px;padding:4px 0;border-top:1px solid #e5e7eb;">
       <table style="width:100%;border-collapse:collapse;">
         <tr>
