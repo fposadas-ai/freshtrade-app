@@ -1029,7 +1029,7 @@ function renderShippingLabelHTML(lbl) {
   return `<div class="label-item" style="width:3in;height:1.5in;font-family:'DM Sans',Arial,sans-serif;overflow:hidden;background:#fff;display:flex;flex-direction:column;box-sizing:border-box;">
     <div style="background:${cc};color:#fff;padding:3px 7px;display:flex;justify-content:space-between;align-items:center;">
       <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">${lbl.category}</span>
-      <span style="font-size:9px;font-weight:700">PCS ${lbl.pieceNum}/${lbl.totalPieces}</span>
+      <span style="font-size:9px;font-weight:700">${lbl.unitLabel || "PCS"} ${lbl.pieceNum}/${lbl.totalPieces}</span>
     </div>
     <div style="padding:3px 7px 1px;border-bottom:1px solid #e5e7eb;">
       <div style="font-size:11px;font-weight:700;color:#111;line-height:1.2;overflow:hidden;max-height:28px">${lbl.productName}</div>
@@ -1073,7 +1073,7 @@ function renderShippingLabelAvery5363(lbl) {
   return `<div style="width:2.8125in;height:1.375in;font-family:'DM Sans',Arial,sans-serif;overflow:hidden;background:#fff;display:flex;flex-direction:column;box-sizing:border-box;">
     <div style="background:${cc};color:#fff;padding:2px 5px;display:flex;justify-content:space-between;align-items:center;">
       <span style="font-size:7px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px">${lbl.category || ''}</span>
-      <span style="font-size:7px;font-weight:700">PCS ${lbl.pieceNum}/${lbl.totalPieces}</span>
+      <span style="font-size:7px;font-weight:700">${lbl.unitLabel || "PCS"} ${lbl.pieceNum}/${lbl.totalPieces}</span>
     </div>
     <div style="padding:2px 5px 1px;border-bottom:1px solid #e5e7eb;">
       <div style="font-size:9px;font-weight:700;color:#111;line-height:1.15;overflow:hidden;max-height:22px">${lbl.productName}</div>
@@ -1208,7 +1208,7 @@ function renderShippingLabelSheet(lbl) {
   return `<div style="width:3.75in;height:1.8in;border:1px solid #ccc;border-radius:6px;font-family:'DM Sans',Arial,sans-serif;overflow:hidden;background:#fff;display:flex;flex-direction:column;box-sizing:border-box;">
     <div style="background:${cc};color:#fff;padding:5px 10px;display:flex;justify-content:space-between;align-items:center;">
       <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">${lbl.category || ""}</span>
-      <span style="font-size:11px;font-weight:800">PCS ${lbl.pieceNum || ""}/${lbl.totalPieces || ""}</span>
+      <span style="font-size:11px;font-weight:800">${lbl.unitLabel || "PCS"} ${lbl.pieceNum || ""}/${lbl.totalPieces || ""}</span>
     </div>
     <div style="padding:4px 10px 2px;border-bottom:1px solid #e5e7eb;">
       <div style="font-size:13px;font-weight:800;color:#111;line-height:1.2">${lbl.productName || ""}</div>
@@ -5732,15 +5732,19 @@ function buildLabels(so, products, customers, routes) {
     const prod = products.find(p => p.id === line.productId);
     if (!prod) return;
     const count = Number(line.qty) || 1;
+    const lineUnit = line.unit || "PC";
+    const isCase = lineUnit === "CS";
+    const estWtPer = prod.catchWeight ? (isCase ? prod.avgWeightPerCase : prod.avgWeightPerPiece) || ((line.estWeight || 0) / count) : null;
     for (let i = 0; i < count; i++) {
       labels.push({
         soId: so.id,
         pieceNum: i + 1,
         totalPieces: count,
+        unitLabel: isCase ? "CS" : "PCS",
         productName: pName(prod, line),
         category: prod.category,
         catchWeight: prod.catchWeight,
-        estWeightEach: prod.catchWeight ? (line.estWeight || 0) / count : null,
+        estWeightEach: estWtPer,
         customerName: (cust === null || cust === void 0 ? void 0 : cust.name) || "—",
         address: (cust === null || cust === void 0 ? void 0 : cust.address) || "—",
         routeName: (route === null || route === void 0 ? void 0 : route.name) || "—",
@@ -5800,7 +5804,7 @@ function ShippingLabel({
       fontSize: 9,
       fontWeight: 700
     }
-  }, "PCS ", lbl.pieceNum, "/", lbl.totalPieces)), /*#__PURE__*/React.createElement("div", {
+  }, lbl.unitLabel || "PCS", " ", lbl.pieceNum, "/", lbl.totalPieces)), /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "3px 7px 1px",
       borderBottom: "1px solid #e5e7eb"
@@ -6113,11 +6117,11 @@ function PickSheetBlock({
       textAlign: "center",
       width: 55
     }
-  }, "Qty"), /*#__PURE__*/React.createElement("th", {
+  }, "Qty/Unit"), /*#__PURE__*/React.createElement("th", {
     style: {
       ...thStyle,
       textAlign: "center",
-      width: 65
+      width: 75
     }
   }, "Est. Wt"), /*#__PURE__*/React.createElement("th", {
     style: {
@@ -6129,6 +6133,12 @@ function PickSheetBlock({
     const prod = products.find(p => p.id === line.productId);
     const isCW = prod === null || prod === void 0 ? void 0 : prod.catchWeight;
     const qty = line.qty || 1;
+    const lineUnit = line.unit || "PC";
+    const isCase = lineUnit === "CS";
+    const unitLabel = isCase ? (qty === 1 ? "case" : "cases") : "pcs";
+    const unitLabelShort = isCase ? "CS" : "PC";
+    const estWtPerUnit = prod ? (isCase ? (prod.fixedWeight ? prod.caseWeightLbs : prod.avgWeightPerCase) : (prod.fixedWeight ? prod.weightPerPack : prod.avgWeightPerPiece)) || 0 : 0;
+    const lineEstWeight = line.estWeight || (estWtPerUnit * qty) || 0;
     const cc = catColors[prod === null || prod === void 0 ? void 0 : prod.category] || "#374151";
     // Category group header
     const prevProd = li > 0 ? products.find(p => p.id === sortedLines[li - 1].productId) : null;
@@ -6200,7 +6210,7 @@ function PickSheetBlock({
           borderRadius: 3,
           border: "1px solid #f59e0b"
         }
-      }, "\u2696\uFE0F CATCH WEIGHT \u2014 ", qty, " pcs")), /*#__PURE__*/React.createElement("td", {
+      }, "\u2696\uFE0F CATCH WEIGHT \u2014 ", qty, " ", unitLabel)), /*#__PURE__*/React.createElement("td", {
         style: {
           ...tdStyle,
           fontSize: 10,
@@ -6215,7 +6225,7 @@ function PickSheetBlock({
           fontSize: 15,
           borderBottom: "none"
         }
-      }, qty), /*#__PURE__*/React.createElement("td", {
+      }, qty, " ", unitLabelShort), /*#__PURE__*/React.createElement("td", {
         style: {
           ...tdStyle,
           textAlign: "center",
@@ -6223,7 +6233,7 @@ function PickSheetBlock({
           color: "#64748b",
           borderBottom: "none"
         }
-      }, line.estWeight ? `~${Number(line.estWeight).toFixed(1)} lbs` : "—"), /*#__PURE__*/React.createElement("td", {
+      }, lineEstWeight ? /*#__PURE__*/React.createElement("span", null, `~${Number(lineEstWeight).toFixed(1)} lbs`, estWtPerUnit > 0 && /*#__PURE__*/React.createElement("div", { style: { fontSize: 8, color: "#64748b" } }, "(~", estWtPerUnit.toFixed(1), "/", isCase ? "cs" : "pc", ")")) : "—"), /*#__PURE__*/React.createElement("td", {
         style: {
           ...tdStyle,
           borderBottom: "none"
@@ -6264,7 +6274,7 @@ function PickSheetBlock({
           color: "#92400e",
           minWidth: 28
         }
-      }, "#", pNum), /*#__PURE__*/React.createElement("div", {
+      }, isCase ? "CS#" : "#", pNum), /*#__PURE__*/React.createElement("div", {
         style: {
           borderBottom: "2px solid #111",
           width: 64,
@@ -6306,7 +6316,7 @@ function PickSheetBlock({
           fontWeight: 800,
           color: "#92400e"
         }
-      }, "TOTAL WEIGHT (", qty, " pcs):"), /*#__PURE__*/React.createElement("div", {
+      }, "TOTAL WEIGHT (", qty, " ", unitLabel, "):"), /*#__PURE__*/React.createElement("div", {
         style: {
           borderBottom: "2px solid #111",
           width: 80,
@@ -6379,7 +6389,7 @@ function PickSheetBlock({
         fontSize: 14,
         fontWeight: 700
       }
-    }, qty), /*#__PURE__*/React.createElement("td", {
+    }, qty, " ", unitLabelShort), /*#__PURE__*/React.createElement("td", {
       style: {
         ...tdStyle,
         textAlign: "center",
@@ -6404,7 +6414,13 @@ function PickSheetBlock({
         color: "#92400e",
         fontWeight: 700
       }
-    }, "lbs")) : line.estWeight ? fmtW(line.estWeight) : "N/A"), /*#__PURE__*/React.createElement("td", {
+    }, "lbs"), lineEstWeight > 0 && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 8,
+        color: "#64748b",
+        marginLeft: 4
+      }
+    }, "(~", estWtPerUnit.toFixed(1), "/", isCase ? "cs" : "pc", ")")) : lineEstWeight ? fmtW(lineEstWeight) : "N/A"), /*#__PURE__*/React.createElement("td", {
       style: {
         ...tdStyle,
         textAlign: "center"
@@ -7575,7 +7591,7 @@ function SalesOrders({
           const newQty = Number(adj[so.id]) || 0;
           const prod = products.find(p => p.id === line.productId);
           if (prod !== null && prod !== void 0 && prod.catchWeight) {
-            const perPieceWt = line.estWeight && line.qty ? line.estWeight / line.qty : prod.avgWeightPerPiece || 0;
+            const perPieceWt = line.estWeight && line.qty ? line.estWeight / line.qty : (line.unit === "CS" ? (prod.avgWeightPerCase || 0) : (prod.avgWeightPerPiece || 0));
             const newEstWt = perPieceWt * newQty;
             return {
               ...line,
@@ -8076,7 +8092,7 @@ function SalesOrders({
         const prod = products.find(p => p.id === lines[idx].productId);
         const qty = Number(lines[idx].qty) || 0;
         if (prod !== null && prod !== void 0 && prod.catchWeight) {
-          const perPieceWt = prod.avgWeightPerPiece || (lines[idx].estWeight && lines[idx].qty ? lines[idx].estWeight / lines[idx].qty : 0);
+          const perPieceWt = (lines[idx].unit === "CS" ? (prod.avgWeightPerCase || 0) : (prod.avgWeightPerPiece || 0)) || (lines[idx].estWeight && lines[idx].qty ? lines[idx].estWeight / lines[idx].qty : 0);
           if (field === "qty") lines[idx].estWeight = Math.round(perPieceWt * qty * 100) / 100;
           lines[idx].estTotal = Math.round((lines[idx].estWeight || 0) * (Number(lines[idx].pricePerLb) || 0) * 100) / 100;
         } else {
@@ -8107,12 +8123,15 @@ function SalesOrders({
       const isCW = prod.catchWeight;
       const level = ((_customers$find2 = customers.find(c => c.id === editingSO.customerId)) === null || _customers$find2 === void 0 ? void 0 : _customers$find2.priceLevel) || "level1";
       const price = ((_prod$pricing3 = prod.pricing) === null || _prod$pricing3 === void 0 ? void 0 : _prod$pricing3[level]) || ((_prod$pricing4 = prod.pricing) === null || _prod$pricing4 === void 0 ? void 0 : _prod$pricing4.level1) || 0;
+      const defaultUnit = prod.soldByPiece ? "PC" : "CS";
+      const defaultWtPer = defaultUnit === "CS" ? (prod.avgWeightPerCase || prod.caseWeightLbs || 0) : (prod.avgWeightPerPiece || 0);
       const newLine = isCW ? {
         productId,
         qty: 1,
-        estWeight: prod.avgWeightPerPiece || prod.avgWeightPerCase || 0,
+        unit: defaultUnit,
+        estWeight: defaultWtPer,
         pricePerLb: price,
-        estTotal: Math.round((prod.avgWeightPerPiece || 0) * price * 100) / 100,
+        estTotal: Math.round(defaultWtPer * price * 100) / 100,
         description: ""
       } : {
         productId,
@@ -9006,8 +9025,8 @@ function SalesOrders({
               productId: np.id,
               pricePerLb: pr,
               priceEach: undefined,
-              estWeight: np.avgWeightPerPiece || np.caseWeightLbs || 0,
-              estTotal: Math.round((np.avgWeightPerPiece || np.caseWeightLbs || 0) * pr * (Number(ls[i].qty) || 1) * 100) / 100
+              estWeight: (ls[i].unit === "CS" ? (np.avgWeightPerCase || np.caseWeightLbs || 0) : (np.avgWeightPerPiece || 0)) * (Number(ls[i].qty) || 1),
+              estTotal: Math.round((ls[i].unit === "CS" ? (np.avgWeightPerCase || np.caseWeightLbs || 0) : (np.avgWeightPerPiece || 0)) * pr * (Number(ls[i].qty) || 1) * 100) / 100
             } : {
               ...ls[i],
               productId: np.id,
@@ -14473,7 +14492,7 @@ function CatchWeight({
       isSO && /*#__PURE__*/React.createElement(Badge, { text: "Sales Order", color: "#3b82f6" }),
       !isSO && /*#__PURE__*/React.createElement(Badge, { text: "Invoice", color: "#22c55e" }),
       /*#__PURE__*/React.createElement(Badge, {
-        text: `${totalPieces} pcs to weigh`,
+        text: `${totalPieces} units to weigh`,
         color: "#f59e0b"
       }))), /*#__PURE__*/React.createElement("div", {
       style: {
@@ -14541,7 +14560,7 @@ function CatchWeight({
         color: "#64748b",
         marginTop: 2
       }
-    }, qty, " ", qty === 1 ? "piece" : "pieces", " \xB7 ", fmt(pricePerLb), "/lb \xB7 Est: ", line.nominalWeight ? fmtW(line.nominalWeight) : "—")), /*#__PURE__*/React.createElement("div", {
+    }, qty, " ", (line.unit === "CS" ? (qty === 1 ? "case" : "cases") : (qty === 1 ? "piece" : "pieces")), " \xB7 ", fmt(pricePerLb), "/lb \xB7 Est: ", line.nominalWeight ? fmtW(line.nominalWeight) : "—")), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
         alignItems: "center",
@@ -14585,7 +14604,7 @@ function CatchWeight({
           fontWeight: 600,
           marginBottom: 4
         }
-      }, isFilled ? "✓" : "⚖️", " Pc #", j + 1), /*#__PURE__*/React.createElement("div", {
+      }, isFilled ? "✓" : "⚖️", " ", line.unit === "CS" ? "Case" : "Pc", " #", j + 1), /*#__PURE__*/React.createElement("div", {
         style: {
           display: "flex",
           alignItems: "center",
@@ -14595,7 +14614,7 @@ function CatchWeight({
         type: "number",
         value: val,
         onChange: e => setPieceWeight(i, j, e.target.value),
-        placeholder: prod !== null && prod !== void 0 && prod.avgWeightPerPiece ? prod.avgWeightPerPiece.toFixed(1) : "0.0",
+        placeholder: prod ? (line.unit === "CS" ? (prod.avgWeightPerCase || 0) : (prod.avgWeightPerPiece || 0)).toFixed(1) : "0.0",
         step: "0.01",
         min: "0",
         style: {
@@ -14646,7 +14665,7 @@ function CatchWeight({
       style: {
         color: "#64748b"
       }
-    }, "Avg/pc: ", /*#__PURE__*/React.createElement("span", {
+    }, "Avg/", line.unit === "CS" ? "cs" : "pc", ": ", /*#__PURE__*/React.createElement("span", {
       style: {
         color: "#94a3b8",
         fontWeight: 600
@@ -25766,15 +25785,19 @@ function Routes({
             const prod = products.find(p => p.id === l.productId);
             if (!prod) return;
             const count = Number(l.qty || l.qtyOrdered) || 1;
+            const lu = l.unit || "PC";
+            const luIsCase = lu === "CS";
+            const estWtPer = prod.catchWeight ? (luIsCase ? prod.avgWeightPerCase : prod.avgWeightPerPiece) || ((Number(l.estWeight || l.nominalWeight) || 0) / count) : null;
             for (let i = 0; i < count; i++) {
               labels.push({
                 soId: o.id,
                 pieceNum: i + 1,
                 totalPieces: count,
+                unitLabel: luIsCase ? "CS" : "PCS",
                 productName: pName(prod, l),
                 category: prod.category,
                 catchWeight: prod.catchWeight,
-                estWeightEach: prod.catchWeight ? (Number(l.estWeight || l.nominalWeight) || 0) / count : null,
+                estWeightEach: estWtPer,
                 customerName: (cust === null || cust === void 0 ? void 0 : cust.name) || "—",
                 address: (cust === null || cust === void 0 ? void 0 : cust.address) || "—",
                 routeName: r.name,
@@ -26273,11 +26296,15 @@ function Routes({
               const prod = products.find(p => p.id === l.productId);
               if (!prod) return [];
               const count = Number(l.qty || l.qtyOrdered) || 1;
+              const lu = l.unit || "PC";
+              const luIsCase = lu === "CS";
+              const estWtPer = prod.catchWeight ? (luIsCase ? prod.avgWeightPerCase : prod.avgWeightPerPiece) || ((Number(l.estWeight || l.nominalWeight) || 0) / count) : null;
               return Array.from({ length: count }, (_, i) => ({
                 soId: o.id, pieceNum: i + 1, totalPieces: count,
+                unitLabel: luIsCase ? "CS" : "PCS",
                 productName: pName(prod, l), category: prod.category,
                 catchWeight: prod.catchWeight,
-                estWeightEach: prod.catchWeight ? (Number(l.estWeight || l.nominalWeight) || 0) / count : null,
+                estWeightEach: estWtPer,
                 customerName: (cust === null || cust === void 0 ? void 0 : cust.name) || "\u2014",
                 address: (cust === null || cust === void 0 ? void 0 : cust.address) || "\u2014",
                 routeName: r.name, driverName: r.driver,
@@ -26301,11 +26328,15 @@ function Routes({
               const prod = products.find(p => p.id === l.productId);
               if (!prod) return [];
               const count = Number(l.qty || l.qtyOrdered) || 1;
+              const lu = l.unit || "PC";
+              const luIsCase = lu === "CS";
+              const estWtPer = prod.catchWeight ? (luIsCase ? prod.avgWeightPerCase : prod.avgWeightPerPiece) || ((Number(l.estWeight || l.nominalWeight) || 0) / count) : null;
               return Array.from({ length: count }, (_, i) => ({
                 soId: o.id, pieceNum: i + 1, totalPieces: count,
+                unitLabel: luIsCase ? "CS" : "PCS",
                 productName: pName(prod, l), category: prod.category,
                 catchWeight: prod.catchWeight,
-                estWeightEach: prod.catchWeight ? (Number(l.estWeight || l.nominalWeight) || 0) / count : null,
+                estWeightEach: estWtPer,
                 customerName: (cust === null || cust === void 0 ? void 0 : cust.name) || "\u2014",
                 address: (cust === null || cust === void 0 ? void 0 : cust.address) || "\u2014",
                 routeName: r.name, driverName: r.driver,
