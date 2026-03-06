@@ -94,6 +94,13 @@ Preferred communication style: Simple, everyday language.
 - `@replit/vite-plugin-cartographer` — Replit dev tooling
 - `@replit/vite-plugin-dev-banner` — Replit dev banner
 
+### Routing Page Print Tracking
+- **Print Status**: In-memory state tracks per-order print status (`pick`, `label`, `invoice`) with P/L/I indicators
+- **Print Checkboxes**: Per-order checkboxes for selecting which invoices to print and which to include statements
+- **Select All**: Button to toggle all orders for print selection
+- **Print Marking**: Status marked as printed only when actual print execution occurs (not on modal open)
+- Route view grid uses 11 columns (vs 8 for pool view) to accommodate print tracking columns
+
 ### Other Utilities
 - **date-fns** — date manipulation
 - **nanoid** — unique ID generation

@@ -24135,6 +24135,13 @@ function Routes({
   const [editRouteInv, setEditRouteInv] = useState(null);
   const [priceLookup, setPriceLookup] = useState(null);
   const routePrintRef = useRef(null);
+  const [printStatus, setPrintStatus] = useState({});
+  const [printChecked, setPrintChecked] = useState(new Set());
+  const [stmtChecked, setStmtChecked] = useState(new Set());
+  const togglePrintCheck = id => setPrintChecked(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const toggleStmtCheck = id => setStmtChecked(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const markPrinted = (id, field) => setPrintStatus(prev => ({ ...prev, [id]: { ...(prev[id] || {}), [field]: true } }));
+  const getPrintStatus = id => printStatus[id] || {};
   const [routeOptions, setRouteOptions] = useState(() => {
     const opts = {};
     routes.forEach(r => {
@@ -24412,6 +24419,13 @@ function Routes({
     setPrintRouteId(routeId);
     setPrintCustomerId(custId);
   };
+  const markRoutePrinted = (routeId, field) => {
+    const r = routes.find(rt => rt.id === routeId);
+    if (!r) return;
+    const routeInvIds = invoices.filter(inv => inv.routeId === routeId || (r.customers || []).includes(inv.customerId)).map(inv => inv.id);
+    const routeSOIds = salesOrders.filter(so => so.routeId === routeId || (r.customers || []).includes(so.customerId)).map(so => so.id);
+    [...routeInvIds, ...routeSOIds].forEach(id => markPrinted(id, field));
+  };
 
   // ═══ ROUTE SETUP HELPERS ═══
   const moveStopOrder = (routeId, custId, direction) => {
@@ -24474,10 +24488,11 @@ function Routes({
     const toggleFn = isPool ? togglePool : toggleRouteCheck;
     const statusColor = orderType === "so" ? "#3b82f6" : "#22c55e";
     const statusLabel = orderType === "so" ? "SO" : "INV";
+    const ps = getPrintStatus(order.id);
     return /*#__PURE__*/React.createElement("div", {
       style: {
         display: "grid",
-        gridTemplateColumns: "28px 30px 2fr 80px 60px 70px 70px 100px",
+        gridTemplateColumns: isPool ? "28px 30px 2fr 80px 60px 70px 70px 100px" : "28px 30px 2fr 60px 50px 70px 90px 24px 24px 70px 80px",
         gap: 4,
         padding: "8px 8px",
         alignItems: "center",
@@ -24549,14 +24564,20 @@ function Routes({
         fontWeight: 700,
         color: "#22c55e"
       }
-    }, fmt(stats.total)), /*#__PURE__*/React.createElement("div", {
-      style: {
-        textAlign: "center"
-      }
-    }, /*#__PURE__*/React.createElement(Badge, {
-      text: order.status,
-      color: STATUS_COLORS[order.status] || "#64748b"
-    })), /*#__PURE__*/React.createElement("div", {
+    }, fmt(stats.total)),
+    isPool && /*#__PURE__*/React.createElement("div", { style: { textAlign: "center" } },
+      /*#__PURE__*/React.createElement(Badge, { text: order.status, color: STATUS_COLORS[order.status] || "#64748b" })),
+    !isPool && /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 3, justifyContent: "center" } },
+      /*#__PURE__*/React.createElement("span", { title: "Pick Slip", style: { fontSize: 10, padding: "1px 3px", borderRadius: 3, background: ps.pick ? "#22c55e22" : "#1e293b", color: ps.pick ? "#22c55e" : "#475569", fontWeight: 700, cursor: "default" } }, ps.pick ? "\u2713P" : "P"),
+      /*#__PURE__*/React.createElement("span", { title: "Labels", style: { fontSize: 10, padding: "1px 3px", borderRadius: 3, background: ps.label ? "#3b82f622" : "#1e293b", color: ps.label ? "#3b82f6" : "#475569", fontWeight: 700, cursor: "default" } }, ps.label ? "\u2713L" : "L"),
+      /*#__PURE__*/React.createElement("span", { title: "Invoice", style: { fontSize: 10, padding: "1px 3px", borderRadius: 3, background: ps.invoice ? "#f59e0b22" : "#1e293b", color: ps.invoice ? "#f59e0b" : "#475569", fontWeight: 700, cursor: "default" } }, ps.invoice ? "\u2713I" : "I")),
+    !isPool && /*#__PURE__*/React.createElement("div", { style: { display: "flex", justifyContent: "center" } },
+      /*#__PURE__*/React.createElement("input", { type: "checkbox", title: "Print Invoice", checked: printChecked.has(order.id), onChange: () => togglePrintCheck(order.id), style: { accentColor: "#f59e0b", width: 14, height: 14, cursor: "pointer" } })),
+    !isPool && /*#__PURE__*/React.createElement("div", { style: { display: "flex", justifyContent: "center" } },
+      /*#__PURE__*/React.createElement("input", { type: "checkbox", title: "Include Statement", checked: stmtChecked.has(order.id), onChange: () => toggleStmtCheck(order.id), style: { accentColor: "#a855f7", width: 14, height: 14, cursor: "pointer" } })),
+    !isPool && /*#__PURE__*/React.createElement("div", { style: { textAlign: "center" } },
+      /*#__PURE__*/React.createElement(Badge, { text: order.status, color: STATUS_COLORS[order.status] || "#64748b" })),
+    /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
         gap: 3,
@@ -25205,7 +25226,25 @@ function Routes({
       size: "sm",
       variant: "secondary",
       onClick: () => handlePrint("allInvoices", r.id)
-    }, "\uD83E\uDDFE Print Invoices"), checkedRoute.size > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
+    }, "\uD83E\uDDFE Print Invoices"),
+    printChecked.size > 0 && /*#__PURE__*/React.createElement(Btn, {
+      size: "sm",
+      onClick: () => {
+        handlePrint("allInvoices", r.id);
+      }
+    }, "\u2713 Print ", printChecked.size, " Selected", stmtChecked.size > 0 ? ` + ${stmtChecked.size} Stmts` : ""),
+    /*#__PURE__*/React.createElement("button", {
+      onClick: () => {
+        const rOrders = orders.all;
+        const allIds = rOrders.map(o => o.id);
+        const allChecked = allIds.every(id => printChecked.has(id));
+        if (allChecked) { setPrintChecked(prev => { const n = new Set(prev); allIds.forEach(id => n.delete(id)); return n; }); }
+        else { setPrintChecked(prev => { const n = new Set(prev); allIds.forEach(id => n.add(id)); return n; }); }
+      },
+      title: "Select/Deselect All for Print",
+      style: { padding: "3px 8px", borderRadius: 4, border: "1px solid #f59e0b44", background: "#f59e0b11", color: "#f59e0b", cursor: "pointer", fontSize: 10, fontWeight: 700 }
+    }, "\u2611 All"),
+    checkedRoute.size > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
       style: {
         color: "#2d3748"
       }
@@ -25224,7 +25263,7 @@ function Routes({
     }, "\u2715 Unassign ", checkedRoute.size))), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "grid",
-        gridTemplateColumns: "28px 30px 2fr 80px 60px 70px 70px 100px",
+        gridTemplateColumns: "28px 30px 2fr 60px 50px 70px 90px 24px 24px 70px 80px",
         gap: 4,
         padding: "6px 8px",
         fontSize: 9,
@@ -25236,25 +25275,23 @@ function Routes({
         borderBottom: "1px solid #2d3748"
       }
     }, /*#__PURE__*/React.createElement("div", null), /*#__PURE__*/React.createElement("div", null, "Type"), /*#__PURE__*/React.createElement("div", null, "Order / Customer"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        textAlign: "center"
-      }
+      style: { textAlign: "center" }
     }, "Cases"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        textAlign: "center"
-      }
+      style: { textAlign: "center" }
     }, "Wt"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        textAlign: "right"
-      }
+      style: { textAlign: "right" }
     }, "Total"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        textAlign: "center"
-      }
+      style: { textAlign: "center" }
+    }, "Printed"), /*#__PURE__*/React.createElement("div", {
+      style: { textAlign: "center", color: "#f59e0b" },
+      title: "Check to print invoice"
+    }, "\uD83D\uDDA8"), /*#__PURE__*/React.createElement("div", {
+      style: { textAlign: "center", color: "#a855f7" },
+      title: "Check to include statement"
+    }, "\uD83D\uDCCB"), /*#__PURE__*/React.createElement("div", {
+      style: { textAlign: "center" }
     }, "Status"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        textAlign: "right"
-      }
+      style: { textAlign: "right" }
     }, "Actions")), orders.all.length === 0 ? /*#__PURE__*/React.createElement("div", {
       style: {
         padding: 20,
@@ -26529,12 +26566,20 @@ function Routes({
           });
           const html = labels.map(l => renderShippingLabelHTML(l)).join("");
           printZebraLabel(html, `Labels — ${r.name}`);
+          if (printRouteId) markRoutePrinted(printRouteId, "label");
         }
       }
     }, "\uD83C\uDFF7\uFE0F Print Zebra Labels") : /*#__PURE__*/React.createElement(Btn, {
       icon: "print",
       onClick: () => {
-        if (routePrintRef.current) printLetterDocument(routePrintRef.current.innerHTML, titleMap[printMode]);
+        if (routePrintRef.current) {
+          printLetterDocument(routePrintRef.current.innerHTML, titleMap[printMode]);
+          if (printRouteId) {
+            if (printMode === "pickSlip") markRoutePrinted(printRouteId, "pick");
+            if (printMode === "shipLabels") markRoutePrinted(printRouteId, "label");
+            if (printMode === "allInvoices") markRoutePrinted(printRouteId, "invoice");
+          }
+        }
       }
     }, "Print (8.5\xD711)")));
   })(), editRouteInv && (() => {
