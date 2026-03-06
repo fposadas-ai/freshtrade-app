@@ -24674,7 +24674,7 @@ function Routes({
     isPool && /*#__PURE__*/React.createElement("div", { style: { textAlign: "center" } },
       /*#__PURE__*/React.createElement(Badge, { text: order.status, color: STATUS_COLORS[order.status] || "#64748b" })),
     !isPool && /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 3, justifyContent: "center" } },
-      /*#__PURE__*/React.createElement("span", { title: "Pick Slip", style: { fontSize: 10, padding: "1px 3px", borderRadius: 3, background: ps.pick ? "#22c55e22" : "#1e293b", color: ps.pick ? "#22c55e" : "#475569", fontWeight: 700, cursor: "default" } }, ps.pick ? "\u2713P" : "P"),
+      /*#__PURE__*/React.createElement("span", { title: "Pick Sheet", style: { fontSize: 10, padding: "1px 3px", borderRadius: 3, background: ps.pick ? "#22c55e22" : "#1e293b", color: ps.pick ? "#22c55e" : "#475569", fontWeight: 700, cursor: "default" } }, ps.pick ? "\u2713P" : "P"),
       /*#__PURE__*/React.createElement("span", { title: "Labels", style: { fontSize: 10, padding: "1px 3px", borderRadius: 3, background: ps.label ? "#3b82f622" : "#1e293b", color: ps.label ? "#3b82f6" : "#475569", fontWeight: 700, cursor: "default" } }, ps.label ? "\u2713L" : "L"),
       /*#__PURE__*/React.createElement("span", { title: cwNeeded ? "\u2696\uFE0F Catch weights needed before printing invoice" : "Invoice", style: { fontSize: 10, padding: "1px 3px", borderRadius: 3, background: cwNeeded ? "#ef444422" : ps.invoice ? "#f59e0b22" : "#1e293b", color: cwNeeded ? "#ef4444" : ps.invoice ? "#f59e0b" : "#475569", fontWeight: 700, cursor: "default" } }, cwNeeded ? "\u26A0I" : ps.invoice ? "\u2713I" : "I")),
     !isPool && /*#__PURE__*/React.createElement("div", { style: { display: "flex", justifyContent: "center" } },
@@ -24770,7 +24770,7 @@ function Routes({
     }
   }, /*#__PURE__*/React.createElement(PageHeader, {
     title: "Delivery Command Center",
-    subtitle: "Route orders, balance loads, print pick slips & shipping labels",
+    subtitle: "Route orders, balance loads, print pick sheets & shipping labels",
     action: /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
@@ -25314,8 +25314,8 @@ function Routes({
     }, /*#__PURE__*/React.createElement(Btn, {
       size: "sm",
       icon: "print",
-      onClick: () => handlePrint("pickSlip", r.id)
-    }, "Pick Slip"), /*#__PURE__*/React.createElement(Btn, {
+      onClick: () => handlePrint("pickSheet", r.id)
+    }, "\uD83D\uDCCB Pick Sheet"), /*#__PURE__*/React.createElement(Btn, {
       size: "sm",
       variant: "secondary",
       onClick: () => handlePrint("shipLabels", r.id)
@@ -25859,294 +25859,25 @@ function Routes({
     if (!r) return null;
     const orders = getRouteOrders(r.id);
     const printContent = () => {
-      // ── PICK SLIP ──
-      if (printMode === "pickSlip") {
+      // ── PICK SHEET ──
+      if (printMode === "pickSheet") {
         var _settings$preferences4;
-        // Aggregate all line items across all orders on this route, grouped by product
-        const itemMap = {};
-        orders.all.forEach(o => {
-          (o.lines || []).forEach(l => {
-            const key = l.productId;
-            if (!itemMap[key]) itemMap[key] = {
-              productId: key,
-              totalQty: 0,
-              totalWeight: 0,
-              customers: []
-            };
-            itemMap[key].totalQty += Number(l.qty || l.qtyOrdered) || 0;
-            itemMap[key].totalWeight += Number(l.estWeight || l.nominalWeight || l.actualWeight) || 0;
-            const cust = customers.find(c => c.id === o.customerId);
-            itemMap[key].customers.push({
-              name: (cust === null || cust === void 0 ? void 0 : cust.name) || "—",
-              qty: Number(l.qty || l.qtyOrdered) || 0,
-              orderId: o.id
-            });
-          });
-        });
-        const items = Object.values(itemMap);
-        // Group by category
         const catOrder = (settings === null || settings === void 0 || (_settings$preferences4 = settings.preferences) === null || _settings$preferences4 === void 0 ? void 0 : _settings$preferences4.categoryOrder) || ["Seafood", "Beef", "Pork", "Poultry", "Deli"];
-        items.sort((a, b) => {
-          const pa = products.find(p => p.id === a.productId);
-          const pb = products.find(p => p.id === b.productId);
-          return (catOrder.indexOf(pa === null || pa === void 0 ? void 0 : pa.category) || 99) - (catOrder.indexOf(pb === null || pb === void 0 ? void 0 : pb.category) || 99);
-        });
-        let lastCat = "";
-        return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-          style: {
-            textAlign: "center",
-            marginBottom: 16
-          }
-        }, /*#__PURE__*/React.createElement("div", {
-          style: {
-            fontSize: 20,
-            fontWeight: 800,
-            color: "#f1f5f9",
-            letterSpacing: "1px"
-          }
-        }, "FRESHTRADE DISTRIBUTION"), /*#__PURE__*/React.createElement("div", {
-          style: {
-            fontSize: 16,
-            fontWeight: 700,
-            color: "#3b82f6",
-            marginTop: 4
-          }
-        }, "PICK SLIP \u2014 ", r.name), /*#__PURE__*/React.createElement("div", {
-          style: {
-            fontSize: 12,
-            color: "#64748b",
-            marginTop: 4
-          }
-        }, "Driver: ", r.driver, " \xB7 Vehicle: ", r.vehicle, " \xB7 Date: ", today(), " \xB7 ", orders.all.length, " orders")), /*#__PURE__*/React.createElement("table", {
-          style: {
-            width: "100%",
-            borderCollapse: "collapse",
-            fontSize: 12
-          }
-        }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
-          style: {
-            borderBottom: "2px solid #2d3748"
-          }
-        }, /*#__PURE__*/React.createElement("th", {
-          style: {
-            textAlign: "left",
-            padding: 8,
-            color: "#64748b",
-            fontSize: 10
-          }
-        }, "PRODUCT"), /*#__PURE__*/React.createElement("th", {
-          style: {
-            textAlign: "center",
-            padding: 8,
-            color: "#64748b",
-            fontSize: 10,
-            width: 70
-          }
-        }, "TOTAL QTY"), /*#__PURE__*/React.createElement("th", {
-          style: {
-            textAlign: "center",
-            padding: 8,
-            color: "#64748b",
-            fontSize: 10,
-            width: 80
-          }
-        }, "WEIGHT"), /*#__PURE__*/React.createElement("th", {
-          style: {
-            textAlign: "left",
-            padding: 8,
-            color: "#64748b",
-            fontSize: 10
-          }
-        }, "BREAKDOWN BY CUSTOMER"), /*#__PURE__*/React.createElement("th", {
-          style: {
-            textAlign: "center",
-            padding: 8,
-            color: "#64748b",
-            fontSize: 10,
-            width: 60
-          }
-        }, "PICKED \u2713"))), /*#__PURE__*/React.createElement("tbody", null, items.map((item, i) => {
-          const prod = products.find(p => p.id === item.productId);
-          const cat = (prod === null || prod === void 0 ? void 0 : prod.category) || "Other";
-          const showCatHeader = cat !== lastCat;
-          lastCat = cat;
-          return /*#__PURE__*/React.createElement(React.Fragment, {
-            key: item.productId
-          }, showCatHeader && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
-            colSpan: 5,
-            style: {
-              padding: "8px 8px 4px",
-              fontSize: 11,
-              fontWeight: 800,
-              color: "#3b82f6",
-              textTransform: "uppercase",
-              borderBottom: "2px solid #3b82f644",
-              background: "#0a0d14"
-            }
-          }, cat)), /*#__PURE__*/React.createElement("tr", {
-            style: {
-              borderBottom: "1px solid #1a2030",
-              background: i % 2 === 0 ? "transparent" : "#0f111708"
-            }
-          }, /*#__PURE__*/React.createElement("td", {
-            style: {
-              padding: "8px 8px"
-            }
-          }, /*#__PURE__*/React.createElement("div", {
-            style: {
-              fontWeight: 700,
-              color: "#f1f5f9"
-            }
-          }, pName(prod) || item.productId), /*#__PURE__*/React.createElement("div", {
-            style: {
-              fontSize: 10,
-              color: "#64748b"
-            }
-          }, prod === null || prod === void 0 ? void 0 : prod.id, " ", prod !== null && prod !== void 0 && prod.catchWeight ? "⚖CW" : "", " ", prod !== null && prod !== void 0 && prod.fixedWeight ? "📦FW" : "")), /*#__PURE__*/React.createElement("td", {
-            style: {
-              textAlign: "center",
-              fontFamily: "'DM Mono',monospace",
-              fontWeight: 800,
-              fontSize: 16,
-              color: "#f1f5f9"
-            }
-          }, item.totalQty), /*#__PURE__*/React.createElement("td", {
-            style: {
-              textAlign: "center",
-              fontFamily: "'DM Mono',monospace",
-              fontSize: 12,
-              color: "#f59e0b"
-            }
-          }, item.totalWeight > 0 ? `${item.totalWeight.toFixed(1)}lb` : "—"), /*#__PURE__*/React.createElement("td", {
-            style: {
-              padding: "4px 8px"
-            }
-          }, item.customers.map((c, ci) => /*#__PURE__*/React.createElement("span", {
-            key: ci,
-            style: {
-              fontSize: 10,
-              color: "#94a3b8",
-              marginRight: 8
-            }
-          }, c.name, ": ", /*#__PURE__*/React.createElement("b", {
-            style: {
-              color: "#e2e8f0"
-            }
-          }, c.qty)))), /*#__PURE__*/React.createElement("td", {
-            style: {
-              textAlign: "center"
-            }
-          }, /*#__PURE__*/React.createElement("div", {
-            style: {
-              width: 24,
-              height: 24,
-              border: "2px solid #2d3748",
-              borderRadius: 4,
-              margin: "0 auto"
-            }
-          }))));
-        }))), /*#__PURE__*/React.createElement("div", {
-          style: {
-            marginTop: 16,
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr 1fr",
-            gap: 10,
-            padding: "12px 0",
-            borderTop: "2px solid #3b82f6"
-          }
-        }, /*#__PURE__*/React.createElement("div", {
-          style: {
-            textAlign: "center"
-          }
-        }, /*#__PURE__*/React.createElement("div", {
-          style: {
-            fontSize: 18,
-            fontWeight: 800,
-            color: "#3b82f6",
-            fontFamily: "'DM Mono',monospace"
-          }
-        }, items.reduce((s, i) => s + i.totalQty, 0)), /*#__PURE__*/React.createElement("div", {
-          style: {
-            fontSize: 10,
-            color: "#64748b"
-          }
-        }, "Total Units")), /*#__PURE__*/React.createElement("div", {
-          style: {
-            textAlign: "center"
-          }
-        }, /*#__PURE__*/React.createElement("div", {
-          style: {
-            fontSize: 18,
-            fontWeight: 800,
-            color: "#f59e0b",
-            fontFamily: "'DM Mono',monospace"
-          }
-        }, items.reduce((s, i) => s + i.totalWeight, 0).toFixed(1), " lb"), /*#__PURE__*/React.createElement("div", {
-          style: {
-            fontSize: 10,
-            color: "#64748b"
-          }
-        }, "Total Weight")), /*#__PURE__*/React.createElement("div", {
-          style: {
-            textAlign: "center"
-          }
-        }, /*#__PURE__*/React.createElement("div", {
-          style: {
-            fontSize: 18,
-            fontWeight: 800,
-            color: "#22c55e",
-            fontFamily: "'DM Mono',monospace"
-          }
-        }, items.length), /*#__PURE__*/React.createElement("div", {
-          style: {
-            fontSize: 10,
-            color: "#64748b"
-          }
-        }, "Products"))), /*#__PURE__*/React.createElement("div", {
-          style: {
-            marginTop: 16,
-            padding: "12px 0",
-            borderTop: "1px solid #2d3748"
-          }
-        }, /*#__PURE__*/React.createElement("div", {
-          style: {
-            fontSize: 11,
-            fontWeight: 700,
-            color: "#64748b",
-            marginBottom: 8,
-            textTransform: "uppercase"
-          }
-        }, "Order Breakdown by Customer"), orders.all.map(o => {
+        return /*#__PURE__*/React.createElement("div", null, orders.all.map((o, oi) => {
           const cust = customers.find(c => c.id === o.customerId);
-          const s = getOrderStats(o);
-          return /*#__PURE__*/React.createElement("div", {
-            key: o.id,
-            style: {
-              display: "flex",
-              justifyContent: "space-between",
-              padding: "4px 0",
-              borderBottom: "1px solid #1e2535",
-              fontSize: 11
-            }
-          }, /*#__PURE__*/React.createElement("span", {
-            style: {
-              color: "#94a3b8"
-            }
-          }, /*#__PURE__*/React.createElement("b", {
-            style: {
-              color: "#3b82f6",
-              fontFamily: "'DM Mono',monospace"
-            }
-          }, o.id), " \u2014 ", cust === null || cust === void 0 ? void 0 : cust.name), /*#__PURE__*/React.createElement("span", {
-            style: {
-              color: "#64748b"
-            }
-          }, s.cases, " items \xB7 ", s.weight, "lb \xB7 ", /*#__PURE__*/React.createElement("b", {
-            style: {
-              color: "#22c55e"
-            }
-          }, fmt(s.total))));
-        })));
+          const route = routes.find(rt => rt.id === r.id);
+          const soDoc = { ...o, lines: o.lines || [] };
+          return /*#__PURE__*/React.createElement("div", { key: o.id, style: { marginBottom: oi < orders.all.length - 1 ? 30 : 0 } },
+            /*#__PURE__*/React.createElement(PickSheetBlock, {
+              so: soDoc,
+              customer: cust,
+              route: route,
+              products: products,
+              showPageBreak: oi > 0,
+              categoryOrder: catOrder
+            }),
+            oi < orders.all.length - 1 && /*#__PURE__*/React.createElement("hr", { style: { border: "none", borderTop: "3px dashed #e5e7eb", margin: "28px 0" } }));
+        }));
       }
 
       // ── SHIPPING LABELS ──
@@ -26631,7 +26362,7 @@ function Routes({
       return null;
     };
     const titleMap = {
-      pickSlip: `📋 Pick Slip — ${r.name}`,
+      pickSheet: `📋 Pick Sheet — ${r.name}`,
       shipLabels: `🏷️ Shipping Labels — ${r.name}`,
       routeManifest: `📦 Delivery Manifest — ${r.name}`,
       collection: `💵 Collection Sheet — ${r.name}`,
@@ -26715,7 +26446,7 @@ function Routes({
         if (routePrintRef.current) {
           printLetterDocument(routePrintRef.current.innerHTML, titleMap[printMode]);
           if (printRouteId) {
-            if (printMode === "pickSlip") markRoutePrinted(printRouteId, "pick");
+            if (printMode === "pickSheet") markRoutePrinted(printRouteId, "pick");
             if (printMode === "shipLabels") markRoutePrinted(printRouteId, "label");
             if (printMode === "allInvoices") {
               if (printChecked.size > 0) {
