@@ -1070,32 +1070,30 @@ function renderShippingLabelHTML(lbl) {
 function renderShippingLabelAvery5363(lbl) {
   const catColor = { Seafood: "#0284c7", Beef: "#b91c1c", Pork: "#c2410c", Poultry: "#b45309", Deli: "#7c3aed" };
   const cc = catColor[lbl.category] || "#374151";
-  return `<div style="width:4in;height:2in;font-family:'DM Sans',Arial,sans-serif;overflow:hidden;background:#fff;display:flex;flex-direction:column;box-sizing:border-box;border:0.5px solid #e0e0e0;">
-    <div style="background:${cc};color:#fff;padding:3px 8px;display:flex;justify-content:space-between;align-items:center;">
-      <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">${lbl.category || ''}</span>
-      <span style="font-size:9px;font-weight:700">${lbl.catchWeight ? '\u2696\uFE0F CATCH WT' : 'FIXED WT'} \xB7 PCS ${lbl.pieceNum}/${lbl.totalPieces}</span>
+  return `<div style="width:2.8125in;height:1.375in;font-family:'DM Sans',Arial,sans-serif;overflow:hidden;background:#fff;display:flex;flex-direction:column;box-sizing:border-box;">
+    <div style="background:${cc};color:#fff;padding:2px 5px;display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:7px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px">${lbl.category || ''}</span>
+      <span style="font-size:7px;font-weight:700">PCS ${lbl.pieceNum}/${lbl.totalPieces}</span>
     </div>
-    <div style="padding:3px 8px 2px;border-bottom:1px solid #e5e7eb;">
-      <div style="font-size:12px;font-weight:700;color:#111;line-height:1.2;overflow:hidden;max-height:30px">${lbl.productName}</div>
+    <div style="padding:2px 5px 1px;border-bottom:1px solid #e5e7eb;">
+      <div style="font-size:9px;font-weight:700;color:#111;line-height:1.15;overflow:hidden;max-height:22px">${lbl.productName}</div>
     </div>
     <div style="display:flex;flex:1;overflow:hidden;">
-      <div style="flex:1;padding:3px 8px;border-right:1px solid #e5e7eb;display:flex;flex-direction:column;justify-content:space-between;">
+      <div style="flex:1;padding:2px 5px;border-right:1px solid #e5e7eb;display:flex;flex-direction:column;justify-content:space-between;">
         <div>
-          <div style="font-size:7px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:0.3px">SHIP TO</div>
-          <div style="font-size:10px;font-weight:700;color:#111;line-height:1.2">${lbl.customerName}</div>
-          <div style="font-size:8px;color:#374151;line-height:1.3;margin-top:1px">${lbl.address}</div>
+          <div style="font-size:6px;color:#6b7280;font-weight:700;text-transform:uppercase">SHIP TO</div>
+          <div style="font-size:8px;font-weight:700;color:#111;line-height:1.15">${lbl.customerName}</div>
+          <div style="font-size:7px;color:#374151;line-height:1.2;margin-top:1px;overflow:hidden;max-height:18px">${lbl.address}</div>
         </div>
-        <div style="margin-top:2px;">
-          <div style="font-size:7px;color:#6b7280;font-weight:700;text-transform:uppercase">Route</div>
-          <div style="font-size:8.5px;font-weight:600;color:#111">${lbl.routeName} \xB7 ${lbl.driverName}</div>
-          ${lbl.deliveryDate ? '<div style="font-size:7.5px;color:#374151">' + lbl.deliveryDate + '</div>' : ''}
+        <div>
+          <div style="font-size:7px;font-weight:600;color:#111">${lbl.routeName} \xB7 ${lbl.driverName}</div>
         </div>
       </div>
-      <div style="width:100px;padding:3px 6px;display:flex;flex-direction:column;justify-content:space-between;">
-        ${lbl.catchWeight ? '<div style="border:1.5px solid #f59e0b;border-radius:3px;padding:2px 4px;background:#fffbeb;"><div style="font-size:7px;color:#92400e;font-weight:700;text-transform:uppercase">\u2696\uFE0F Act. Weight</div><div style="font-size:9px;color:#92400e;font-weight:700;border-bottom:1px solid #d97706;min-height:14px;margin-top:1px">' + (lbl.estWeightEach ? '~' + Number(lbl.estWeightEach).toFixed(2) + ' lbs' : '_____ lbs') + '</div></div>' : '<div style="font-size:7.5px;color:#6b7280;font-style:italic">Fixed weight</div>'}
+      <div style="width:80px;padding:2px 4px;display:flex;flex-direction:column;justify-content:space-between;">
+        ${lbl.catchWeight ? '<div style="border:1px solid #f59e0b;border-radius:2px;padding:1px 3px;background:#fffbeb;"><div style="font-size:6px;color:#92400e;font-weight:700;text-transform:uppercase">\u2696 Wt</div><div style="font-size:8px;color:#92400e;font-weight:700;border-bottom:1px solid #d97706;min-height:12px">' + (lbl.estWeightEach ? '~' + Number(lbl.estWeightEach).toFixed(2) : '_____') + '</div></div>' : '<div style="font-size:6.5px;color:#6b7280;font-style:italic">Fixed wt</div>'}
         <div style="margin-top:auto;">
-          <div style="font-size:7px;color:#6b7280;text-transform:uppercase;font-weight:700">Order #</div>
-          <div style="font-size:9px;font-weight:700;color:#111;font-family:monospace">${lbl.soId}</div>
+          <div style="font-size:6px;color:#6b7280;text-transform:uppercase;font-weight:700">Order</div>
+          <div style="font-size:8px;font-weight:700;color:#111;font-family:monospace">${lbl.soId}</div>
         </div>
       </div>
     </div>
@@ -1104,21 +1102,26 @@ function renderShippingLabelAvery5363(lbl) {
 
 function printAvery5363Labels(labels, title) {
   const COLS = 2;
-  const ROWS = 5;
+  const ROWS = 7;
   const PER_PAGE = COLS * ROWS;
   const pages = [];
   for (let i = 0; i < labels.length; i += PER_PAGE) {
     pages.push(labels.slice(i, i + PER_PAGE));
   }
-  const emptyCell = '<td style="padding:0;vertical-align:top;width:4in;height:2in;"></td>';
+  const LBL_W = '2.8125in';
+  const LBL_H = '1.375in';
+  const COL_GAP = '0.1875in';
+  const emptyCell = '<td style="padding:0;vertical-align:top;width:' + LBL_W + ';height:' + LBL_H + ';"></td>';
+  const gapCell = '<td style="width:' + COL_GAP + ';padding:0;"></td>';
   const pagesHtml = pages.map((pageLbls, pi) => {
     let rows = '';
     for (let r = 0; r < ROWS; r++) {
-      let rowHtml = '<tr style="height:2in;">';
+      let rowHtml = '<tr style="height:' + LBL_H + ';">';
       for (let c = 0; c < COLS; c++) {
+        if (c > 0) rowHtml += gapCell;
         const idx = r * COLS + c;
         if (idx < pageLbls.length) {
-          rowHtml += '<td style="padding:0;vertical-align:top;width:4in;height:2in;">' + renderShippingLabelAvery5363(pageLbls[idx]) + '</td>';
+          rowHtml += '<td style="padding:0;vertical-align:top;width:' + LBL_W + ';height:' + LBL_H + ';">' + renderShippingLabelAvery5363(pageLbls[idx]) + '</td>';
         } else {
           rowHtml += emptyCell;
         }
@@ -1126,7 +1129,7 @@ function printAvery5363Labels(labels, title) {
       rowHtml += '</tr>';
       rows += rowHtml;
     }
-    return '<div style="page-break-after:' + (pi < pages.length - 1 ? 'always' : 'auto') + ';padding:0.5in 0.15625in 0;"><table style="width:100%;border-collapse:collapse;table-layout:fixed;"><tbody>' + rows + '</tbody></table></div>';
+    return '<div style="page-break-after:' + (pi < pages.length - 1 ? 'always' : 'auto') + ';padding:0.8125in 0.96875in 0;"><table style="border-collapse:collapse;table-layout:fixed;"><tbody>' + rows + '</tbody></table></div>';
   }).join('');
   const win = window.open("", "_blank", "width=850,height=1100");
   if (!win) { alert("Please allow popups to print."); return; }
