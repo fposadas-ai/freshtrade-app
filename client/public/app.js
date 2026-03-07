@@ -1544,11 +1544,11 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
           ${descLine}
           ${cwDetail}
         </td>
-        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:12px;color:#111;font-family:'DM Mono',monospace;">${qtyOrd}</td>
-        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:12px;font-family:'DM Mono',monospace;${shortStyle}">${qtyShip}</td>
-        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:11.5px;color:#111;font-family:'DM Mono',monospace;">${totalWt.toFixed(2)}</td>
-        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:right;font-size:11px;color:#111;">${price}</td>
-        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:right;font-size:12px;color:#111;font-family:'DM Mono',monospace;">$${Number(l.total).toFixed(2)}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:12px;font-weight:700;color:#111;font-family:'DM Mono',monospace;">${qtyOrd}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:12px;font-weight:700;font-family:'DM Mono',monospace;${shortStyle}">${qtyShip}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:11.5px;font-weight:700;color:#111;font-family:'DM Mono',monospace;">${totalWt.toFixed(2)}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:right;font-size:11px;font-weight:700;color:#111;">${price}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:right;font-size:12px;font-weight:700;color:#111;font-family:'DM Mono',monospace;">$${Number(l.total).toFixed(2)}</td>
       </tr>`;
     } else {
       const wt = l.actualWeight ? Number(l.actualWeight).toFixed(2) : l.nominalWeight ? "~" + Number(l.nominalWeight).toFixed(2) : "";
@@ -1559,11 +1559,11 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
           <div style="font-size:12px;color:#2563eb;font-weight:700;margin-top:1px;">${catLabel}${packLine}</div>
           ${descLine}
         </td>
-        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:12px;color:#111;font-family:'DM Mono',monospace;">${qtyOrd}</td>
-        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:12px;font-family:'DM Mono',monospace;${shortStyle}">${qtyShip}</td>
-        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:11.5px;color:#111;font-family:'DM Mono',monospace;">${wt}</td>
-        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:right;font-size:11px;color:#111;">${price}</td>
-        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:right;font-size:12px;color:#111;font-family:'DM Mono',monospace;">$${Number(l.total).toFixed(2)}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:12px;font-weight:700;color:#111;font-family:'DM Mono',monospace;">${qtyOrd}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:12px;font-weight:700;font-family:'DM Mono',monospace;${shortStyle}">${qtyShip}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:11.5px;font-weight:700;color:#111;font-family:'DM Mono',monospace;">${wt}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:right;font-size:11px;font-weight:700;color:#111;">${price}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:right;font-size:12px;font-weight:700;color:#111;font-family:'DM Mono',monospace;">$${Number(l.total).toFixed(2)}</td>
       </tr>`;
     }
     lineEntries.push({
