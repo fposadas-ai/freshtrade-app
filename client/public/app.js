@@ -2945,10 +2945,6 @@ function App() {
     label: "Driver Portal",
     icon: "route"
   }, {
-    id: "labels",
-    label: "Labels",
-    icon: "label"
-  }, {
     id: "pricelist",
     label: "Price List",
     icon: "list"
@@ -3316,11 +3312,6 @@ function App() {
     settings: settings,
     arPayments: arPayments,
     creditMemos: creditMemos
-  }), activeModule === "labels" && /*#__PURE__*/React.createElement(Labels, {
-    products: products,
-    customers: customers,
-    invoices: invoices,
-    showToast: showToast
   }), activeModule === "orderguide" && /*#__PURE__*/React.createElement(OrderGuide, {
     customers: customers,
     products: products,
