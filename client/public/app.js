@@ -1530,32 +1530,26 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
     let slots = 1;
 
     if (hasPieceWeights) {
-      const pricePerLb = Number(l.pricePerLb) || 0;
-      const lineTotal = Number(l.total) || 0;
-      const _rawAmts = l.pieceWeights.map(w => pricePerLb > 0 ? (Number(w) || 0) * pricePerLb : lineTotal / l.pieceWeights.length);
-      const _roundedAmts = _rawAmts.map(a => Math.round(a * 100) / 100);
-      const _roundedSum = _roundedAmts.reduce((s, a) => s + a, 0);
-      const _diff = Math.round((lineTotal - _roundedSum) * 100) / 100;
-      if (_diff !== 0 && _roundedAmts.length > 0) _roundedAmts[_roundedAmts.length - 1] = Math.round((_roundedAmts[_roundedAmts.length - 1] + _diff) * 100) / 100;
-      l.pieceWeights.forEach((w, pi) => {
+      const totalWt = l.pieceWeights.reduce((s, w) => s + (Number(w) || 0), 0);
+      const cwPieces = l.pieceWeights.map((w, i) => {
         const pw = Number(w) || 0;
-        const pieceTotal = _roundedAmts[pi];
-        const pieceBg = (lineNum + pi) % 2 === 0 ? rowB : rowA;
-        const pieceLabel = pi === 0 ? lineNum : "";
-        const isFirst = pi === 0;
-        html += `<tr style="background:${pieceBg};">
-          <td style="padding:5px 8px;border-bottom:1px solid #e2e5e9;color:#9ca3af;font-size:10px;text-align:center;font-weight:500;">${pieceLabel}</td>
-          <td style="padding:5px 10px;border-bottom:1px solid #c8cdd3;">
-            ${isFirst ? '<div style="font-weight:600;font-size:13px;color:#111827;letter-spacing:-0.1px;">' + pName(prod, l) + cutTag + cwTag + '</div><div style="font-size:12px;color:#047857;font-weight:700;margin-top:1px;">' + catLabel + packLine + '</div>' + descLine : '<div style="font-size:11px;color:#92400e;font-weight:500;">pc #' + (pi + 1) + '</div>'}
-          </td>
-          <td style="padding:5px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:12px;color:#374151;font-family:'DM Mono',monospace;">${isFirst ? qtyOrd : ""}</td>
-          <td style="padding:5px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:12px;font-family:'DM Mono',monospace;">${isFirst ? qtyShip : ""}</td>
-          <td style="padding:5px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:11.5px;color:#374151;font-family:'DM Mono',monospace;">${pw.toFixed(2)}</td>
-          <td style="padding:5px 8px;border-bottom:1px solid #e2e5e9;text-align:right;font-size:11px;color:#374151;">${isFirst ? price : ""}</td>
-          <td style="padding:5px 8px;border-bottom:1px solid #e2e5e9;text-align:right;font-size:12px;color:#374151;font-family:'DM Mono',monospace;">$${pieceTotal.toFixed(2)}</td>
-        </tr>`;
-      });
-      slots = l.pieceWeights.length;
+        return (i + 1) + ': ' + pw.toFixed(2) + ' lbs';
+      }).join('&nbsp;&nbsp;');
+      const cwDetail = '<div style="font-size:9px;color:#92400e;margin-top:2px;line-height:1.4;">' + cwPieces + '</div>';
+      html += `<tr style="background:${bg};">
+        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;color:#9ca3af;font-size:10px;text-align:center;font-weight:500;">${lineNum}</td>
+        <td style="padding:7px 10px;border-bottom:1px solid #c8cdd3;">
+          <div style="font-weight:600;font-size:13px;color:#111827;letter-spacing:-0.1px;">${pName(prod, l)}${cutTag}${cwTag}</div>
+          <div style="font-size:12px;color:#047857;font-weight:700;margin-top:1px;">${catLabel}${packLine}</div>
+          ${descLine}
+          ${cwDetail}
+        </td>
+        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:12px;color:#374151;font-family:'DM Mono',monospace;">${qtyOrd}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:12px;font-family:'DM Mono',monospace;${shortStyle}">${qtyShip}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:11.5px;color:#374151;font-family:'DM Mono',monospace;">${totalWt.toFixed(2)}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:right;font-size:11px;color:#374151;">${price}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:right;font-size:12px;color:#374151;font-family:'DM Mono',monospace;">$${Number(l.total).toFixed(2)}</td>
+      </tr>`;
     } else {
       const wt = l.actualWeight ? Number(l.actualWeight).toFixed(2) : l.nominalWeight ? "~" + Number(l.nominalWeight).toFixed(2) : "";
       html += `<tr style="background:${bg};">
