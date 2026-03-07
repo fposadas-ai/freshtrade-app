@@ -911,6 +911,7 @@ function printLetterDocument(htmlContent, title = "FreshTrade") {
   <span class="title">${title}</span>
   <div style="display:flex;gap:10px;">
     <button class="print-btn" onclick="window.print()">🖨️ Print</button>
+    <button style="padding:8px 20px;border-radius:6px;border:none;cursor:pointer;font-weight:700;font-size:13px;background:#3b82f6;color:#fff;" onclick="window.print()">📄 Save as PDF</button>
     <button class="close-btn" onclick="window.close()">✕ Close</button>
   </div>
 </div>
