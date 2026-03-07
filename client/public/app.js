@@ -1607,7 +1607,7 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
   sortedLines.forEach(l => {
     const prod = products.find(p => p.id === l.productId);
     const isCW = prod === null || prod === void 0 ? void 0 : prod.catchWeight;
-    const hasPieceWeights = isCW && l.pieceWeights && l.pieceWeights.length > 1;
+    const hasPieceWeights = isCW && l.pieceWeights && l.pieceWeights.length >= 1;
     lineNum++;
     const bg = lineNum % 2 === 0 ? rowB : rowA;
     const price = l.pricePerLb ? "$" + Number(l.pricePerLb).toFixed(2) + "/lb" : "$" + Number(l.priceEach || 0).toFixed(2) + " ea";
@@ -1619,44 +1619,49 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
     const cutTag = l.cutOption ? ` <span style="font-size:8px;font-weight:600;color:#7c3aed;background:#f3e8ff;padding:0 4px;border-radius:2px;vertical-align:middle;">✂ ${l.cutOption}</span>` : '';
     const unitLabel = l.unit === "CS" ? "cases" : "pcs";
     const descLine = l.description ? '<div style="font-size:9px;color:#6b7280;font-style:italic;margin-top:1px;line-height:1.3;">' + l.description + '</div>' : '';
+    const _packParts = [];
+    if (prod && prod.piecesPerBox && prod.piecesPerBox > 1) _packParts.push(prod.piecesPerBox + ' pcs/cs');
+    if (prod && prod.caseWeightLbs) _packParts.push(prod.caseWeightLbs + ' lbs/cs');
+    if (prod && prod.weightPerPack) _packParts.push(prod.weightPerPack + ' lbs/pc');
+    const packSizeInfo = _packParts.join(' · ');
+    const packLine = packSizeInfo ? ' <span style="font-weight:400;color:#9ca3af;font-size:9px;">· ' + packSizeInfo + '</span>' : '';
     let html = "";
-    let slots = 1; // how many "line slots" this entry occupies
+    let slots = 1;
 
     if (hasPieceWeights) {
-      const totalActual = l.pieceWeights.reduce((s, w) => s + (Number(w) || 0), 0);
-      const WPER = 8;
-      html += `<tr style="background:${bg};">
-        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;color:#9ca3af;font-size:10px;text-align:center;font-weight:500;">${lineNum}</td>
-        <td style="padding:7px 10px;border-bottom:1px solid #c8cdd3;">
-          <div style="font-weight:600;font-size:13px;color:#111827;letter-spacing:-0.1px;">${pName(prod, l)}${cutTag}${cwTag}</div>
-          <div style="font-size:12px;color:#047857;font-weight:700;margin-top:1px;">${catLabel} <span style="font-weight:400;color:#9ca3af;font-size:9px;">· ${l.qty} pcs</span></div>
-          ${descLine}
-        </td>
-        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:12px;color:#374151;font-family:'DM Mono',monospace;">${qtyOrd}</td>
-        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:12px;font-family:'DM Mono',monospace;${shortStyle}">${qtyShip}</td>
-        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:11.5px;color:#374151;font-family:'DM Mono',monospace;">${totalActual.toFixed(2)}</td>
-        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:right;font-size:11px;color:#374151;">${price}</td>
-        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:right;font-size:12px;color:#374151;font-family:'DM Mono',monospace;">$${Number(l.total).toFixed(2)}</td>
-      </tr>`;
-      const weightRows = Math.ceil(l.pieceWeights.length / WPER);
-      slots += weightRows;
-      for (let r = 0; r < l.pieceWeights.length; r += WPER) {
-        const batch = l.pieceWeights.slice(r, r + WPER);
-        const isLast = r + WPER >= l.pieceWeights.length;
-        const cellsHtml = batch.map((w, j) => {
-          const pw = Number(w) || 0;
-          const idx = r + j + 1;
-          return '<span style="display:inline-block;width:' + 100 / WPER + '%;font-family:\'DM Mono\',monospace;font-size:9px;"><span style="color:#92400e;font-weight:600;">#' + idx + '</span> <span style="color:#374151;">' + pw.toFixed(2) + '</span></span>';
-        }).join("");
-        html += '<tr style="background:#fefdf8;"><td style="padding:0;' + (isLast ? 'border-bottom:1px solid #e2e5e9;' : '') + '"></td><td colspan="6" style="padding:2px 10px 2px 18px;' + (isLast ? 'border-bottom:1px solid #e2e5e9;' : '') + 'font-size:0;">' + cellsHtml + '</td></tr>';
-      }
+      const pricePerLb = Number(l.pricePerLb) || 0;
+      const lineTotal = Number(l.total) || 0;
+      const _rawAmts = l.pieceWeights.map(w => pricePerLb > 0 ? (Number(w) || 0) * pricePerLb : lineTotal / l.pieceWeights.length);
+      const _roundedAmts = _rawAmts.map(a => Math.round(a * 100) / 100);
+      const _roundedSum = _roundedAmts.reduce((s, a) => s + a, 0);
+      const _diff = Math.round((lineTotal - _roundedSum) * 100) / 100;
+      if (_diff !== 0 && _roundedAmts.length > 0) _roundedAmts[_roundedAmts.length - 1] = Math.round((_roundedAmts[_roundedAmts.length - 1] + _diff) * 100) / 100;
+      l.pieceWeights.forEach((w, pi) => {
+        const pw = Number(w) || 0;
+        const pieceTotal = _roundedAmts[pi];
+        const pieceBg = (lineNum + pi) % 2 === 0 ? rowB : rowA;
+        const pieceLabel = pi === 0 ? lineNum : "";
+        const isFirst = pi === 0;
+        html += `<tr style="background:${pieceBg};">
+          <td style="padding:5px 8px;border-bottom:1px solid #e2e5e9;color:#9ca3af;font-size:10px;text-align:center;font-weight:500;">${pieceLabel}</td>
+          <td style="padding:5px 10px;border-bottom:1px solid #c8cdd3;">
+            ${isFirst ? '<div style="font-weight:600;font-size:13px;color:#111827;letter-spacing:-0.1px;">' + pName(prod, l) + cutTag + cwTag + '</div><div style="font-size:12px;color:#047857;font-weight:700;margin-top:1px;">' + catLabel + packLine + '</div>' + descLine : '<div style="font-size:11px;color:#92400e;font-weight:500;">pc #' + (pi + 1) + '</div>'}
+          </td>
+          <td style="padding:5px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:12px;color:#374151;font-family:'DM Mono',monospace;">${isFirst ? qtyOrd : ""}</td>
+          <td style="padding:5px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:12px;font-family:'DM Mono',monospace;">${isFirst ? qtyShip : ""}</td>
+          <td style="padding:5px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:11.5px;color:#374151;font-family:'DM Mono',monospace;">${pw.toFixed(2)}</td>
+          <td style="padding:5px 8px;border-bottom:1px solid #e2e5e9;text-align:right;font-size:11px;color:#374151;">${isFirst ? price : ""}</td>
+          <td style="padding:5px 8px;border-bottom:1px solid #e2e5e9;text-align:right;font-size:12px;color:#374151;font-family:'DM Mono',monospace;">$${pieceTotal.toFixed(2)}</td>
+        </tr>`;
+      });
+      slots = l.pieceWeights.length;
     } else {
       const wt = l.actualWeight ? Number(l.actualWeight).toFixed(2) : l.nominalWeight ? "~" + Number(l.nominalWeight).toFixed(2) : "";
       html += `<tr style="background:${bg};">
         <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;color:#9ca3af;font-size:10px;text-align:center;font-weight:500;">${lineNum}</td>
         <td style="padding:7px 10px;border-bottom:1px solid #c8cdd3;">
           <div style="font-weight:600;font-size:13px;color:#111827;letter-spacing:-0.1px;">${pName(prod, l)}${cutTag}${cwTag}</div>
-          <div style="font-size:12px;color:#047857;font-weight:700;margin-top:1px;">${catLabel}${prod !== null && prod !== void 0 && prod.piecesPerBox ? ' <span style="font-weight:400;color:#9ca3af;font-size:9px;">· ' + prod.piecesPerBox + '/cs</span>' : ""}</div>
+          <div style="font-size:12px;color:#047857;font-weight:700;margin-top:1px;">${catLabel}${packLine}</div>
           ${descLine}
         </td>
         <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:12px;color:#374151;font-family:'DM Mono',monospace;">${qtyOrd}</td>
@@ -1717,7 +1722,6 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
           <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:10px 14px;">
             <div style="font-size:6.5px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:2px;margin-bottom:4px;">Bill To</div>
             <div style="font-size:14px;font-weight:700;color:#111827;line-height:1.2;">${custName}</div>
-            ${custContact ? '<div style="font-size:9.5px;color:#6b7280;margin-top:3px;">Attn: ' + custContact + '</div>' : ""}
             ${custAddr ? '<div style="font-size:9.5px;color:#6b7280;margin-top:1px;">' + custAddr + '</div>' : ""}
             ${custPhone ? '<div style="font-size:9.5px;color:#6b7280;margin-top:1px;">' + custPhone + (custEmail ? " · " + custEmail : "") + '</div>' : ""}
           </div>
