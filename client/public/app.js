@@ -1774,11 +1774,11 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
       </thead>
       <tbody>`;
   const tableClose = `</tbody></table>`;
-  const bottomBox = `
+  const totalsBox = `
     ${inv.notes ? '<div style="padding:6px 10px;border-left:3px solid #d1fae5;background:#f0fdf4;border-radius:0 4px 4px 0;margin-top:10px;"><div style="font-size:7px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px;">Notes</div><div style="font-size:9px;color:#374151;line-height:1.4;">' + inv.notes + '</div></div>' : ""}
     <table style="width:100%;border-collapse:collapse;border:2px solid #047857;margin-top:10px;border-radius:6px;overflow:hidden;">
       <tr>
-        <td colspan="2" style="padding:0;border-bottom:2px solid #047857;">
+        <td style="padding:0;">
           <table style="width:100%;border-collapse:collapse;">
             <tr>
               <td style="width:17%;padding:6px 8px;background:#f0fdf4;border-right:1px solid #d1fae5;text-align:center;vertical-align:middle;">
@@ -1811,20 +1811,27 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
           </table>
         </td>
       </tr>
+    </table>`;
+  const signatureFooter = `
+    <table style="width:100%;border-collapse:collapse;border:1.5px solid #047857;margin-top:8px;border-radius:4px;overflow:hidden;">
       <tr>
-        <td style="width:50%;padding:8px 16px 8px;border-right:2px solid #047857;vertical-align:top;">
-          <div style="font-size:7px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin-bottom:16px;">Received By (Print Name)</div>
+        <td style="width:33%;padding:6px 14px 5px;border-right:1px solid #d1fae5;vertical-align:top;">
+          <div style="font-size:7px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">Received By (Print Name)</div>
           <div style="border-bottom:1.5px solid #9ca3af;"></div>
         </td>
-        <td style="width:50%;padding:8px 16px 8px;vertical-align:top;">
-          <div style="font-size:7px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin-bottom:16px;">Signature</div>
+        <td style="width:34%;padding:6px 14px 5px;border-right:1px solid #d1fae5;vertical-align:top;">
+          <div style="font-size:7px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">Signature</div>
+          <div style="border-bottom:1.5px solid #9ca3af;"></div>
+        </td>
+        <td style="width:33%;padding:6px 14px 5px;vertical-align:top;">
+          <div style="font-size:7px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">Date / Time</div>
           <div style="border-bottom:1.5px solid #9ca3af;"></div>
         </td>
       </tr>
     </table>
-    <div style="border:1.5px solid #d1d5db;border-top:none;padding:5px 16px;background:#fafafa;">
-      <div style="font-size:6.5px;color:#9ca3af;line-height:1.5;">
-        <span style="font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Terms:</span> Late payments are subject to a 1.5% monthly finance charge. Buyer is responsible for all collection and attorney fees. All claims for quality or weight shortages must be made within 24 hours of delivery. All sales are final.
+    <div style="padding:2px 12px;background:#fafafa;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 4px 4px;">
+      <div style="font-size:5.5px;color:#9ca3af;line-height:1.4;">
+        <span style="font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Terms:</span> Late payments subject to 1.5% monthly finance charge. Buyer responsible for collection/attorney fees. Claims for quality or weight shortages must be made within 24 hrs of delivery. All sales final.
       </div>
     </div>`;
   const coolLine = coolStatement ? `<div style="font-size:8px;color:#6b7280;font-style:italic;margin-top:4px;text-align:center;">${coolStatement}</div>` : '';
@@ -1852,8 +1859,9 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
     </div>`;
 
   // ── Fixed-form layout: always fill page with blank rows like a printed form ──
-  const ROWS_PAGE1 = 18; // Fixed row slots on page 1 (with full header)
-  const ROWS_CONT = 26; // Fixed row slots on continuation pages
+  // Signature footer takes ~2 row-equivalent space at the bottom of every page
+  const ROWS_PAGE1 = 16; // Fixed row slots on page 1 (with full header + signature footer)
+  const ROWS_CONT = 24; // Fixed row slots on continuation pages (with compact header + signature footer)
 
   // Empty row template
   const emptyRow = n => `<tr style="background:${n % 2 === 0 ? rowB : rowA};">
@@ -1925,7 +1933,8 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
       ${linesHtml}
       ${blankHtml}
       ${tableClose}
-      ${page.isLast ? bottomBox : '<div style="border-top:2px solid #047857;padding:6px 0;text-align:center;font-size:9px;color:#6b7280;font-weight:600;font-style:italic;">Continued on next page…</div>'}
+      ${page.isLast ? totalsBox : '<div style="border-top:2px solid #047857;padding:6px 0;text-align:center;font-size:9px;color:#6b7280;font-weight:600;font-style:italic;">Continued on next page…</div>'}
+      ${signatureFooter}
       ${pageFooter(pageNum)}
     </div>`;
   });
