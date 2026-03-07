@@ -3253,7 +3253,8 @@ function App() {
     setSalesOrders: setSalesOrders,
     products: products,
     customers: customers,
-    showToast: showToast
+    showToast: showToast,
+    settings: settings
   }), activeModule === "production" && /*#__PURE__*/React.createElement(Production, {
     productionRuns: productionRuns,
     setProductionRuns: setProductionRuns,
@@ -14403,11 +14404,14 @@ function CatchWeight({
   setSalesOrders,
   products,
   customers,
-  showToast
+  showToast,
+  settings
 }) {
   const [selectedInv, setSelectedInv] = useState("");
   const [weights, setWeights] = useState({});
   const [tab, setTab] = useState("pending");
+  const [cwWarnings, setCwWarnings] = useState({});
+  const tolerancePct = (settings && settings.preferences && typeof settings.preferences.catchWeightTolerance === "number") ? settings.preferences.catchWeightTolerance : 5;
   const cwProducts = products.filter(p => p.catchWeight);
 
   // Invoices with unweighed catch-weight items
@@ -14438,6 +14442,7 @@ function CatchWeight({
   // Initialize per-piece weight slots when selecting an invoice
   const selectInvoice = invId => {
     setSelectedInv(invId);
+    setCwWarnings({});
     const inv = invoices.find(i => i.id === invId) || (salesOrders || []).find(s => s.id === invId);
     if (!inv) {
       setWeights({});
@@ -14456,7 +14461,7 @@ function CatchWeight({
     });
     setWeights(w);
   };
-  const setPieceWeight = (lineIdx, pieceIdx, value) => {
+  const setPieceWeight = (lineIdx, pieceIdx, value, prod, line) => {
     setWeights(prev => {
       const arr = [...(prev[lineIdx] || [])];
       arr[pieceIdx] = value;
@@ -14465,9 +14470,30 @@ function CatchWeight({
         [lineIdx]: arr
       };
     });
+    const numVal = Number(value);
+    if (numVal > 0 && prod) {
+      const expectedWt = line.unit === "CS" ? (prod.avgWeightPerCase || 0) : (prod.avgWeightPerPiece || 0);
+      if (expectedWt > 0) {
+        const deviation = Math.abs(numVal - expectedWt) / expectedWt * 100;
+        const warnKey = lineIdx + "-" + pieceIdx;
+        if (deviation > tolerancePct) {
+          const dir = numVal > expectedWt ? "high" : "low";
+          setCwWarnings(prev => ({ ...prev, [warnKey]: { deviation: deviation.toFixed(0), dir, expected: expectedWt, actual: numVal } }));
+        } else {
+          setCwWarnings(prev => { const n = { ...prev }; delete n[warnKey]; return n; });
+        }
+      }
+    } else {
+      const warnKey = lineIdx + "-" + pieceIdx;
+      setCwWarnings(prev => { const n = { ...prev }; delete n[warnKey]; return n; });
+    }
   };
   const applyWeights = () => {
     if (!selectedInv) return;
+    const activeWarnings = Object.keys(cwWarnings).length;
+    if (activeWarnings > 0) {
+      if (!confirm("There " + (activeWarnings === 1 ? "is 1 weight" : "are " + activeWarnings + " weights") + " outside the expected range. Continue anyway?")) return;
+    }
     const isSODoc = selectedType === "so" || (selectedInv.startsWith && selectedInv.startsWith("SO"));
     const applyToDoc = doc => {
       const newLines = doc.lines.map((line, i) => {
@@ -14504,6 +14530,7 @@ function CatchWeight({
       showToast("Individual piece weights applied — invoice updated!");
     }
     setWeights({});
+    setCwWarnings({});
     setSelectedInv("");
   };
 
@@ -14725,22 +14752,29 @@ function CatchWeight({
     }).map((_, j) => {
       const val = pieceArr[j] || "";
       const isFilled = val !== "" && Number(val) > 0;
+      const warnKey = i + "-" + j;
+      const warn = cwWarnings[warnKey];
+      const hasWarn = !!warn;
+      const cardBg = hasWarn ? "#f59e0b12" : isFilled ? "#22c55e0a" : "#0f1117";
+      const cardBorder = hasWarn ? "#f59e0b" : isFilled ? "#22c55e55" : "#2d3748";
+      const inputColor = hasWarn ? "#f59e0b" : isFilled ? "#22c55e" : "#e2e8f0";
+      const inputBorderColor = hasWarn ? "#f59e0b" : isFilled ? "#22c55e" : "#334155";
       return /*#__PURE__*/React.createElement("div", {
         key: j,
         style: {
-          background: isFilled ? "#22c55e0a" : "#0f1117",
-          border: `1px solid ${isFilled ? "#22c55e55" : "#2d3748"}`,
+          background: cardBg,
+          border: `1px solid ${cardBorder}`,
           borderRadius: 8,
           padding: "8px 10px"
         }
       }, /*#__PURE__*/React.createElement("div", {
         style: {
           fontSize: 10,
-          color: isFilled ? "#22c55e" : "#64748b",
+          color: hasWarn ? "#f59e0b" : isFilled ? "#22c55e" : "#64748b",
           fontWeight: 600,
           marginBottom: 4
         }
-      }, isFilled ? "✓" : "⚖️", " ", line.unit === "CS" ? "Case" : "Pc", " #", j + 1), /*#__PURE__*/React.createElement("div", {
+      }, hasWarn ? "⚠️" : isFilled ? "✓" : "⚖️", " ", line.unit === "CS" ? "Case" : "Pc", " #", j + 1), /*#__PURE__*/React.createElement("div", {
         style: {
           display: "flex",
           alignItems: "center",
@@ -14749,7 +14783,8 @@ function CatchWeight({
       }, /*#__PURE__*/React.createElement("input", {
         type: "number",
         value: val,
-        onChange: e => setPieceWeight(i, j, e.target.value),
+        onChange: e => setPieceWeight(i, j, e.target.value, prod, line),
+        "data-testid": `input-cw-piece-${i}-${j}`,
         placeholder: prod ? (line.unit === "CS" ? (prod.avgWeightPerCase || 0) : (prod.avgWeightPerPiece || 0)).toFixed(1) : "0.0",
         step: "0.01",
         min: "0",
@@ -14757,9 +14792,9 @@ function CatchWeight({
           width: "100%",
           background: "transparent",
           border: "none",
-          borderBottom: `2px solid ${isFilled ? "#22c55e" : "#334155"}`,
+          borderBottom: `2px solid ${inputBorderColor}`,
           padding: "4px 0",
-          color: isFilled ? "#22c55e" : "#e2e8f0",
+          color: inputColor,
           fontSize: 16,
           fontWeight: 700,
           fontFamily: "'DM Mono',monospace",
@@ -14772,7 +14807,19 @@ function CatchWeight({
           color: "#64748b",
           fontWeight: 600
         }
-      }, "lbs")));
+      }, "lbs")), hasWarn && /*#__PURE__*/React.createElement("div", {
+        style: {
+          marginTop: 4,
+          padding: "3px 6px",
+          background: "#f59e0b22",
+          borderRadius: 4,
+          fontSize: 9,
+          color: "#f59e0b",
+          fontWeight: 600,
+          textAlign: "center",
+          lineHeight: 1.3
+        }
+      }, "⚠ Weight is ", warn.deviation, "% too ", warn.dir, " — expected ~", warn.expected.toFixed(1), " lbs"));
     })), filledWeights.length > 0 && /*#__PURE__*/React.createElement("div", {
       style: {
         marginTop: 10,
@@ -14825,12 +14872,14 @@ function CatchWeight({
     onClick: () => {
       setSelectedInv("");
       setWeights({});
+      setCwWarnings({});
     }
   }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
     onClick: applyWeights,
     disabled: Object.values(weights).every(arr => arr.every(w => !w)),
-    icon: "check"
-  }, "Apply All Weights & Update Invoice"))))), tab === "history" && /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
+    icon: "check",
+    style: Object.keys(cwWarnings).length > 0 ? { background: "#f59e0b", borderColor: "#f59e0b" } : {}
+  }, Object.keys(cwWarnings).length > 0 ? "⚠ Apply Weights (" + Object.keys(cwWarnings).length + " warning" + (Object.keys(cwWarnings).length > 1 ? "s" : "") + ")" : "Apply All Weights & Update Invoice"))))), tab === "history" && /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
     style: {
       fontWeight: 600,
       marginBottom: 16,

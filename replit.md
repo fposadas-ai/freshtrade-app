@@ -94,6 +94,13 @@ Preferred communication style: Simple, everyday language.
 - `@replit/vite-plugin-cartographer` — Replit dev tooling
 - `@replit/vite-plugin-dev-banner` — Replit dev banner
 
+### Catch Weight Tolerance Warnings
+- **Tolerance Setting**: `settings.preferences.catchWeightTolerance` (default 5%)
+- **Warning Detection**: When a piece weight deviates from expected (`avgWeightPerCase` or `avgWeightPerPiece`) by more than the tolerance %, a warning is shown
+- **Visual Indicators**: Warning card turns orange (`#f59e0b`), shows ⚠️ icon, and displays a message like "⚠ Weight is 12% too high — expected ~8.5 lbs"
+- **Apply Button**: Turns orange and shows warning count when there are active warnings; prompts confirmation before applying
+- **Warning State**: `cwWarnings` state keyed by `"lineIdx-pieceIdx"`, stores `{ deviation, dir, expected, actual }`; cleared on invoice change or successful apply
+
 ### Routing Page Print Tracking
 - **Print Status**: In-memory state tracks per-order print status (`pick`, `label`, `invoice`) with P/L/I indicators
 - **Print Checkboxes**: Per-order checkboxes for selecting which invoices to print and which to include statements
