@@ -1583,15 +1583,15 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
     <table style="width:100%;border-collapse:collapse;">
       <tr>
         <td style="vertical-align:middle;padding:0;width:45%;">
-          ${coLogo ? '<img src="' + coLogo + '" alt="' + coName + '" style="max-height:44px;max-width:150px;object-fit:contain;" />' : '<div style="display:flex;align-items:center;gap:8px;"><div style="width:32px;height:32px;background:#1e40af;border-radius:6px;display:flex;align-items:center;justify-content:center;"><span style="font-size:16px;line-height:1;">\uD83D\uDC1F</span></div><div><div style="font-size:16px;font-weight:800;color:#1e3a5f;letter-spacing:-0.3px;line-height:1;">' + coName + '</div></div></div>'}
+          ${coLogo ? '<img src="' + coLogo + '" alt="' + coName + '" style="max-height:56px;max-width:190px;object-fit:contain;" />' : '<div style="display:flex;align-items:center;gap:8px;"><div style="width:38px;height:38px;background:#1e40af;border-radius:6px;display:flex;align-items:center;justify-content:center;"><span style="font-size:20px;line-height:1;">\uD83D\uDC1F</span></div><div><div style="font-size:20px;font-weight:800;color:#1e3a5f;letter-spacing:-0.3px;line-height:1;">' + coName + '</div></div></div>'}
         </td>
         <td style="vertical-align:middle;text-align:right;padding:0;">
-          <div style="font-size:12px;font-weight:800;color:#1e3a5f;letter-spacing:-0.3px;line-height:1.2;">${coName}</div>
-          ${coAddr ? '<div style="font-size:8px;color:#64748b;line-height:1.4;margin-top:1px;">' + coAddr + '</div>' : ''}
-          <div style="font-size:8px;color:#64748b;line-height:1.3;">
+          <div style="font-size:15px;font-weight:800;color:#1e3a5f;letter-spacing:-0.3px;line-height:1.2;">${coName}</div>
+          ${coAddr ? '<div style="font-size:10px;color:#64748b;line-height:1.4;margin-top:2px;">' + coAddr + '</div>' : ''}
+          <div style="font-size:10px;color:#64748b;line-height:1.3;">
             ${coPhone ? coPhone : ''}${coPhone && coEmail ? ' · ' : ''}${coEmail ? coEmail : ''}
           </div>
-          ${coWebsite ? '<div style="font-size:7px;color:#94a3b8;line-height:1.3;">' + coWebsite + '</div>' : ''}
+          ${coWebsite ? '<div style="font-size:8px;color:#94a3b8;line-height:1.3;">' + coWebsite + '</div>' : ''}
         </td>
       </tr>
     </table>
