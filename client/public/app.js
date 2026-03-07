@@ -26741,7 +26741,7 @@ function Labels({
   invoices,
   showToast
 }) {
-  const [labelType, setLabelType] = useState("product");
+  const [labelType, setLabelType] = useState("shipping");
   const [selectedProduct, setSelectedProduct] = useState("");
   const [selectedInvoice, setSelectedInvoice] = useState("");
   const [qty, setQty] = useState(1);
@@ -26888,7 +26888,7 @@ ${html}</body></html>`);
     }
   }, /*#__PURE__*/React.createElement(PageHeader, {
     title: "Label Printing",
-    subtitle: "Generate product and shipping labels \u2014 choose Zebra thermal or 8.5\xD711 sheet printer"
+    subtitle: "Generate shipping labels \u2014 choose Zebra thermal or 8.5\xD711 sheet printer"
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
@@ -26910,7 +26910,7 @@ ${html}</body></html>`);
       borderRadius: 8,
       padding: 4
     }
-  }, ["product", "shipping"].map(t => /*#__PURE__*/React.createElement("button", {
+  }, ["shipping"].map(t => /*#__PURE__*/React.createElement("button", {
     key: t,
     onClick: () => setLabelType(t),
     style: {
@@ -37719,44 +37719,7 @@ function SystemSettings({
     type: "number",
     value: settings.labelsZebra.height,
     onChange: v => update("labelsZebra", "height", Number(v))
-  })), /*#__PURE__*/React.createElement(SectionLabel, null, "Product Label Fields"), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Category Color Bar",
-    value: settings.labelsZebra.showCategory,
-    onChange: v => update("labelsZebra", "showCategory", v)
-  }), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Lot Number",
-    value: settings.labelsZebra.showLot,
-    onChange: v => update("labelsZebra", "showLot", v)
-  }), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Pack Date",
-    value: settings.labelsZebra.showPackDate,
-    onChange: v => update("labelsZebra", "showPackDate", v)
-  }), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Sell By Date",
-    value: settings.labelsZebra.showSellBy,
-    onChange: v => update("labelsZebra", "showSellBy", v)
-  }), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Barcode",
-    value: settings.labelsZebra.showBarcode,
-    onChange: v => update("labelsZebra", "showBarcode", v)
-  }), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Price",
-    value: settings.labelsZebra.showPrice,
-    onChange: v => update("labelsZebra", "showPrice", v)
-  }), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Weight",
-    value: settings.labelsZebra.showWeight,
-    onChange: v => update("labelsZebra", "showWeight", v)
-  }), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Company Name",
-    value: settings.labelsZebra.showCompanyName,
-    onChange: v => update("labelsZebra", "showCompanyName", v)
-  }), /*#__PURE__*/React.createElement(Field, {
-    label: "Default Sell By (days)",
-    type: "number",
-    value: settings.labelsZebra.defaultSellByDays,
-    onChange: v => update("labelsZebra", "defaultSellByDays", Number(v))
-  }), /*#__PURE__*/React.createElement(SectionLabel, null, "Shipping Label Fields"), /*#__PURE__*/React.createElement(Toggle, {
+  })), /*#__PURE__*/React.createElement(SectionLabel, null, "Shipping Label Fields"), /*#__PURE__*/React.createElement(Toggle, {
     label: "Category Color Bar",
     value: settings.labelsZebra.shippingShowCategory !== false,
     onChange: v => update("labelsZebra", "shippingShowCategory", v)
@@ -37803,42 +37766,8 @@ function SystemSettings({
     /*#__PURE__*/React.createElement(NumberInput, { label: "Section Headings", value: settings.labelsZebra.shippingFontLabel || 7, onChange: v => update("labelsZebra", "shippingFontLabel", v), min: 4, max: 20, step: 0.5 }),
     /*#__PURE__*/React.createElement(NumberInput, { label: "Route / Date", value: settings.labelsZebra.shippingFontValue || 8, onChange: v => update("labelsZebra", "shippingFontValue", v), min: 4, max: 20, step: 0.5 }),
     /*#__PURE__*/React.createElement(NumberInput, { label: "Order Number", value: settings.labelsZebra.shippingFontOrder || 8, onChange: v => update("labelsZebra", "shippingFontOrder", v), min: 4, max: 20, step: 0.5 }),
-    /*#__PURE__*/React.createElement(NumberInput, { label: "Barcode Height", value: settings.labelsZebra.shippingFontBarcode || 14, onChange: v => update("labelsZebra", "shippingFontBarcode", v), min: 6, max: 30, step: 1 })),
-  /*#__PURE__*/React.createElement(SectionLabel, null, "Text & Barcode Size"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gap: 10
-    }
-  }, /*#__PURE__*/React.createElement(Dropdown, {
-    label: "Font Size",
-    value: settings.labelsZebra.fontSize,
-    onChange: v => update("labelsZebra", "fontSize", v),
-    options: [{
-      value: "compact",
-      label: "Compact (smaller text)"
-    }, {
-      value: "standard",
-      label: "Standard"
-    }, {
-      value: "large",
-      label: "Large (bigger text)"
-    }]
-  }), /*#__PURE__*/React.createElement(Dropdown, {
-    label: "Barcode Size",
-    value: settings.labelsZebra.barcodeSize,
-    onChange: v => update("labelsZebra", "barcodeSize", v),
-    options: [{
-      value: "small",
-      label: "Small"
-    }, {
-      value: "medium",
-      label: "Medium"
-    }, {
-      value: "large",
-      label: "Large"
-    }]
-  }))), /*#__PURE__*/React.createElement("div", {
+    /*#__PURE__*/React.createElement(NumberInput, { label: "Barcode Height", value: settings.labelsZebra.shippingFontBarcode || 14, onChange: v => update("labelsZebra", "shippingFontBarcode", v), min: 6, max: 30, step: 1 }))),
+  /*#__PURE__*/React.createElement("div", {
     style: {
       width: 300
     }
@@ -38125,49 +38054,7 @@ function SystemSettings({
       ...settings.labelsSheet.margins,
       right: Number(v)
     })
-  })), /*#__PURE__*/React.createElement(SectionLabel, null, "Product Label Fields"), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Category Color Bar",
-    value: settings.labelsSheet.showCategory,
-    onChange: v => update("labelsSheet", "showCategory", v)
-  }), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Company Name",
-    value: settings.labelsSheet.showCompanyName,
-    onChange: v => update("labelsSheet", "showCompanyName", v)
-  }), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Product Description",
-    value: settings.labelsSheet.showProductDescription,
-    onChange: v => update("labelsSheet", "showProductDescription", v),
-    hint: "Extra line below product name"
-  }), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Lot Number",
-    value: settings.labelsSheet.showLot,
-    onChange: v => update("labelsSheet", "showLot", v)
-  }), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Pack Date",
-    value: settings.labelsSheet.showPackDate,
-    onChange: v => update("labelsSheet", "showPackDate", v)
-  }), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Sell By Date",
-    value: settings.labelsSheet.showSellBy,
-    onChange: v => update("labelsSheet", "showSellBy", v)
-  }), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Barcode",
-    value: settings.labelsSheet.showBarcode,
-    onChange: v => update("labelsSheet", "showBarcode", v)
-  }), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Price",
-    value: settings.labelsSheet.showPrice,
-    onChange: v => update("labelsSheet", "showPrice", v)
-  }), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Weight",
-    value: settings.labelsSheet.showWeight,
-    onChange: v => update("labelsSheet", "showWeight", v)
-  }), /*#__PURE__*/React.createElement(Field, {
-    label: "Default Sell By (days)",
-    type: "number",
-    value: settings.labelsSheet.defaultSellByDays,
-    onChange: v => update("labelsSheet", "defaultSellByDays", Number(v))
-  }), /*#__PURE__*/React.createElement(SectionLabel, null, "Shipping Label Fields"), /*#__PURE__*/React.createElement(Toggle, {
+  })), /*#__PURE__*/React.createElement(SectionLabel, null, "Shipping Label Fields"), /*#__PURE__*/React.createElement(Toggle, {
     label: "Route & Driver",
     value: settings.labelsSheet.shippingShowRoute,
     onChange: v => update("labelsSheet", "shippingShowRoute", v)
@@ -38190,42 +38077,8 @@ function SystemSettings({
     /*#__PURE__*/React.createElement(NumberInput, { label: "Section Headings", value: settings.labelsSheet.shippingFontLabel || 5, onChange: v => update("labelsSheet", "shippingFontLabel", v), min: 3, max: 16, step: 0.5 }),
     /*#__PURE__*/React.createElement(NumberInput, { label: "Route / Date", value: settings.labelsSheet.shippingFontValue || 6, onChange: v => update("labelsSheet", "shippingFontValue", v), min: 3, max: 16, step: 0.5 }),
     /*#__PURE__*/React.createElement(NumberInput, { label: "Order Number", value: settings.labelsSheet.shippingFontOrder || 7, onChange: v => update("labelsSheet", "shippingFontOrder", v), min: 3, max: 16, step: 0.5 }),
-    /*#__PURE__*/React.createElement(NumberInput, { label: "Barcode Height", value: settings.labelsSheet.shippingFontBarcode || 10, onChange: v => update("labelsSheet", "shippingFontBarcode", v), min: 4, max: 20, step: 1 })),
-  /*#__PURE__*/React.createElement(SectionLabel, null, "Text & Barcode Size"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gap: 10
-    }
-  }, /*#__PURE__*/React.createElement(Dropdown, {
-    label: "Font Size",
-    value: settings.labelsSheet.fontSize,
-    onChange: v => update("labelsSheet", "fontSize", v),
-    options: [{
-      value: "compact",
-      label: "Compact"
-    }, {
-      value: "standard",
-      label: "Standard"
-    }, {
-      value: "large",
-      label: "Large"
-    }]
-  }), /*#__PURE__*/React.createElement(Dropdown, {
-    label: "Barcode Size",
-    value: settings.labelsSheet.barcodeSize,
-    onChange: v => update("labelsSheet", "barcodeSize", v),
-    options: [{
-      value: "small",
-      label: "Small"
-    }, {
-      value: "medium",
-      label: "Medium"
-    }, {
-      value: "large",
-      label: "Large"
-    }]
-  }))), /*#__PURE__*/React.createElement("div", {
+    /*#__PURE__*/React.createElement(NumberInput, { label: "Barcode Height", value: settings.labelsSheet.shippingFontBarcode || 10, onChange: v => update("labelsSheet", "shippingFontBarcode", v), min: 4, max: 20, step: 1 }))),
+  /*#__PURE__*/React.createElement("div", {
     style: {
       width: 320
     }
