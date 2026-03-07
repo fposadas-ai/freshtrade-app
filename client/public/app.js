@@ -915,7 +915,7 @@ function printLetterDocument(htmlContent, title = "FreshTrade") {
 <div class="no-print no-print-toolbar">
   <span class="title">${title}</span>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
-    <button class="print-btn" onclick="window.print()">🖨️ Print</button>
+    <button class="print-btn" id="printBtn" onclick="printPDF()">🖨️ Print</button>
     <button class="pdf-btn" id="pdfBtn" onclick="downloadPDF()">📄 Save PDF</button>
     <button class="share-btn" id="shareBtn" onclick="sharePDF()">📤 Share</button>
     <button class="close-btn" onclick="window.close()">✕ Close</button>
@@ -940,6 +940,32 @@ function printLetterDocument(htmlContent, title = "FreshTrade") {
       jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
       pagebreak: { mode: ['css', 'legacy'], avoid: ['tr'] }
     };
+  }
+  function printPDF() {
+    var btn = document.getElementById('printBtn');
+    btn.disabled = true;
+    btn.textContent = 'Generating...';
+    showStatus('Generating PDF for print...');
+    var el = document.getElementById('printPage');
+    html2pdf().set(getPdfOpts()).from(el).outputPdf('blob').then(function(blob) {
+      var url = URL.createObjectURL(blob);
+      var iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = url;
+      document.body.appendChild(iframe);
+      iframe.onload = function() {
+        setTimeout(function() {
+          iframe.contentWindow.print();
+          btn.disabled = false;
+          btn.innerHTML = '🖨️ Print';
+          showStatus('');
+        }, 300);
+      };
+    }).catch(function(err) {
+      btn.disabled = false;
+      btn.innerHTML = '🖨️ Print';
+      showStatus('Error: ' + err.message);
+    });
   }
   function downloadPDF() {
     var btn = document.getElementById('pdfBtn');
