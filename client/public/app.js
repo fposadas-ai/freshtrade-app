@@ -1596,46 +1596,53 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
       </tr>
     </table>
     <div style="height:1px;background:linear-gradient(90deg,#059669,#10b981,transparent);margin:4px 0 3px;"></div>
-    <table style="width:100%;border-collapse:collapse;margin:2px 0 6px;">
+    <table style="width:100%;border-collapse:collapse;margin:2px 0 4px;">
       <tr>
         <td style="padding:0;">
-          <div style="display:inline-block;background:linear-gradient(135deg,#059669,#047857);padding:4px 18px;border-radius:5px;">
-            <span style="font-size:15px;font-weight:800;color:#ffffff;letter-spacing:2px;text-transform:uppercase;">Invoice</span>
+          <div style="display:inline-block;background:linear-gradient(135deg,#059669,#047857);padding:3px 14px;border-radius:4px;">
+            <span style="font-size:12px;font-weight:800;color:#ffffff;letter-spacing:1.5px;text-transform:uppercase;">Invoice</span>
           </div>
         </td>
         <td style="text-align:right;vertical-align:middle;padding:0;">
-          <span style="font-size:9px;color:#9ca3af;font-weight:500;margin-right:4px;">No.</span>
-          <span style="font-size:18px;font-weight:800;color:#111827;font-family:'DM Mono',monospace;letter-spacing:-0.5px;">${invNum}</span>
-          ${paid ? '<span style="display:inline-block;margin-left:8px;padding:2px 10px;border:2px solid #059669;border-radius:4px;font-size:9px;font-weight:800;color:#059669;letter-spacing:2px;vertical-align:middle;">PAID</span>' : ''}
-          ${voided ? '<span style="display:inline-block;margin-left:8px;padding:2px 10px;border:2px solid #dc2626;border-radius:4px;font-size:9px;font-weight:800;color:#dc2626;letter-spacing:2px;vertical-align:middle;">VOIDED</span>' : ''}
+          <span style="font-size:8px;color:#9ca3af;font-weight:500;margin-right:3px;">No.</span>
+          <span style="font-size:14px;font-weight:800;color:#111827;font-family:'DM Mono',monospace;letter-spacing:-0.3px;">${invNum}</span>
+          ${paid ? '<span style="display:inline-block;margin-left:6px;padding:2px 8px;border:1.5px solid #059669;border-radius:3px;font-size:8px;font-weight:800;color:#059669;letter-spacing:1.5px;vertical-align:middle;">PAID</span>' : ''}
+          ${voided ? '<span style="display:inline-block;margin-left:6px;padding:2px 8px;border:1.5px solid #dc2626;border-radius:3px;font-size:8px;font-weight:800;color:#dc2626;letter-spacing:1.5px;vertical-align:middle;">VOIDED</span>' : ''}
         </td>
       </tr>
     </table>
-    <table style="width:100%;border-collapse:collapse;margin-bottom:6px;">
+    <table style="width:100%;border-collapse:collapse;margin-bottom:5px;">
       <tr>
-        <td style="vertical-align:top;width:52%;padding:0 14px 0 0;">
-          <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:5px;padding:6px 10px;">
-            <div style="font-size:6px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:2px;margin-bottom:2px;">Bill To</div>
-            <div style="font-size:12px;font-weight:700;color:#111827;line-height:1.2;">${custName}</div>
-            ${custAddr ? '<div style="font-size:8.5px;color:#6b7280;margin-top:1px;">' + custAddr + '</div>' : ""}
-            ${custPhone ? '<div style="font-size:8.5px;color:#6b7280;margin-top:0px;">' + custPhone + (custEmail ? " · " + custEmail : "") + '</div>' : ""}
+        <td style="vertical-align:top;width:36%;padding:0 8px 0 0;">
+          <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;padding:5px 8px;">
+            <div style="font-size:6px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:1px;">Bill To</div>
+            <div style="font-size:13px;font-weight:700;color:#111827;line-height:1.2;">${custName}</div>
+            ${custAddr ? '<div style="font-size:10px;color:#374151;margin-top:1px;line-height:1.3;">' + custAddr + '</div>' : ""}
+            ${custPhone ? '<div style="font-size:9px;color:#6b7280;margin-top:0px;">' + custPhone + (custEmail ? " · " + custEmail : "") + '</div>' : ""}
+          </div>
+        </td>
+        <td style="vertical-align:top;width:36%;padding:0 8px 0 0;">
+          <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;padding:5px 8px;">
+            <div style="font-size:6px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:1px;">Ship To</div>
+            <div style="font-size:13px;font-weight:700;color:#111827;line-height:1.2;">${custName}</div>
+            ${custAddr ? '<div style="font-size:10px;color:#374151;margin-top:1px;line-height:1.3;">' + custAddr + '</div>' : ""}
           </div>
         </td>
         <td style="vertical-align:top;padding:0;">
           <table style="border-collapse:collapse;width:100%;">
             <tr>
-              <td style="padding:3px 8px;font-size:7.5px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #f0f0f0;">Invoice Date</td>
-              <td style="padding:3px 8px;font-size:10px;color:#111827;font-weight:600;text-align:right;border-bottom:1px solid #f0f0f0;">${invDate}</td>
+              <td style="padding:3px 6px;font-size:7px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #f0f0f0;">Date</td>
+              <td style="padding:3px 6px;font-size:10px;color:#111827;font-weight:600;text-align:right;border-bottom:1px solid #f0f0f0;">${invDate}</td>
             </tr>
             <tr>
-              <td style="padding:3px 8px;font-size:7.5px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #f0f0f0;">Due Date</td>
-              <td style="padding:3px 8px;font-size:10px;color:#b91c1c;font-weight:700;text-align:right;border-bottom:1px solid #f0f0f0;">${dueDate}</td>
+              <td style="padding:3px 6px;font-size:7px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #f0f0f0;">Due</td>
+              <td style="padding:3px 6px;font-size:10px;color:#b91c1c;font-weight:700;text-align:right;border-bottom:1px solid #f0f0f0;">${dueDate}</td>
             </tr>
             <tr>
-              <td style="padding:3px 8px;font-size:7.5px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #f0f0f0;">Terms</td>
-              <td style="padding:3px 8px;font-size:10px;color:#111827;text-align:right;border-bottom:1px solid #f0f0f0;">${custTerms}</td>
+              <td style="padding:3px 6px;font-size:7px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #f0f0f0;">Terms</td>
+              <td style="padding:3px 6px;font-size:10px;color:#111827;text-align:right;border-bottom:1px solid #f0f0f0;">${custTerms}</td>
             </tr>
-            ${soRef ? '<tr><td style="padding:3px 8px;font-size:7.5px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">Order Ref</td><td style="padding:3px 8px;font-size:10px;color:#059669;font-weight:700;text-align:right;font-family:\'DM Mono\',monospace;">' + soRef + '</td></tr>' : ''}
+            ${soRef ? '<tr><td style="padding:3px 6px;font-size:7px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">Ref</td><td style="padding:3px 6px;font-size:10px;color:#059669;font-weight:700;text-align:right;font-family:\'DM Mono\',monospace;">' + soRef + '</td></tr>' : ''}
           </table>
         </td>
       </tr>
