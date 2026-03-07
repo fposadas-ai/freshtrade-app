@@ -1084,8 +1084,8 @@ function renderShippingLabelHTML(lbl, opts) {
 // AVERY 5363 SHIPPING LABELS — 1-3/8" × 2-13/16", 24 per sheet (3 cols × 8 rows)
 // For use with label printer / standard letter paper with peel-off labels
 // ============================================================
-function renderShippingLabelAvery5363(lbl) {
-  const o = window.__labelSettings || {};
+function renderShippingLabelAvery5363(lbl, opts) {
+  const o = opts || window.__sheetLabelSettings || window.__labelSettings || {};
   const showCategory = o.shippingShowCategory !== false;
   const showProduct = o.shippingShowProduct !== false;
   const showUnitCount = o.shippingShowUnitCount !== false;
@@ -1094,8 +1094,7 @@ function renderShippingLabelAvery5363(lbl) {
   const showDeliveryDate = o.shippingShowDeliveryDate !== false;
   const showWeight = o.shippingShowWeight !== false;
   const showOrder = o.shippingShowOrder !== false;
-  const sc = 0.78;
-  const fs = { cat: Math.round((Number(o.shippingFontCategory) || 9) * sc), product: Math.round((Number(o.shippingFontProduct) || 11) * sc), name: Math.round((Number(o.shippingFontCustomer) || 9) * sc), addr: Math.round(((Number(o.shippingFontAddress) || 7.5) * sc) * 10) / 10, label: Math.round((Number(o.shippingFontLabel) || 7) * sc), val: Math.round((Number(o.shippingFontValue) || 8) * sc), order: Math.round((Number(o.shippingFontOrder) || 8) * sc), shipTo: Math.max(Math.round((Number(o.shippingFontLabel) || 7) * sc) - 1, 4) };
+  const fs = { cat: Number(o.shippingFontCategory) || 7, product: Number(o.shippingFontProduct) || 9, name: Number(o.shippingFontCustomer) || 7, addr: Number(o.shippingFontAddress) || 5.5, label: Number(o.shippingFontLabel) || 5, val: Number(o.shippingFontValue) || 6, order: Number(o.shippingFontOrder) || 7, barH: Number(o.shippingFontBarcode) || 10, shipTo: Math.max((Number(o.shippingFontLabel) || 5) - 1, 4) };
   const catColor = { Seafood: "#0284c7", Beef: "#b91c1c", Pork: "#c2410c", Poultry: "#b45309", Deli: "#7c3aed" };
   const cc = catColor[lbl.category] || "#374151";
   return `<div style="width:2.8125in;height:1.375in;font-family:'DM Sans',Arial,sans-serif;overflow:hidden;background:#fff;display:flex;flex-direction:column;box-sizing:border-box;">
@@ -1225,6 +1224,10 @@ function renderProductLabelSheet(lbl) {
   </div>`;
 }
 function renderShippingLabelSheet(lbl) {
+  const o = window.__sheetLabelSettings || {};
+  const fs = { cat: Number(o.shippingFontCategory) || 7, product: Number(o.shippingFontProduct) || 9, name: Number(o.shippingFontCustomer) || 7, addr: Number(o.shippingFontAddress) || 5.5, label: Number(o.shippingFontLabel) || 5, val: Number(o.shippingFontValue) || 6, order: Number(o.shippingFontOrder) || 7, barH: Number(o.shippingFontBarcode) || 10, shipTo: Math.max((Number(o.shippingFontLabel) || 5) - 1, 4) };
+  const W = (Number(o.width) || 3.75) + "in";
+  const H = (Number(o.height) || 1.8) + "in";
   const catColor = {
     Seafood: "#0284c7",
     Beef: "#b91c1c",
@@ -1237,36 +1240,36 @@ function renderShippingLabelSheet(lbl) {
   (lbl.barcode || "").split("").slice(0, 32).forEach((_, i) => {
     bars += `<div style="width:${i % 3 === 0 ? 2 : 1}px;background:#111;height:100%;flex-shrink:0"></div>`;
   });
-  return `<div style="width:3.75in;height:1.8in;border:1px solid #ccc;border-radius:6px;font-family:'DM Sans',Arial,sans-serif;overflow:hidden;background:#fff;display:flex;flex-direction:column;box-sizing:border-box;">
-    <div style="background:${cc};color:#fff;padding:5px 10px;display:flex;justify-content:space-between;align-items:center;">
-      <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">${lbl.category || ""}</span>
-      <span style="font-size:11px;font-weight:800">${lbl.unitLabel || "PCS"} ${lbl.pieceNum || ""}/${lbl.totalPieces || ""}</span>
+  return `<div style="width:${W};height:${H};border:1px solid #ccc;border-radius:4px;font-family:'DM Sans',Arial,sans-serif;overflow:hidden;background:#fff;display:flex;flex-direction:column;box-sizing:border-box;">
+    <div style="background:${cc};color:#fff;padding:3px 6px;display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:${fs.cat}pt;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">${lbl.category || ""}</span>
+      <span style="font-size:${fs.product}pt;font-weight:800">${lbl.unitLabel || "PCS"} ${lbl.pieceNum || ""}/${lbl.totalPieces || ""}</span>
     </div>
-    <div style="padding:4px 10px 2px;border-bottom:1px solid #e5e7eb;">
-      <div style="font-size:13px;font-weight:800;color:#111;line-height:1.2">${lbl.productName || ""}</div>
+    <div style="padding:2px 6px 1px;border-bottom:1px solid #e5e7eb;">
+      <div style="font-size:${fs.product}pt;font-weight:800;color:#111;line-height:1.2">${lbl.productName || ""}</div>
     </div>
     <div style="display:flex;flex:1;overflow:hidden;">
-      <div style="flex:1;padding:4px 10px;border-right:1px solid #e5e7eb;display:flex;flex-direction:column;justify-content:space-between;">
+      <div style="flex:1;padding:2px 6px;border-right:1px solid #e5e7eb;display:flex;flex-direction:column;justify-content:space-between;">
         <div>
-          <div style="font-size:8px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Ship To</div>
-          <div style="font-size:12px;font-weight:800;color:#111;line-height:1.2">${lbl.customerName || ""}</div>
-          <div style="font-size:9px;color:#374151;line-height:1.3;margin-top:2px">${lbl.address || ""}</div>
+          <div style="font-size:${fs.shipTo}pt;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Ship To</div>
+          <div style="font-size:${fs.name}pt;font-weight:800;color:#111;line-height:1.2">${lbl.customerName || ""}</div>
+          <div style="font-size:${fs.addr}pt;color:#374151;line-height:1.3;margin-top:1px">${lbl.address || ""}</div>
         </div>
-        <div style="margin-top:4px">
-          <div style="font-size:8px;color:#6b7280;font-weight:700;text-transform:uppercase">Route / Driver</div>
-          <div style="font-size:10px;font-weight:700;color:#111">${lbl.routeName || ""} — ${lbl.driverName || ""}</div>
+        <div style="margin-top:2px">
+          <div style="font-size:${fs.label}pt;color:#6b7280;font-weight:700;text-transform:uppercase">Route / Driver</div>
+          <div style="font-size:${fs.val}pt;font-weight:700;color:#111">${lbl.routeName || ""} — ${lbl.driverName || ""}</div>
         </div>
       </div>
-      <div style="width:115px;padding:4px 8px;display:flex;flex-direction:column;justify-content:space-between;">
-        ${lbl.catchWeight ? `<div style="border:2px solid #f59e0b;border-radius:4px;padding:4px 6px;background:#fffbeb;">
-          <div style="font-size:8px;color:#92400e;font-weight:700;text-transform:uppercase">⚖️ Weight</div>
-          <div style="font-size:12px;color:#92400e;font-weight:800;margin-top:1px">${lbl.estWeightEach ? "~" + Number(lbl.estWeightEach).toFixed(2) + " lbs" : "_____ lbs"}</div>
-        </div>` : `<div style="font-size:9px;color:#6b7280">Fixed weight</div>`}
+      <div style="width:90px;padding:2px 5px;display:flex;flex-direction:column;justify-content:space-between;">
+        ${lbl.catchWeight ? `<div style="border:1px solid #f59e0b;border-radius:3px;padding:2px 4px;background:#fffbeb;">
+          <div style="font-size:${fs.label}pt;color:#92400e;font-weight:700;text-transform:uppercase">⚖️ Weight</div>
+          <div style="font-size:${fs.val}pt;color:#92400e;font-weight:800;margin-top:1px">${lbl.estWeightEach ? "~" + Number(lbl.estWeightEach).toFixed(2) + " lbs" : "_____ lbs"}</div>
+        </div>` : `<div style="font-size:${fs.label}pt;color:#6b7280">Fixed weight</div>`}
         <div style="margin-top:auto;">
-          <div style="font-size:8px;color:#6b7280;text-transform:uppercase;font-weight:700">Order #</div>
-          <div style="font-size:10px;font-weight:800;color:#111;font-family:monospace">${lbl.soId || ""}</div>
-          <div style="display:flex;gap:0.5px;margin-top:3px;height:18px">${bars}</div>
-          <div style="font-size:7px;color:#374151;margin-top:1px;font-family:monospace">${(lbl.barcode || "").slice(0, 22)}</div>
+          <div style="font-size:${fs.label}pt;color:#6b7280;text-transform:uppercase;font-weight:700">Order #</div>
+          <div style="font-size:${fs.order}pt;font-weight:800;color:#111;font-family:monospace">${lbl.soId || ""}</div>
+          <div style="display:flex;gap:0.5px;margin-top:2px;height:${fs.barH}px">${bars}</div>
+          <div style="font-size:${Math.max(fs.label - 1, 4)}pt;color:#374151;margin-top:1px;font-family:monospace">${(lbl.barcode || "").slice(0, 22)}</div>
         </div>
       </div>
     </div>
@@ -1275,6 +1278,14 @@ function renderShippingLabelSheet(lbl) {
 
 // Print labels on 8.5"×11" sheet — 2 columns × 5 rows = 10 per page
 function printSheetLabels(labelsHtml, title = "Sheet Labels") {
+  const sls = window.__sheetLabelSettings || {};
+  const layout = sls.layout || "2x5";
+  const gridCols = parseInt(layout.split("x")[0]) || 2;
+  const colTemplate = Array(gridCols).fill("1fr").join(" ");
+  const mTop = (sls.margins && sls.margins.top) ? sls.margins.top + "in" : "0.25in";
+  const mBot = (sls.margins && sls.margins.bottom) ? sls.margins.bottom + "in" : "0.25in";
+  const mLeft = (sls.margins && sls.margins.left) ? sls.margins.left + "in" : "0.375in";
+  const mRight = (sls.margins && sls.margins.right) ? sls.margins.right + "in" : "0.375in";
   const win = window.open("", "_blank");
   if (!win) {
     alert("Please allow popups to print.");
@@ -1283,10 +1294,10 @@ function printSheetLabels(labelsHtml, title = "Sheet Labels") {
   win.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  @page { size: letter portrait; margin: 0.25in 0.375in; }
+  @page { size: letter portrait; margin: ${mTop} ${mRight} ${mBot} ${mLeft}; }
   *, *::before, *::after { box-sizing: border-box; }
   body { margin: 0; padding: 0; font-family: 'DM Sans', Arial, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .label-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.1in; }
+  .label-grid { display: grid; grid-template-columns: ${colTemplate}; gap: 0; }
   .label-cell { page-break-inside: avoid; }
   @media print { .no-print { display: none !important; } }
   @media screen {
@@ -2427,6 +2438,14 @@ const defaultSettings = {
     shippingShowBarcode: true,
     shippingShowUnitCount: true,
     shippingShowDeliveryDate: true,
+    shippingFontCategory: 7,
+    shippingFontProduct: 9,
+    shippingFontCustomer: 7,
+    shippingFontAddress: 5.5,
+    shippingFontLabel: 5,
+    shippingFontValue: 6,
+    shippingFontOrder: 7,
+    shippingFontBarcode: 10,
     defaultSellByDays: 7,
     showCompanyName: true,
     showProductDescription: true,
@@ -2674,6 +2693,7 @@ function App() {
     delete settings.labelsZebra.shippingFontSize;
   }
   window.__labelSettings = settings.labelsZebra || {};
+  window.__sheetLabelSettings = settings.labelsSheet || {};
   const [dbStatus, setDbStatus] = useState(saved ? "loaded" : "new");
   const [loggedInUser, setLoggedInUser] = useState(null);
   const [loginError, setLoginError] = useState("");
@@ -6676,8 +6696,8 @@ function PrintPreview({
         printNext
       };
     } else {
-      // Sheet: render all labels into 2×5 grid pages
-      const labelsPerPage = 10;
+      // Sheet: render all labels into grid pages based on settings
+      const labelsPerPage = (window.__sheetLabelSettings && window.__sheetLabelSettings.labelsPerPage) || 10;
       let pages = "";
       for (let p = 0; p < allLblData.length; p += labelsPerPage) {
         const pageBatch = allLblData.slice(p, p + labelsPerPage);
@@ -36865,20 +36885,25 @@ function SystemSettings({
       marginTop: 3
     }
   }, hint));
-  const NumberInput = ({ label, value, onChange, min = 4, max = 20, step = 0.5 }) => /*#__PURE__*/React.createElement("div", {
-    style: { marginBottom: 8 }
-  }, /*#__PURE__*/React.createElement("label", {
-    style: { display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 3 }
-  }, label), /*#__PURE__*/React.createElement("input", {
-    type: "number",
-    value: value,
-    min: min,
-    max: max,
-    step: step,
-    onChange: e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v >= min && v <= max) onChange(v); },
-    "data-testid": "input-" + label.toLowerCase().replace(/\s+/g, "-"),
-    style: { width: "100%", padding: "6px 8px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 13, background: "#fff", color: "#111", boxSizing: "border-box" }
-  }));
+  const NumberInput = ({ label, value, onChange, min = 4, max = 20, step = 0.5 }) => {
+    const [localVal, setLocalVal] = React.useState(String(value));
+    React.useEffect(() => { setLocalVal(String(value)); }, [value]);
+    return /*#__PURE__*/React.createElement("div", {
+      style: { marginBottom: 8 }
+    }, /*#__PURE__*/React.createElement("label", {
+      style: { display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 3 }
+    }, label), /*#__PURE__*/React.createElement("input", {
+      type: "number",
+      value: localVal,
+      min: min,
+      max: max,
+      step: step,
+      onChange: e => { setLocalVal(e.target.value); const v = parseFloat(e.target.value); if (!isNaN(v) && v >= min && v <= max) onChange(v); },
+      onBlur: () => { const v = parseFloat(localVal); if (isNaN(v) || v < min) { setLocalVal(String(min)); onChange(min); } else if (v > max) { setLocalVal(String(max)); onChange(max); } },
+      "data-testid": "input-" + label.toLowerCase().replace(/\s+/g, "-"),
+      style: { width: "100%", padding: "6px 8px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 13, background: "#fff", color: "#111", boxSizing: "border-box" }
+    }));
+  };
   const Dropdown = ({
     label,
     value,
@@ -37997,6 +38022,11 @@ function SystemSettings({
           width: 3.75,
           height: 2.25
         },
+        "3x8": {
+          labelsPerPage: 24,
+          width: 2.8125,
+          height: 1.375
+        },
         "3x10": {
           labelsPerPage: 30,
           width: 2.63,
@@ -38019,6 +38049,9 @@ function SystemSettings({
     }, {
       value: "2x4",
       label: "2×4 = 8/page"
+    }, {
+      value: "3x8",
+      label: "3×8 = 24/page (Avery 5363)"
     }, {
       value: "2x7",
       label: "2×7 = 14/page"
@@ -38133,7 +38166,19 @@ function SystemSettings({
     label: "Order Number",
     value: settings.labelsSheet.shippingShowOrder,
     onChange: v => update("labelsSheet", "shippingShowOrder", v)
-  }), /*#__PURE__*/React.createElement(SectionLabel, null, "Text & Barcode Size"), /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement(SectionLabel, null, "Shipping Label Font Sizes (pt)"),
+  /*#__PURE__*/React.createElement("div", {
+    style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }
+  },
+    /*#__PURE__*/React.createElement(NumberInput, { label: "Category Bar", value: settings.labelsSheet.shippingFontCategory || 7, onChange: v => update("labelsSheet", "shippingFontCategory", v), min: 4, max: 16, step: 0.5 }),
+    /*#__PURE__*/React.createElement(NumberInput, { label: "Product Name", value: settings.labelsSheet.shippingFontProduct || 9, onChange: v => update("labelsSheet", "shippingFontProduct", v), min: 4, max: 16, step: 0.5 }),
+    /*#__PURE__*/React.createElement(NumberInput, { label: "Customer Name", value: settings.labelsSheet.shippingFontCustomer || 7, onChange: v => update("labelsSheet", "shippingFontCustomer", v), min: 4, max: 16, step: 0.5 }),
+    /*#__PURE__*/React.createElement(NumberInput, { label: "Address", value: settings.labelsSheet.shippingFontAddress || 5.5, onChange: v => update("labelsSheet", "shippingFontAddress", v), min: 3, max: 16, step: 0.5 }),
+    /*#__PURE__*/React.createElement(NumberInput, { label: "Section Headings", value: settings.labelsSheet.shippingFontLabel || 5, onChange: v => update("labelsSheet", "shippingFontLabel", v), min: 3, max: 16, step: 0.5 }),
+    /*#__PURE__*/React.createElement(NumberInput, { label: "Route / Date", value: settings.labelsSheet.shippingFontValue || 6, onChange: v => update("labelsSheet", "shippingFontValue", v), min: 3, max: 16, step: 0.5 }),
+    /*#__PURE__*/React.createElement(NumberInput, { label: "Order Number", value: settings.labelsSheet.shippingFontOrder || 7, onChange: v => update("labelsSheet", "shippingFontOrder", v), min: 3, max: 16, step: 0.5 }),
+    /*#__PURE__*/React.createElement(NumberInput, { label: "Barcode Height", value: settings.labelsSheet.shippingFontBarcode || 10, onChange: v => update("labelsSheet", "shippingFontBarcode", v), min: 4, max: 20, step: 1 })),
+  /*#__PURE__*/React.createElement(SectionLabel, null, "Text & Barcode Size"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
       gridTemplateColumns: "1fr 1fr",
