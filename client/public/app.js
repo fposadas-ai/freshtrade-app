@@ -877,8 +877,10 @@ function printLetterDocument(htmlContent, title = "FreshTrade") {
     alert("Please allow popups to print.");
     return;
   }
+  const safeTitle = title.replace(/[^a-zA-Z0-9 _\-#]/g, '').replace(/\s+/g, '_');
   win.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"><\/script>
 <style>
   @page { size: letter portrait; margin: 0.5in 0.5in 0.6in 0.5in;
     @bottom-right { content: "Page " counter(page) " of " counter(pages); font-size: 8px; font-family: 'DM Sans', Arial, sans-serif; color: #999; }
@@ -900,21 +902,93 @@ function printLetterDocument(htmlContent, title = "FreshTrade") {
   @media screen {
     body { background: #1a1a2e; padding: 20px; }
     .print-page { max-width: 8.5in; margin: 0 auto 20px; background: #fff; padding: 0.5in; border-radius: 8px; box-shadow: 0 4px 24px rgba(0,0,0,0.3); min-height: 11in; }
-    .no-print-toolbar { position: sticky; top: 0; z-index: 100; max-width: 8.5in; margin: 0 auto 16px; display: flex; justify-content: space-between; align-items: center; background: #0f172a; padding: 12px 20px; border-radius: 8px; }
-    .no-print-toolbar button { padding: 8px 20px; border-radius: 6px; border: none; cursor: pointer; font-weight: 700; font-size: 13px; }
+    .no-print-toolbar { position: sticky; top: 0; z-index: 100; max-width: 8.5in; margin: 0 auto 16px; display: flex; justify-content: space-between; align-items: center; background: #0f172a; padding: 12px 20px; border-radius: 8px; flex-wrap: wrap; gap: 8px; }
+    .no-print-toolbar button { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
     .no-print-toolbar .print-btn { background: #2563eb; color: #fff; }
+    .no-print-toolbar .pdf-btn { background: #dc2626; color: #fff; }
+    .no-print-toolbar .share-btn { background: #059669; color: #fff; }
     .no-print-toolbar .close-btn { background: #334155; color: #e2e8f0; }
     .no-print-toolbar .title { color: #f1f5f9; font-weight: 700; font-size: 14px; }
+    .no-print-toolbar .status-msg { color: #94a3b8; font-size: 12px; width: 100%; text-align: center; display: none; }
   }
 </style></head><body>
 <div class="no-print no-print-toolbar">
   <span class="title">${title}</span>
-  <div style="display:flex;gap:10px;">
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
     <button class="print-btn" onclick="window.print()">🖨️ Print</button>
+    <button class="pdf-btn" id="pdfBtn" onclick="downloadPDF()">📄 Save PDF</button>
+    <button class="share-btn" id="shareBtn" onclick="sharePDF()">📤 Share</button>
     <button class="close-btn" onclick="window.close()">✕ Close</button>
   </div>
+  <div class="status-msg" id="statusMsg"></div>
 </div>
-<div class="print-page">${htmlContent}</div>
+<div class="print-page" id="printPage">${htmlContent}</div>
+<script>
+  var _pdfFileName = '${safeTitle}.pdf';
+  function showStatus(msg) {
+    var el = document.getElementById('statusMsg');
+    el.textContent = msg;
+    el.style.display = 'block';
+    setTimeout(function() { el.style.display = 'none'; }, 3000);
+  }
+  function getPdfOpts() {
+    return {
+      margin: [0.4, 0.4, 0.5, 0.4],
+      filename: _pdfFileName,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
+      pagebreak: { mode: ['css', 'legacy'], avoid: ['tr'] }
+    };
+  }
+  function downloadPDF() {
+    var btn = document.getElementById('pdfBtn');
+    btn.disabled = true;
+    btn.textContent = 'Generating...';
+    showStatus('Generating PDF...');
+    var el = document.getElementById('printPage');
+    html2pdf().set(getPdfOpts()).from(el).save().then(function() {
+      btn.disabled = false;
+      btn.innerHTML = '📄 Save PDF';
+      showStatus('PDF saved!');
+    }).catch(function(err) {
+      btn.disabled = false;
+      btn.innerHTML = '📄 Save PDF';
+      showStatus('Error: ' + err.message);
+    });
+  }
+  function sharePDF() {
+    var btn = document.getElementById('shareBtn');
+    btn.disabled = true;
+    btn.textContent = 'Generating...';
+    showStatus('Preparing PDF for sharing...');
+    var el = document.getElementById('printPage');
+    html2pdf().set(getPdfOpts()).from(el).outputPdf('blob').then(function(blob) {
+      var file = new File([blob], _pdfFileName, { type: 'application/pdf' });
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator.share({ title: _pdfFileName.replace('.pdf',''), files: [file] }).then(function() {
+          showStatus('Shared!');
+        }).catch(function(e) {
+          if (e.name !== 'AbortError') showStatus('Share cancelled');
+        });
+      } else {
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = _pdfFileName;
+        a.click();
+        URL.revokeObjectURL(url);
+        showStatus('PDF downloaded — attach it to email, text, or WhatsApp');
+      }
+      btn.disabled = false;
+      btn.innerHTML = '📤 Share';
+    }).catch(function(err) {
+      btn.disabled = false;
+      btn.innerHTML = '📤 Share';
+      showStatus('Error: ' + err.message);
+    });
+  }
+<\/script>
 </body></html>`);
   win.document.close();
 }
