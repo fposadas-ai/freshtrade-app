@@ -101,6 +101,14 @@ Preferred communication style: Simple, everyday language.
 - **Apply Button**: Turns orange and shows warning count when there are active warnings; prompts confirmation before applying
 - **Warning State**: `cwWarnings` state keyed by `"lineIdx-pieceIdx"`, stores `{ deviation, dir, expected, actual }`; cleared on invoice change or successful apply
 
+### Label Customization (Shipping Labels)
+- **Field Toggles**: Both Zebra and Sheet (Avery 5363) label settings now have full toggle sets: Category, Product, Unit Count, Address, Route, Delivery Date, Weight, Order, Invoice Number, Barcode
+- **Invoice Number**: New `shippingShowInvoice` toggle (off by default). `buildLabels` accepts `invoices` param and includes `invoiceId` on each label. All three render functions (`renderShippingLabelHTML`, `renderShippingLabelAvery5363`, `renderShippingLabelSheet`) support it.
+- **Field Ordering**: `SheetFieldOrder` component in Settings > Labels > Sheet section lets you reorder fields with up/down arrows. Stored in `labelsSheet.shippingFieldOrder` array. Avery 5363 render separates fields into top/left/right zones based on this order.
+- **Barcode on Avery**: Avery 5363 labels now support barcode rendering, controlled by the Barcode toggle.
+- **Field Order Sanitizer**: On load, any missing new fields are appended to existing `shippingFieldOrder` arrays to prevent stale saved settings.
+- **Route-level labels**: Route print paths now use `buildLabels()` instead of manual label construction, ensuring all fields (including invoiceId) are consistent.
+
 ### Routing Page Print Tracking
 - **Print Status**: In-memory state tracks per-order print status (`pick`, `label`, `invoice`) with P/L/I indicators
 - **Print Checkboxes**: Per-order checkboxes for selecting which invoices to print and which to include statements

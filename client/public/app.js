@@ -1070,6 +1070,7 @@ function renderShippingLabelHTML(lbl, opts) {
   const showWeight = o.shippingShowWeight !== false;
   const showOrder = o.shippingShowOrder !== false;
   const showBarcode = o.shippingShowBarcode !== false;
+  const showInvoice = o.shippingShowInvoice === true;
   const fs = { cat: Number(o.shippingFontCategory) || 9, product: Number(o.shippingFontProduct) || 11, name: Number(o.shippingFontCustomer) || 9, addr: Number(o.shippingFontAddress) || 7.5, label: Number(o.shippingFontLabel) || 7, val: Number(o.shippingFontValue) || 8, order: Number(o.shippingFontOrder) || 8, barH: Number(o.shippingFontBarcode) || 14, shipTo: Math.max((Number(o.shippingFontLabel) || 7) - 1, 5) };
   const catColor = {
     Seafood: "#0284c7",
@@ -1120,6 +1121,8 @@ function renderShippingLabelHTML(lbl, opts) {
         <div style="margin-top:auto;">
           ${showOrder ? `<div style="font-size:${fs.label}px;color:#6b7280;text-transform:uppercase;font-weight:700">Order #</div>
           <div style="font-size:${fs.order}px;font-weight:700;color:#111;font-family:monospace">${lbl.soId}</div>` : ""}
+          ${showInvoice && lbl.invoiceId ? `<div style="font-size:${fs.label}px;color:#6b7280;text-transform:uppercase;font-weight:700;margin-top:2px">Invoice #</div>
+          <div style="font-size:${fs.order}px;font-weight:700;color:#111;font-family:monospace">${lbl.invoiceId}</div>` : ""}
           ${showBarcode ? `<div style="display:flex;gap:0.5px;margin-top:3px;height:${fs.barH}px">${bars}</div>
           <div style="font-size:${Math.max(fs.label - 1, 5)}px;color:#374151;margin-top:1px;font-family:monospace;letter-spacing:-0.3px">${(lbl.barcode || "").slice(0, 20)}</div>` : ""}
         </div>
@@ -1142,39 +1145,71 @@ function renderShippingLabelAvery5363(lbl, opts) {
   const showDeliveryDate = o.shippingShowDeliveryDate !== false;
   const showWeight = o.shippingShowWeight !== false;
   const showOrder = o.shippingShowOrder !== false;
+  const showInvoice = o.shippingShowInvoice === true;
+  const showBarcode = o.shippingShowBarcode !== false;
   const fs = { cat: Number(o.shippingFontCategory) || 7, product: Number(o.shippingFontProduct) || 9, name: Number(o.shippingFontCustomer) || 7, addr: Number(o.shippingFontAddress) || 5.5, label: Number(o.shippingFontLabel) || 5, val: Number(o.shippingFontValue) || 6, order: Number(o.shippingFontOrder) || 7, barH: Number(o.shippingFontBarcode) || 10, shipTo: Math.max((Number(o.shippingFontLabel) || 5) - 1, 4) };
   const catColor = { Seafood: "#0284c7", Beef: "#b91c1c", Pork: "#c2410c", Poultry: "#b45309", Deli: "#7c3aed" };
   const cc = catColor[lbl.category] || "#374151";
+  let bars = "";
+  if (showBarcode) {
+    (lbl.barcode || "").split("").slice(0, 24).forEach((_, i) => {
+      bars += `<div style="width:${i % 3 === 0 ? 2 : 1}px;background:#111;height:100%;flex-shrink:0"></div>`;
+    });
+  }
+  const defaultFieldOrder = ["category", "product", "address", "route", "deliveryDate", "weight", "order", "invoice", "barcode"];
+  const fieldOrder = o.shippingFieldOrder || defaultFieldOrder;
+  const leftFields = [];
+  const rightFields = [];
+  const topFields = [];
+  fieldOrder.forEach(field => {
+    if (field === "category" && showCategory) {
+      topFields.push(`<div style="background:${cc};color:#fff;padding:2px 5px;display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:${fs.cat}px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px">${lbl.category || ''}</span>
+        ${showUnitCount ? `<span style="font-size:${fs.cat}px;font-weight:700">${lbl.unitLabel || "PCS"} ${lbl.pieceNum}/${lbl.totalPieces}</span>` : ""}
+      </div>`);
+    } else if (field === "product" && showProduct) {
+      topFields.push(`<div style="padding:2px 5px 1px;border-bottom:1px solid #e5e7eb;">
+        <div style="font-size:${fs.product}px;font-weight:700;color:#111;line-height:1.15;overflow:hidden;max-height:22px">${lbl.productName}</div>
+      </div>`);
+    } else if (field === "address" && showAddress) {
+      leftFields.push(`<div>
+        <div style="font-size:${fs.shipTo}px;color:#6b7280;font-weight:700;text-transform:uppercase">SHIP TO</div>
+        <div style="font-size:${fs.name}px;font-weight:700;color:#111;line-height:1.15">${lbl.customerName}</div>
+        <div style="font-size:${fs.addr}px;color:#374151;line-height:1.2;margin-top:1px;overflow:hidden;max-height:18px">${lbl.address}</div>
+      </div>`);
+    } else if (field === "route" && showRoute) {
+      leftFields.push(`<div>
+        <div style="font-size:${fs.val}px;font-weight:600;color:#111">${lbl.routeName} \xB7 ${lbl.driverName}</div>
+      </div>`);
+    } else if (field === "deliveryDate" && showDeliveryDate && lbl.deliveryDate) {
+      leftFields.push(`<div>
+        <div style="font-size:${fs.shipTo}px;color:#6b7280;font-weight:700;text-transform:uppercase">DELIVERY</div>
+        <div style="font-size:${fs.val}px;font-weight:600;color:#111">${lbl.deliveryDate}</div>
+      </div>`);
+    } else if (field === "weight" && showWeight) {
+      rightFields.push(lbl.catchWeight ? `<div style="border:1px solid #f59e0b;border-radius:2px;padding:1px 3px;background:#fffbeb;"><div style="font-size:${fs.shipTo}px;color:#92400e;font-weight:700;text-transform:uppercase">\u2696 Wt</div><div style="font-size:${fs.name}px;color:#92400e;font-weight:700;border-bottom:1px solid #d97706;min-height:12px">${lbl.estWeightEach ? '~' + Number(lbl.estWeightEach).toFixed(2) : '_____'}</div></div>` : `<div style="font-size:${fs.label}px;color:#6b7280;font-style:italic">Fixed wt</div>`);
+    } else if (field === "order" && showOrder) {
+      rightFields.push(`<div><div style="font-size:${fs.shipTo}px;color:#6b7280;text-transform:uppercase;font-weight:700">Order</div>
+        <div style="font-size:${fs.order}px;font-weight:700;color:#111;font-family:monospace">${lbl.soId}</div></div>`);
+    } else if (field === "invoice" && showInvoice && lbl.invoiceId) {
+      rightFields.push(`<div><div style="font-size:${fs.shipTo}px;color:#6b7280;text-transform:uppercase;font-weight:700">Invoice</div>
+        <div style="font-size:${fs.order}px;font-weight:700;color:#111;font-family:monospace">${lbl.invoiceId}</div></div>`);
+    } else if (field === "barcode" && showBarcode && bars) {
+      rightFields.push(`<div><div style="display:flex;gap:0.5px;height:${fs.barH}px">${bars}</div>
+        <div style="font-size:${Math.max(fs.shipTo - 1, 3)}px;color:#374151;margin-top:1px;font-family:monospace;letter-spacing:-0.3px">${(lbl.barcode || "").slice(0, 16)}</div></div>`);
+    }
+  });
+  if (!showCategory && showUnitCount) {
+    topFields.unshift(`<div style="padding:1px 5px;text-align:right;font-size:${fs.cat}px;font-weight:700;color:#111;border-bottom:1px solid #e5e7eb">${lbl.unitLabel || "PCS"} ${lbl.pieceNum}/${lbl.totalPieces}</div>`);
+  }
+  const hasRight = rightFields.length > 0;
   return `<div style="width:2.8125in;height:1.375in;font-family:'DM Sans',Arial,sans-serif;overflow:hidden;background:#fff;display:flex;flex-direction:column;box-sizing:border-box;">
-    ${showCategory ? `<div style="background:${cc};color:#fff;padding:2px 5px;display:flex;justify-content:space-between;align-items:center;">
-      <span style="font-size:${fs.cat}px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px">${lbl.category || ''}</span>
-      ${showUnitCount ? `<span style="font-size:${fs.cat}px;font-weight:700">${lbl.unitLabel || "PCS"} ${lbl.pieceNum}/${lbl.totalPieces}</span>` : ""}
-    </div>` : (showUnitCount ? `<div style="padding:1px 5px;text-align:right;font-size:${fs.cat}px;font-weight:700;color:#111;border-bottom:1px solid #e5e7eb">${lbl.unitLabel || "PCS"} ${lbl.pieceNum}/${lbl.totalPieces}</div>` : "")}
-    ${showProduct ? `<div style="padding:2px 5px 1px;border-bottom:1px solid #e5e7eb;">
-      <div style="font-size:${fs.product}px;font-weight:700;color:#111;line-height:1.15;overflow:hidden;max-height:22px">${lbl.productName}</div>
-    </div>` : ""}
+    ${topFields.join("")}
     <div style="display:flex;flex:1;overflow:hidden;">
-      <div style="flex:1;padding:2px 5px;border-right:1px solid #e5e7eb;display:flex;flex-direction:column;justify-content:space-between;">
-        ${showAddress ? `<div>
-          <div style="font-size:${fs.shipTo}px;color:#6b7280;font-weight:700;text-transform:uppercase">SHIP TO</div>
-          <div style="font-size:${fs.name}px;font-weight:700;color:#111;line-height:1.15">${lbl.customerName}</div>
-          <div style="font-size:${fs.addr}px;color:#374151;line-height:1.2;margin-top:1px;overflow:hidden;max-height:18px">${lbl.address}</div>
-        </div>` : ""}
-        ${showRoute ? `<div>
-          <div style="font-size:${fs.val}px;font-weight:600;color:#111">${lbl.routeName} \xB7 ${lbl.driverName}</div>
-        </div>` : ""}
-        ${showDeliveryDate && lbl.deliveryDate ? `<div>
-          <div style="font-size:${fs.shipTo}px;color:#6b7280;font-weight:700;text-transform:uppercase">DELIVERY</div>
-          <div style="font-size:${fs.val}px;font-weight:600;color:#111">${lbl.deliveryDate}</div>
-        </div>` : ""}
+      <div style="flex:1;padding:2px 5px;${hasRight ? 'border-right:1px solid #e5e7eb;' : ''}display:flex;flex-direction:column;justify-content:space-between;">
+        ${leftFields.join("")}
       </div>
-      <div style="width:80px;padding:2px 4px;display:flex;flex-direction:column;justify-content:space-between;">
-        ${showWeight ? (lbl.catchWeight ? `<div style="border:1px solid #f59e0b;border-radius:2px;padding:1px 3px;background:#fffbeb;"><div style="font-size:${fs.shipTo}px;color:#92400e;font-weight:700;text-transform:uppercase">\u2696 Wt</div><div style="font-size:${fs.name}px;color:#92400e;font-weight:700;border-bottom:1px solid #d97706;min-height:12px">${lbl.estWeightEach ? '~' + Number(lbl.estWeightEach).toFixed(2) : '_____'}</div></div>` : `<div style="font-size:${fs.label}px;color:#6b7280;font-style:italic">Fixed wt</div>`) : ""}
-        <div style="margin-top:auto;">
-          ${showOrder ? `<div style="font-size:${fs.shipTo}px;color:#6b7280;text-transform:uppercase;font-weight:700">Order</div>
-          <div style="font-size:${fs.order}px;font-weight:700;color:#111;font-family:monospace">${lbl.soId}</div>` : ""}
-        </div>
-      </div>
+      ${hasRight ? `<div style="width:80px;padding:2px 4px;display:flex;flex-direction:column;justify-content:space-between;">${rightFields.join("")}</div>` : ""}
     </div>
   </div>`;
 }
@@ -1262,15 +1297,17 @@ function renderShippingLabelSheet(lbl) {
         </div>
       </div>
       <div style="width:90px;padding:2px 5px;display:flex;flex-direction:column;justify-content:space-between;">
-        ${lbl.catchWeight ? `<div style="border:1px solid #f59e0b;border-radius:3px;padding:2px 4px;background:#fffbeb;">
+        ${(o.shippingShowWeight !== false) ? (lbl.catchWeight ? `<div style="border:1px solid #f59e0b;border-radius:3px;padding:2px 4px;background:#fffbeb;">
           <div style="font-size:${fs.label}pt;color:#92400e;font-weight:700;text-transform:uppercase">⚖️ Weight</div>
           <div style="font-size:${fs.val}pt;color:#92400e;font-weight:800;margin-top:1px">${lbl.estWeightEach ? "~" + Number(lbl.estWeightEach).toFixed(2) + " lbs" : "_____ lbs"}</div>
-        </div>` : `<div style="font-size:${fs.label}pt;color:#6b7280">Fixed weight</div>`}
+        </div>` : `<div style="font-size:${fs.label}pt;color:#6b7280">Fixed weight</div>`) : ""}
         <div style="margin-top:auto;">
-          <div style="font-size:${fs.label}pt;color:#6b7280;text-transform:uppercase;font-weight:700">Order #</div>
-          <div style="font-size:${fs.order}pt;font-weight:800;color:#111;font-family:monospace">${lbl.soId || ""}</div>
-          <div style="display:flex;gap:0.5px;margin-top:2px;height:${fs.barH}px">${bars}</div>
-          <div style="font-size:${Math.max(fs.label - 1, 4)}pt;color:#374151;margin-top:1px;font-family:monospace">${(lbl.barcode || "").slice(0, 22)}</div>
+          ${(o.shippingShowOrder !== false) ? `<div style="font-size:${fs.label}pt;color:#6b7280;text-transform:uppercase;font-weight:700">Order #</div>
+          <div style="font-size:${fs.order}pt;font-weight:800;color:#111;font-family:monospace">${lbl.soId || ""}</div>` : ""}
+          ${(o.shippingShowInvoice === true && lbl.invoiceId) ? `<div style="font-size:${fs.label}pt;color:#6b7280;text-transform:uppercase;font-weight:700;margin-top:2px">Invoice #</div>
+          <div style="font-size:${fs.order}pt;font-weight:800;color:#111;font-family:monospace">${lbl.invoiceId}</div>` : ""}
+          ${(o.shippingShowBarcode !== false) ? `<div style="display:flex;gap:0.5px;margin-top:2px;height:${fs.barH}px">${bars}</div>
+          <div style="font-size:${Math.max(fs.label - 1, 4)}pt;color:#374151;margin-top:1px;font-family:monospace">${(lbl.barcode || "").slice(0, 22)}</div>` : ""}
         </div>
       </div>
     </div>
@@ -2708,7 +2745,14 @@ function App() {
     delete settings.labelsZebra.shippingFontSize;
   }
   window.__labelSettings = settings.labelsZebra || {};
-  window.__sheetLabelSettings = settings.labelsSheet || {};
+  const _allLabelFields = ["category", "product", "address", "route", "deliveryDate", "weight", "order", "invoice", "barcode"];
+  const _sheetSettings = settings.labelsSheet || {};
+  if (_sheetSettings.shippingFieldOrder) {
+    const existing = _sheetSettings.shippingFieldOrder;
+    const missing = _allLabelFields.filter(f => !existing.includes(f));
+    if (missing.length > 0) _sheetSettings.shippingFieldOrder = [...existing, ...missing];
+  }
+  window.__sheetLabelSettings = _sheetSettings;
   const [dbStatus, setDbStatus] = useState(saved ? "loaded" : "new");
   const [loggedInUser, setLoggedInUser] = useState(null);
   const [loginError, setLoginError] = useState("");
@@ -5811,9 +5855,10 @@ const COMPANY_NAME = "FreshTrade";
 const COMPANY_ADDR = "1200 Port Blvd, Miami FL 33132  ·  (305) 555-0100";
 
 // Generate one shipping label object per piece on an SO line
-function buildLabels(so, products, customers, routes) {
+function buildLabels(so, products, customers, routes, invoices) {
   const cust = customers.find(c => c.id === so.customerId);
   const route = routes.find(r => r.id === so.routeId);
+  const inv = invoices ? invoices.find(inv => inv.soId === so.id || inv.salesOrderId === so.id) : null;
   const labels = [];
   so.lines.forEach(line => {
     const prod = products.find(p => p.id === line.productId);
@@ -5825,6 +5870,7 @@ function buildLabels(so, products, customers, routes) {
     for (let i = 0; i < count; i++) {
       labels.push({
         soId: so.id,
+        invoiceId: inv ? inv.id : "",
         pieceNum: i + 1,
         totalPieces: count,
         unitLabel: isCase ? "CS" : "PCS",
@@ -5845,6 +5891,50 @@ function buildLabels(so, products, customers, routes) {
 }
 
 // 1.5" × 3" label rendered at 96 dpi → 144px × 288px
+function SheetFieldOrder({ settings, update }) {
+  const defaultOrder = ["category", "product", "address", "route", "deliveryDate", "weight", "order", "invoice", "barcode"];
+  const fieldLabels = { category: "Category Color Bar", product: "Product Name", address: "Customer & Address", route: "Route & Driver", deliveryDate: "Delivery Date", weight: "Weight / Catch Weight", order: "Order Number (SO)", invoice: "Invoice Number", barcode: "Barcode" };
+  const currentOrder = settings.labelsSheet.shippingFieldOrder || defaultOrder;
+  const moveField = (idx, dir) => {
+    const newOrder = [...currentOrder];
+    const target = idx + dir;
+    if (target < 0 || target >= newOrder.length) return;
+    [newOrder[idx], newOrder[target]] = [newOrder[target], newOrder[idx]];
+    update("labelsSheet", "shippingFieldOrder", newOrder);
+  };
+  const placement = { category: "top", product: "top", address: "left", route: "left", deliveryDate: "left", weight: "right", order: "right", invoice: "right", barcode: "right" };
+  return /*#__PURE__*/React.createElement("div", {
+    style: { display: "flex", flexDirection: "column", gap: 4, marginTop: 4 }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 10, color: "#64748b", marginBottom: 2 }
+  }, "Drag fields to reorder how they appear on the label. Top fields span the full width; Left/Right fields share the lower area."), currentOrder.map((field, idx) => {
+    const label = fieldLabels[field] || field;
+    const zone = placement[field] || "left";
+    const zoneColors = { top: "#3b82f6", left: "#22c55e", right: "#f59e0b" };
+    return /*#__PURE__*/React.createElement("div", {
+      key: field,
+      "data-testid": `field-order-${field}`,
+      style: { display: "flex", alignItems: "center", gap: 6, padding: "5px 8px", background: "#0f1117", borderRadius: 6, border: "1px solid #1e293b" }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: { display: "flex", flexDirection: "column", gap: 2 }
+    }, /*#__PURE__*/React.createElement("button", {
+      "data-testid": `move-up-${field}`,
+      onClick: () => moveField(idx, -1),
+      disabled: idx === 0,
+      style: { background: "none", border: "none", cursor: idx === 0 ? "default" : "pointer", padding: 0, fontSize: 10, color: idx === 0 ? "#334155" : "#94a3b8", lineHeight: 1 }
+    }, "\u25B2"), /*#__PURE__*/React.createElement("button", {
+      "data-testid": `move-down-${field}`,
+      onClick: () => moveField(idx, 1),
+      disabled: idx === currentOrder.length - 1,
+      style: { background: "none", border: "none", cursor: idx === currentOrder.length - 1 ? "default" : "pointer", padding: 0, fontSize: 10, color: idx === currentOrder.length - 1 ? "#334155" : "#94a3b8", lineHeight: 1 }
+    }, "\u25BC")), /*#__PURE__*/React.createElement("span", {
+      style: { fontSize: 12, color: "#e2e8f0", fontWeight: 600, flex: 1 }
+    }, label), /*#__PURE__*/React.createElement("span", {
+      style: { fontSize: 9, padding: "1px 6px", borderRadius: 4, background: zoneColors[zone] + "22", color: zoneColors[zone], fontWeight: 700, textTransform: "uppercase" }
+    }, zone));
+  }));
+}
+
 function ShippingPreviewBlock({ settings }) {
   const z = settings.labelsZebra;
   const pfs = { cat: Number(z.shippingFontCategory) || 9, product: Number(z.shippingFontProduct) || 11, name: Number(z.shippingFontCustomer) || 9, addr: Number(z.shippingFontAddress) || 7.5, label: Number(z.shippingFontLabel) || 7, val: Number(z.shippingFontValue) || 8, order: Number(z.shippingFontOrder) || 8, barH: Number(z.shippingFontBarcode) || 14, shipTo: Math.max((Number(z.shippingFontLabel) || 7) - 1, 5) };
@@ -6619,6 +6709,7 @@ function PrintPreview({
   allSOs,
   customers,
   routes,
+  invoices,
   categoryOrder,
   onClose
 }) {
@@ -6647,7 +6738,7 @@ function PrintPreview({
 
   // Compute data for route-level types
   const routeSOs = filterRoute ? allSOs.filter(s => s.routeId === filterRoute.id && ["confirmed", "picking", "ready"].includes(s.status)) : so ? [so] : [];
-  const allLabels = routeSOs.flatMap(s => buildLabels(s, products, customers, routes));
+  const allLabels = routeSOs.flatMap(s => buildLabels(s, products, customers, routes, invoices));
   const PRINT_TITLES = {
     so: "Sales Order",
     pick: "Pick Sheet",
@@ -6665,8 +6756,8 @@ function PrintPreview({
 
   // Collect all label data for the current view
   const getAllLabelData = () => {
-    if (type === "labels" && so) return buildLabels(so, products, customers, routes);
-    if (type === "route_labels" && filterRoute) return routeSOs.flatMap(s => buildLabels(s, products, customers, routes));
+    if (type === "labels" && so) return buildLabels(so, products, customers, routes, invoices);
+    if (type === "route_labels" && filterRoute) return routeSOs.flatMap(s => buildLabels(s, products, customers, routes, invoices));
     return [];
   };
   const handlePrintDocument = () => {
@@ -7002,7 +7093,7 @@ function PrintPreview({
       categoryOrder: categoryOrder
     });
   })(), type === "labels" && so && (() => {
-    const labels = buildLabels(so, products, customers, routes);
+    const labels = buildLabels(so, products, customers, routes, invoices);
     const cust = customers.find(c => c.id === so.customerId);
     return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
       style: {
@@ -7033,7 +7124,7 @@ function PrintPreview({
   })(), type === "pick_labels" && so && (() => {
     const cust = customers.find(c => c.id === so.customerId);
     const route = routes.find(r => r.id === so.routeId);
-    const labels = buildLabels(so, products, customers, routes);
+    const labels = buildLabels(so, products, customers, routes, invoices);
     return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(PickSheetBlock, {
       so: so,
       customer: cust,
@@ -7106,7 +7197,7 @@ function PrintPreview({
       color: "#64748b"
     }
   }, filterRoute.driver, " \xB7 ", filterRoute.vehicle, " \xB7 ", allLabels.length, " total labels across ", routeSOs.length, " orders")), routeSOs.map((s, si) => {
-    const lbls = buildLabels(s, products, customers, routes);
+    const lbls = buildLabels(s, products, customers, routes, invoices);
     const cust = customers.find(c => c.id === s.customerId);
     return /*#__PURE__*/React.createElement("div", {
       key: s.id,
@@ -7136,7 +7227,7 @@ function PrintPreview({
   })), type === "route_pick_labels" && filterRoute && routeSOs.map((s, si) => {
     const cust = customers.find(c => c.id === s.customerId);
     const route = routes.find(r => r.id === s.routeId);
-    const lbls = buildLabels(s, products, customers, routes);
+    const lbls = buildLabels(s, products, customers, routes, invoices);
     return /*#__PURE__*/React.createElement("div", {
       key: s.id
     }, si > 0 && /*#__PURE__*/React.createElement("div", {
@@ -10060,6 +10151,7 @@ function SalesOrders({
     customers: customers,
     allSOs: salesOrders,
     routes: routes,
+    invoices: invoices,
     categoryOrder: settings.preferences.categoryOrder,
     onClose: () => setPrintDoc(null)
   }));
@@ -25963,36 +26055,7 @@ function Routes({
 
       // ── SHIPPING LABELS ──
       if (printMode === "shipLabels") {
-        const labels = [];
-        orders.all.forEach(o => {
-          const cust = customers.find(c => c.id === o.customerId);
-          (o.lines || []).forEach(l => {
-            const prod = products.find(p => p.id === l.productId);
-            if (!prod) return;
-            const count = Number(l.qty || l.qtyOrdered) || 1;
-            const lu = l.unit || "PC";
-            const luIsCase = lu === "CS";
-            const estWtPer = prod.catchWeight ? (luIsCase ? prod.avgWeightPerCase : prod.avgWeightPerPiece) || ((Number(l.estWeight || l.nominalWeight) || 0) / count) : null;
-            for (let i = 0; i < count; i++) {
-              labels.push({
-                soId: o.id,
-                pieceNum: i + 1,
-                totalPieces: count,
-                unitLabel: luIsCase ? "CS" : "PCS",
-                productName: pName(prod, l),
-                category: prod.category,
-                catchWeight: prod.catchWeight,
-                estWeightEach: estWtPer,
-                customerName: (cust === null || cust === void 0 ? void 0 : cust.name) || "—",
-                address: (cust === null || cust === void 0 ? void 0 : cust.address) || "—",
-                routeName: r.name,
-                driverName: r.driver,
-                deliveryDate: o.deliveryDate || o.date,
-                barcode: `${o.id}-${prod.id}-${String(i + 1).padStart(3, "0")}`
-              });
-            }
-          });
-        });
+        const labels = orders.all.flatMap(o => buildLabels(o, products, customers, routes, invoices));
         return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
           style: {
             textAlign: "center",
@@ -37321,6 +37384,10 @@ function SystemSettings({
     value: settings.labelsZebra.shippingShowOrder !== false,
     onChange: v => update("labelsZebra", "shippingShowOrder", v)
   }), /*#__PURE__*/React.createElement(Toggle, {
+    label: "Invoice Number",
+    value: settings.labelsZebra.shippingShowInvoice === true,
+    onChange: v => update("labelsZebra", "shippingShowInvoice", v)
+  }), /*#__PURE__*/React.createElement(Toggle, {
     label: "Barcode",
     value: settings.labelsZebra.shippingShowBarcode !== false,
     onChange: v => update("labelsZebra", "shippingShowBarcode", v)
@@ -37500,18 +37567,52 @@ function SystemSettings({
       right: Number(v)
     })
   })), /*#__PURE__*/React.createElement(SectionLabel, null, "Shipping Label Fields"), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Route & Driver",
-    value: settings.labelsSheet.shippingShowRoute,
-    onChange: v => update("labelsSheet", "shippingShowRoute", v)
+    label: "Category Color Bar",
+    value: settings.labelsSheet.shippingShowCategory !== false,
+    onChange: v => update("labelsSheet", "shippingShowCategory", v)
   }), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Customer Address",
-    value: settings.labelsSheet.shippingShowAddress,
+    label: "Product Name",
+    value: settings.labelsSheet.shippingShowProduct !== false,
+    onChange: v => update("labelsSheet", "shippingShowProduct", v)
+  }), /*#__PURE__*/React.createElement(Toggle, {
+    label: "Unit Count (CS/PCS)",
+    value: settings.labelsSheet.shippingShowUnitCount !== false,
+    onChange: v => update("labelsSheet", "shippingShowUnitCount", v)
+  }), /*#__PURE__*/React.createElement(Toggle, {
+    label: "Customer Name & Address",
+    value: settings.labelsSheet.shippingShowAddress !== false,
     onChange: v => update("labelsSheet", "shippingShowAddress", v)
   }), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Order Number",
-    value: settings.labelsSheet.shippingShowOrder,
+    label: "Route & Driver",
+    value: settings.labelsSheet.shippingShowRoute !== false,
+    onChange: v => update("labelsSheet", "shippingShowRoute", v)
+  }), /*#__PURE__*/React.createElement(Toggle, {
+    label: "Delivery Date",
+    value: settings.labelsSheet.shippingShowDeliveryDate !== false,
+    onChange: v => update("labelsSheet", "shippingShowDeliveryDate", v)
+  }), /*#__PURE__*/React.createElement(Toggle, {
+    label: "Weight / Catch Weight",
+    value: settings.labelsSheet.shippingShowWeight !== false,
+    onChange: v => update("labelsSheet", "shippingShowWeight", v)
+  }), /*#__PURE__*/React.createElement(Toggle, {
+    label: "Order Number (SO)",
+    value: settings.labelsSheet.shippingShowOrder !== false,
     onChange: v => update("labelsSheet", "shippingShowOrder", v)
-  }), /*#__PURE__*/React.createElement(SectionLabel, null, "Shipping Label Font Sizes (pt)"),
+  }), /*#__PURE__*/React.createElement(Toggle, {
+    label: "Invoice Number",
+    value: settings.labelsSheet.shippingShowInvoice === true,
+    onChange: v => update("labelsSheet", "shippingShowInvoice", v)
+  }), /*#__PURE__*/React.createElement(Toggle, {
+    label: "Barcode",
+    value: settings.labelsSheet.shippingShowBarcode !== false,
+    onChange: v => update("labelsSheet", "shippingShowBarcode", v)
+  }),
+  /*#__PURE__*/React.createElement(SectionLabel, null, "Field Arrangement"),
+  /*#__PURE__*/React.createElement(SheetFieldOrder, {
+    settings: settings,
+    update: update
+  }),
+  /*#__PURE__*/React.createElement(SectionLabel, null, "Shipping Label Font Sizes (pt)"),
   /*#__PURE__*/React.createElement("div", {
     style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }
   },
