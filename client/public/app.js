@@ -901,7 +901,7 @@ function printLetterDocument(htmlContent, title = "FreshTrade") {
   }
   @media screen {
     body { background: #1a1a2e; padding: 20px; }
-    .print-page { max-width: 8.5in; margin: 0 auto 20px; background: #fff; padding: 0.5in; border-radius: 8px; box-shadow: 0 4px 24px rgba(0,0,0,0.3); min-height: 11in; }
+    .print-page { max-width: 8.5in; margin: 0 auto 20px; background: #fff; padding: 0.5in; border-radius: 8px; box-shadow: 0 4px 24px rgba(0,0,0,0.3); }
     .no-print-toolbar { position: sticky; top: 0; z-index: 100; max-width: 8.5in; margin: 0 auto 16px; display: flex; justify-content: space-between; align-items: center; background: #0f172a; padding: 12px 20px; border-radius: 8px; flex-wrap: wrap; gap: 8px; }
     .no-print-toolbar button { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
     .no-print-toolbar .print-btn { background: #2563eb; color: #fff; }
@@ -933,7 +933,7 @@ function printLetterDocument(htmlContent, title = "FreshTrade") {
   }
   function getPdfOpts() {
     return {
-      margin: [0.4, 0.4, 0.5, 0.4],
+      margin: [0.5, 0.5, 0.6, 0.5],
       filename: _pdfFileName,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true, letterRendering: true },
@@ -1665,6 +1665,12 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
     const packLine = packSizeInfo ? ' <span style="font-weight:400;color:#9ca3af;font-size:9px;">· ' + packSizeInfo + '</span>' : '';
     let html = "";
     let slots = 1;
+    if (hasPieceWeights) {
+      const pwCount = l.pieceWeights.length;
+      if (pwCount > 8) slots = 4;
+      else if (pwCount > 4) slots = 3;
+      else slots = 2;
+    }
 
     if (hasPieceWeights) {
       const totalWt = l.pieceWeights.reduce((s, w) => s + (Number(w) || 0), 0);
@@ -1899,8 +1905,8 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
 
   // ── Fixed-form layout: always fill page with blank rows like a printed form ──
   // Every page gets full header + signature footer, so same row capacity
-  const ROWS_PAGE1 = 18;
-  const ROWS_CONT = 18;
+  const ROWS_PAGE1 = 13;
+  const ROWS_CONT = 13;
 
   // Empty row template
   const emptyRow = n => `<tr style="background:${n % 2 === 0 ? rowB : rowA};">
@@ -1966,15 +1972,19 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
       blankHtml += emptyRow(usedSlots + b + 1);
     }
     const pageBreak = pi < pages.length - 1 ? 'page-break-after:always;' : '';
-    pagesHtml += `<div style="font-family:'DM Sans',Arial,Helvetica,sans-serif;color:#1a1a1a;width:7.5in;margin:0 auto;${pageBreak}">
-      ${fullHeader}
-      ${tableHead}
-      ${linesHtml}
-      ${blankHtml}
-      ${tableClose}
-      ${page.isLast ? totalsBox : '<div style="border-top:2px solid #1e40af;padding:6px 0;text-align:center;font-size:9px;color:#64748b;font-weight:600;font-style:italic;">Continued on next page…</div>'}
-      ${signatureFooter}
-      ${pageFooter(pageNum)}
+    pagesHtml += `<div style="font-family:'DM Sans',Arial,Helvetica,sans-serif;color:#1a1a1a;width:7.5in;height:9.5in;margin:0 auto;overflow:hidden;display:flex;flex-direction:column;${pageBreak}">
+      <div style="flex:0 0 auto;">${fullHeader}</div>
+      <div style="flex:1 1 auto;">
+        ${tableHead}
+        ${linesHtml}
+        ${blankHtml}
+        ${tableClose}
+      </div>
+      <div style="flex:0 0 auto;">
+        ${page.isLast ? totalsBox : '<div style="border-top:2px solid #1e40af;padding:6px 0;text-align:center;font-size:9px;color:#64748b;font-weight:600;font-style:italic;">Continued on next page…</div>'}
+        ${signatureFooter}
+        ${pageFooter(pageNum)}
+      </div>
     </div>`;
   });
   return pagesHtml;

@@ -116,6 +116,14 @@ Preferred communication style: Simple, everyday language.
 - **Print Marking**: Status marked as printed only when actual print execution occurs (not on modal open)
 - Route view grid uses 11 columns (vs 8 for pool view) to accommodate print tracking columns
 
+### Invoice Pagination (Print)
+- **Row Capacity**: `ROWS_PAGE1 = ROWS_CONT = 13` — each page can hold 13 "slots" worth of line items
+- **CW Slot Counting**: Catch-weight items with piece weights take multiple slots: 1-4 pieces = 2 slots, 5-8 pieces = 3 slots, 9+ pieces = 4 slots. Non-CW items = 1 slot.
+- **Page Layout**: Each page div has a fixed height of `9.5in` with flexbox layout: header (flex-none), table area (flex-grow), footer with totals/signature (flex-none)
+- **Print Margins**: `@page` margin is `0.5in 0.5in 0.6in 0.5in` (top/right/bottom/left), html2pdf margins match
+- **Page Structure**: `fullHeader` on every page, `totalsBox` on last page only, `signatureFooter` + `pageFooter` on every page, "Continued on next page…" on non-last pages
+- **Blank Fill Rows**: Pages are padded with empty alternating-color rows to fill remaining slot capacity
+
 ### Other Utilities
 - **date-fns** — date manipulation
 - **nanoid** — unique ID generation
