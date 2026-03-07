@@ -1761,9 +1761,9 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
     </div>`;
 
   // ── Fixed-form layout: always fill page with blank rows like a printed form ──
-  // Signature footer takes ~2 row-equivalent space at the bottom of every page
-  const ROWS_PAGE1 = 18; // Fixed row slots on page 1 (with compact header + signature footer)
-  const ROWS_CONT = 24; // Fixed row slots on continuation pages (with compact header + signature footer)
+  // Every page gets full header + signature footer, so same row capacity
+  const ROWS_PAGE1 = 18;
+  const ROWS_CONT = 18;
 
   // Empty row template
   const emptyRow = n => `<tr style="background:${n % 2 === 0 ? rowB : rowA};">
@@ -1830,7 +1830,7 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
     }
     const pageBreak = pi < pages.length - 1 ? 'page-break-after:always;' : '';
     pagesHtml += `<div style="font-family:'DM Sans',Arial,Helvetica,sans-serif;color:#1a1a1a;width:7.5in;margin:0 auto;${pageBreak}">
-      ${page.isFirst ? fullHeader : contHeader}
+      ${fullHeader}
       ${tableHead}
       ${linesHtml}
       ${blankHtml}
