@@ -3414,6 +3414,7 @@ function App() {
     creditMemos: creditMemos
   }), activeModule === "orderguide" && /*#__PURE__*/React.createElement(OrderGuide, {
     customers: customers,
+    setCustomers: setCustomers,
     products: products,
     salesOrders: salesOrders,
     setSalesOrders: setSalesOrders,
@@ -29111,6 +29112,7 @@ function PortalManager({
 // ============================================================
 function OrderGuide({
   customers,
+  setCustomers,
   products,
   salesOrders,
   setSalesOrders,
@@ -29130,6 +29132,8 @@ function OrderGuide({
   const [showHistory, setShowHistory] = useState(false);
   const [deliveryDate, setDeliveryDate] = useState(dueDate(1));
   const [notes, setNotes] = useState("");
+  const [manageMode, setManageMode] = useState(false);
+  const [manageSearch, setManageSearch] = useState("");
   const cust = customers.find(c => c.id === selectedCustomer);
   const custHistory = useMemo(() => selectedCustomer ? getCustomerOrderHistory(selectedCustomer, salesOrders, invoices) : {}, [selectedCustomer, salesOrders, invoices]);
   const loadStandardOrder = custId => {
@@ -29188,6 +29192,28 @@ function OrderGuide({
   };
   const removeProduct = idx => {
     setOrderLines(prev => prev.filter((_, i) => i !== idx));
+  };
+  const addToStandardOrder = (pid) => {
+    if (!cust) return;
+    const current = cust.standardOrder || [];
+    if (current.includes(pid)) return;
+    const updated = [...current, pid];
+    setCustomers(prev => prev.map(c => c.id === cust.id ? { ...c, standardOrder: updated } : c));
+    showToast(`Added ${(products.find(p => p.id === pid) || {}).name || pid} to standard order`);
+  };
+  const removeFromStandardOrder = (pid) => {
+    if (!cust) return;
+    const updated = (cust.standardOrder || []).filter(id => id !== pid);
+    setCustomers(prev => prev.map(c => c.id === cust.id ? { ...c, standardOrder: updated } : c));
+    setOrderLines(prev => prev.filter(l => l.productId !== pid));
+    showToast(`Removed ${(products.find(p => p.id === pid) || {}).name || pid} from standard order`);
+  };
+  const reorderStandardItem = (fromIdx, toIdx) => {
+    if (!cust) return;
+    const arr = [...(cust.standardOrder || [])];
+    const [moved] = arr.splice(fromIdx, 1);
+    arr.splice(toIdx, 0, moved);
+    setCustomers(prev => prev.map(c => c.id === cust.id ? { ...c, standardOrder: arr } : c));
   };
   const getCustomerHistory = custId => {
     return invoices.filter(inv => inv.customerId === custId).slice(0, 5);
@@ -29369,6 +29395,12 @@ function OrderGuide({
       gap: 8
     }
   }, /*#__PURE__*/React.createElement(Btn, {
+    variant: manageMode ? "primary" : "secondary",
+    size: "sm",
+    "data-testid": "button-manage-products",
+    onClick: () => { setManageMode(!manageMode); setManageSearch(""); },
+    style: manageMode ? { background: "#a855f7", borderColor: "#a855f7", color: "#fff" } : {}
+  }, manageMode ? "✓ Done Managing" : "📋 Manage Products"), /*#__PURE__*/React.createElement(Btn, {
     variant: "secondary",
     size: "sm",
     onClick: () => setShowHistory(!showHistory)
@@ -29378,6 +29410,7 @@ function OrderGuide({
     onClick: () => {
       setSelectedCustomer(null);
       setOrderLines([]);
+      setManageMode(false);
     }
   }, "\u2190 Back")))), showHistory && /*#__PURE__*/React.createElement(Card, {
     style: {
@@ -29411,7 +29444,101 @@ function OrderGuide({
   }, fmt(inv.total)), /*#__PURE__*/React.createElement(Badge, {
     text: inv.status,
     color: STATUS_COLORS[inv.status]
-  })))), /*#__PURE__*/React.createElement("div", {
+  })))),
+
+  manageMode ? /*#__PURE__*/React.createElement(Card, {
+    style: { borderColor: "#a855f744" }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }
+  }, /*#__PURE__*/React.createElement("div", null,
+    /*#__PURE__*/React.createElement("div", { style: { fontSize: 14, fontWeight: 700, color: "#a855f7", marginBottom: 4 } }, "\uD83D\uDCCB Manage Standard Order Products"),
+    /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, color: "#64748b" } }, "Add or remove products from ", cust.name, "'s regular order list. These are the products that appear when you open their order guide.")
+  ), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 12, color: "#94a3b8", background: "#1a2030", borderRadius: 6, padding: "6px 12px" }
+  }, (cust.standardOrder || []).length, " products")),
+
+  /*#__PURE__*/React.createElement("div", {
+    style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }
+  },
+  /*#__PURE__*/React.createElement("div", null,
+    /*#__PURE__*/React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 8, letterSpacing: "0.5px" } }, "Current Standard Order"),
+    (cust.standardOrder || []).length === 0 ? /*#__PURE__*/React.createElement("div", { style: { padding: 20, textAlign: "center", color: "#475569", fontSize: 13 } }, "No products in standard order yet. Add products from the right.") :
+    /*#__PURE__*/React.createElement("div", { style: { maxHeight: 500, overflowY: "auto" } },
+      (cust.standardOrder || []).map((pid, idx) => {
+        const p = products.find(pr => pr.id === pid);
+        if (!p) return null;
+        const h = custHistory[pid];
+        return /*#__PURE__*/React.createElement("div", {
+          key: pid,
+          "data-testid": "manage-standard-item-" + idx,
+          style: { display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 6, background: idx % 2 === 0 ? "#151821" : "transparent", marginBottom: 2 }
+        },
+        /*#__PURE__*/React.createElement("span", { style: { fontSize: 10, color: "#475569", width: 24, textAlign: "center" } }, idx + 1),
+        /*#__PURE__*/React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+          /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: "#e2e8f0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, pName(p)),
+          /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, color: "#64748b" } }, p.category, " · ", p.billedBy, h ? ` · avg ${h.avgQty} qty (${h.count}x)` : "")
+        ),
+        idx > 0 && /*#__PURE__*/React.createElement("button", {
+          onClick: () => reorderStandardItem(idx, idx - 1),
+          style: { background: "none", border: "none", cursor: "pointer", color: "#475569", fontSize: 14, padding: "2px 4px" },
+          title: "Move up"
+        }, "▲"),
+        idx < (cust.standardOrder || []).length - 1 && /*#__PURE__*/React.createElement("button", {
+          onClick: () => reorderStandardItem(idx, idx + 1),
+          style: { background: "none", border: "none", cursor: "pointer", color: "#475569", fontSize: 14, padding: "2px 4px" },
+          title: "Move down"
+        }, "▼"),
+        /*#__PURE__*/React.createElement(Btn, {
+          variant: "ghost", size: "sm",
+          "data-testid": "button-remove-standard-" + idx,
+          onClick: () => removeFromStandardOrder(pid),
+          style: { color: "#ef4444", fontSize: 11 }
+        }, "✕"));
+      }).filter(Boolean)
+    )
+  ),
+
+  /*#__PURE__*/React.createElement("div", null,
+    /*#__PURE__*/React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 8, letterSpacing: "0.5px" } }, "Add Products"),
+    /*#__PURE__*/React.createElement("input", {
+      "data-testid": "input-manage-search",
+      placeholder: "Search products to add...",
+      value: manageSearch,
+      onChange: e => setManageSearch(e.target.value),
+      style: { width: "100%", background: "#0f1117", border: "1px solid #2d3748", borderRadius: 6, padding: "8px 10px", color: "#e2e8f0", fontSize: 12, boxSizing: "border-box", marginBottom: 8 }
+    }),
+    /*#__PURE__*/React.createElement("div", { style: { maxHeight: 460, overflowY: "auto" } },
+      products.filter(p => {
+        if ((cust.standardOrder || []).includes(p.id)) return false;
+        if (!manageSearch) return true;
+        const s = manageSearch.toLowerCase();
+        return p.name.toLowerCase().includes(s) || (p.category || "").toLowerCase().includes(s);
+      }).map((p, idx) => {
+        const h = custHistory[p.id];
+        return /*#__PURE__*/React.createElement("div", {
+          key: p.id,
+          "data-testid": "manage-available-item-" + idx,
+          style: { display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 6, marginBottom: 2, cursor: "pointer", background: idx % 2 === 0 ? "#0f1117" : "transparent" },
+          onClick: () => { addToStandardOrder(p.id); addProduct(p.id); }
+        },
+        /*#__PURE__*/React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+          /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, fontWeight: 600, color: "#94a3b8" } }, pName(p)),
+          /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, color: "#475569" } }, p.category, " · ", p.billedBy, h ? ` · ordered ${h.count}x` : "")
+        ),
+        /*#__PURE__*/React.createElement(Btn, {
+          variant: "ghost", size: "sm",
+          style: { color: "#22c55e", fontSize: 11 }
+        }, "+ Add"));
+      })
+    )
+  )),
+
+  /*#__PURE__*/React.createElement("div", { style: { marginTop: 12, padding: "10px 12px", background: "#1a2030", borderRadius: 8, fontSize: 11, color: "#64748b" } },
+    "💡 Products you add here will appear every time you open this customer's order guide. Remove products they no longer order to keep the list clean.")
+
+  ) :
+
+  /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
       gridTemplateColumns: "1fr 320px",

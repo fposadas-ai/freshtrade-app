@@ -139,6 +139,13 @@ Preferred communication style: Simple, everyday language.
 - **Barcode format from labels**: `SO-XXXX-PRODID-NNN` (order ID + product ID + sequence)
 - **Manual entry**: Text input in scanner bar accepts manual barcode entry (Enter to submit)
 
+### Order Guide Product Management
+- **Manage Products button**: Purple toggle in Order Guide header, shows two-column management panel
+- **Left column**: Current standard order products with remove (✕) and reorder (▲▼) controls
+- **Right column**: Available products to add, with search filter
+- **Sync**: Adding a product updates both `customer.standardOrder` array and current `orderLines`; removing does the same
+- **Persistence**: Changes to `standardOrder` are saved via `setCustomers` which persists to the data store
+
 ### Customer Order History
 - **Helper Function**: `getCustomerOrderHistory(custId, salesOrders, invoices)` computes per-product order history: count (times ordered), totalQty, avgQty, lastDate
 - **Order Guide**: Product grid has a "History" column showing avg qty (blue) and order count for each product
