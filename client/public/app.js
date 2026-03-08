@@ -4212,7 +4212,7 @@ const SpreadsheetGrid = ({
     return true;
   });
   const withLines = products.filter(p => getLineIdx(p.id) >= 0);
-  const display = showAll || search ? filtered : withLines.length > 0 ? [...withLines, ...products.filter(p => getLineIdx(p.id) < 0 && (!search || p.name.toLowerCase().includes(search.toLowerCase())))] : products;
+  const display = search ? filtered : showAll ? products : withLines.length > 0 ? withLines : products;
   const qtyField = mode === "po" ? "qtyOrdered" : "qty";
   const totalField = mode === "po" ? "total" : mode === "invoice" ? "total" : "estTotal";
   const grandTotal = lines.reduce((s, l) => s + (Number(l[totalField]) || 0), 0);
@@ -4403,16 +4403,16 @@ const SpreadsheetGrid = ({
         }
       `), /*#__PURE__*/React.createElement("div", {
     style: {
-      padding: "10px 12px",
+      padding: "5px 10px",
       background: "linear-gradient(180deg,#1a5c2a,#1a6a32)",
       borderBottom: "2px solid #0a4a1a",
       display: "flex",
       alignItems: "center",
-      gap: 10
+      gap: 8
     }
   }, /*#__PURE__*/React.createElement("span", {
     style: {
-      fontSize: 14,
+      fontSize: 12,
       fontWeight: 800,
       color: "#b0e8b0",
       letterSpacing: "0.5px",
@@ -4449,10 +4449,10 @@ const SpreadsheetGrid = ({
       width: "100%",
       background: "#fff",
       border: "2px solid #4aa04a",
-      borderRadius: 6,
-      padding: "10px 14px 10px 34px",
+      borderRadius: 4,
+      padding: "5px 10px 5px 28px",
       color: "#1a2844",
-      fontSize: 16,
+      fontSize: 13,
       fontWeight: 600,
       boxSizing: "border-box",
       outline: "none"
@@ -4564,14 +4564,14 @@ const SpreadsheetGrid = ({
     onChange: e => setAddQty(e.target.value),
     onKeyDown: handleAddQtyKey,
     style: {
-      width: 80,
+      width: 60,
       background: "#fff",
       border: "2px solid #4aa04a",
-      borderRadius: 6,
-      padding: "10px 8px",
+      borderRadius: 4,
+      padding: "4px 6px",
       textAlign: "center",
       fontFamily: "'DM Mono',monospace",
-      fontSize: 20,
+      fontSize: 16,
       fontWeight: 800,
       color: "#1a4a1a",
       boxSizing: "border-box",
@@ -4584,11 +4584,11 @@ const SpreadsheetGrid = ({
     },
     disabled: addMatches.length === 0,
     style: {
-      padding: "10px 20px",
-      borderRadius: 6,
+      padding: "4px 12px",
+      borderRadius: 4,
       border: "2px solid #0a4a1a",
       cursor: addMatches.length > 0 ? "pointer" : "default",
-      fontSize: 14,
+      fontSize: 12,
       fontWeight: 800,
       letterSpacing: "0.5px",
       background: addMatches.length > 0 ? "#fff" : "#2a5a2a",
@@ -4600,7 +4600,7 @@ const SpreadsheetGrid = ({
       display: "flex",
       alignItems: "center",
       gap: 8,
-      padding: "6px 12px",
+      padding: "4px 10px",
       background: "linear-gradient(180deg,#eef2f8,#e0e8f0)",
       borderBottom: "1px solid #8aa0c0",
       flexWrap: "wrap"
@@ -4619,15 +4619,15 @@ const SpreadsheetGrid = ({
       background: "#fff",
       border: "1px solid #8aa0c0",
       borderRadius: 3,
-      padding: "6px 10px",
+      padding: "4px 8px",
       color: "#1a2844",
-      fontSize: 13,
+      fontSize: 12,
       boxSizing: "border-box"
     }
   })), /*#__PURE__*/React.createElement("button", {
     onClick: () => setShowAll(!showAll),
     style: {
-      padding: "6px 14px",
+      padding: "4px 10px",
       borderRadius: 3,
       border: "1px solid #8aa0c0",
       cursor: "pointer",
@@ -4636,7 +4636,7 @@ const SpreadsheetGrid = ({
       background: showAll ? "#2c4a7c" : "#fff",
       color: showAll ? "#fff" : "#2c4a7c"
     }
-  }, showAll ? "✓ All Items" : "Show All"), /*#__PURE__*/React.createElement("div", {
+  }, showAll ? "Guide Only" : "+ Add Items"), /*#__PURE__*/React.createElement("div", {
     style: {
       flex: 1
     }
@@ -4820,7 +4820,7 @@ const SpreadsheetGrid = ({
     }, /*#__PURE__*/React.createElement("div", {
       style: {
         fontWeight: isActive || focusedPid === p.id ? 700 : 500,
-        fontSize: 14,
+        fontSize: 13,
         color: C.tx,
         lineHeight: 1.3,
         display: "flex",
@@ -4843,41 +4843,43 @@ const SpreadsheetGrid = ({
       }
     }, "edited")), /*#__PURE__*/React.createElement("div", {
       style: {
-        fontSize: 11,
+        fontSize: 10,
         color: C.txL,
         display: "flex",
-        gap: 4,
+        gap: 3,
         alignItems: "center",
-        marginTop: 1
+        marginTop: 0
       }
     }, /*#__PURE__*/React.createElement("span", {
       style: {
         background: "#c8d8ec",
-        padding: "0px 4px",
+        padding: "0px 3px",
         borderRadius: 2,
         fontSize: 9,
-        fontWeight: 700,
+        fontWeight: 600,
         color: "#3a5a80"
       }
     }, p.category), p.catchWeight && /*#__PURE__*/React.createElement("span", {
       style: {
         color: "#8a6000",
         fontWeight: 700,
-        fontSize: 11
+        fontSize: 9
       }
     }, "\u2696 CW"), p.fixedWeight && /*#__PURE__*/React.createElement("span", {
       style: {
         color: "#2a5aaa",
         fontWeight: 700,
-        fontSize: 11
+        fontSize: 9
       }
     }, "\uD83D\uDCE6 FW"), isSpecial && /*#__PURE__*/React.createElement("span", {
       style: {
-        color: "#aa6a00"
+        color: "#aa6a00",
+        fontSize: 9
       }
     }, "\u2605Spc"), ((_p$cutOptions = p.cutOptions) === null || _p$cutOptions === void 0 ? void 0 : _p$cutOptions.length) > 0 && /*#__PURE__*/React.createElement("span", {
       style: {
-        color: "#6a3090"
+        color: "#6a3090",
+        fontSize: 9
       }
     }, "\u2702 ", p.cutOptions.length), isActive && getLineVal(p.id, "cutOption") && /*#__PURE__*/React.createElement("span", {
       style: {
