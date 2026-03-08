@@ -37871,14 +37871,14 @@ function SystemSettings({
       });
     },
     options: [{
+      value: "3x8",
+      label: "3×8 = 24/page (Avery 5363)"
+    }, {
       value: "2x5",
       label: "2×5 = 10/page"
     }, {
       value: "2x4",
       label: "2×4 = 8/page"
-    }, {
-      value: "3x8",
-      label: "3×8 = 24/page (Avery 5363)"
     }, {
       value: "2x7",
       label: "2×7 = 14/page"
