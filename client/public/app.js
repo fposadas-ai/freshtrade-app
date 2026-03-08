@@ -8316,32 +8316,6 @@ function SalesOrders({
       }
     }, "Terms: ", selCust.terms || "1 Week")))) : null;
   })(),
-  form.customerId && (() => {
-    const guideCust = customers.find(c => c.id === form.customerId);
-    const guideCount = guideCust && (guideCust.standardOrder || []).length;
-    return guideCount > 0 ? /*#__PURE__*/React.createElement("div", {
-      style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 6, padding: "6px 10px", background: "#e4ecf4", border: "1px solid #a0b4cc", borderRadius: 4 }
-    }, /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, color: "#506888" } }, "\uD83D\uDCCB ", guideCust.name, " has ", guideCount, " products in their order guide"),
-    /*#__PURE__*/React.createElement("button", {
-      "data-testid": "button-load-guide",
-      onClick: () => {
-        const guideLines = (guideCust.standardOrder || []).map(pid => {
-          var _guideCust$specialPri, _p$pricing3, _p$pricing4;
-          const p = products.find(pr => pr.id === pid);
-          if (!p) return null;
-          const price = ((_guideCust$specialPri = guideCust.specialPricing) === null || _guideCust$specialPri === void 0 ? void 0 : _guideCust$specialPri[pid]) || ((_p$pricing3 = p.pricing) === null || _p$pricing3 === void 0 ? void 0 : _p$pricing3[guideCust.priceLevel || "level3"]) || ((_p$pricing4 = p.pricing) === null || _p$pricing4 === void 0 ? void 0 : _p$pricing4.level1) || 0;
-          const isWB = p.catchWeight || p.fixedWeight;
-          return { productId: pid, qty: 0, pricePerLb: isWB ? price : undefined, priceEach: !isWB ? price : undefined, estWeight: isWB ? (p.avgWeightPerCase || p.caseWeightLbs || 0) : null, unit: "CS", estTotal: 0 };
-        }).filter(Boolean);
-        const existingIds = new Set(form.lines.filter(l => l.productId).map(l => l.productId));
-        const newLines = guideLines.filter(l => !existingIds.has(l.productId));
-        if (newLines.length === 0) { showToast("All guide products are already in the order", "info"); return; }
-        setForm(f => ({ ...f, lines: [...f.lines.filter(l => l.productId), ...newLines] }));
-        showToast(`Loaded ${newLines.length} products from order guide`);
-      },
-      style: { padding: "4px 10px", borderRadius: 4, border: "1px solid #2563eb", background: "#2563eb", color: "#fff", cursor: "pointer", fontSize: 11, fontWeight: 600 }
-    }, "Load Guide")) : null;
-  })(),
   /*#__PURE__*/React.createElement(SpreadsheetGrid, {
     products: products,
     lines: form.lines,
