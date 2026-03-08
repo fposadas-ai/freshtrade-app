@@ -882,9 +882,7 @@ function printLetterDocument(htmlContent, title = "FreshTrade") {
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"><\/script>
 <style>
-  @page { size: letter portrait; margin: 0.5in 0.5in 0.6in 0.5in;
-    @bottom-right { content: "Page " counter(page) " of " counter(pages); font-size: 8px; font-family: 'DM Sans', Arial, sans-serif; color: #999; }
-  }
+  @page { size: letter portrait; margin: 0; }
   *, *::before, *::after { box-sizing: border-box; }
   body { margin: 0; padding: 0; font-family: 'DM Sans', Arial, Helvetica, sans-serif; color: #111; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; text-rendering: geometricPrecision; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
   table { border-collapse: collapse; width: 100%; }
@@ -933,7 +931,7 @@ function printLetterDocument(htmlContent, title = "FreshTrade") {
   }
   function getPdfOpts() {
     return {
-      margin: [0.5, 0.5, 0.6, 0.5],
+      margin: [0, 0, 0, 0],
       filename: _pdfFileName,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true, letterRendering: true },
@@ -1972,7 +1970,7 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
       blankHtml += emptyRow(usedSlots + b + 1);
     }
     const pageBreak = pi < pages.length - 1 ? 'page-break-after:always;' : '';
-    pagesHtml += `<div style="font-family:'DM Sans',Arial,Helvetica,sans-serif;color:#1a1a1a;width:7.5in;height:9.5in;margin:0 auto;overflow:hidden;display:flex;flex-direction:column;${pageBreak}">
+    pagesHtml += `<div style="font-family:'DM Sans',Arial,Helvetica,sans-serif;color:#1a1a1a;width:100%;max-width:8in;padding:0.25in 0.35in;margin:0 auto;overflow:hidden;display:flex;flex-direction:column;${pageBreak}">
       <div style="flex:0 0 auto;">${fullHeader}</div>
       <div style="flex:1 1 auto;">
         ${tableHead}
