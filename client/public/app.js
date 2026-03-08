@@ -1058,7 +1058,7 @@ function printZebraLabel(labelHtml, title = "Zebra Label") {
 <style>
   @page { size: 3in 1.5in; margin: 0; }
   *, *::before, *::after { box-sizing: border-box; }
-  body { margin: 0; padding: 0; font-family: 'DM Sans', Arial, sans-serif; color: #111; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin: 0; padding: 0; font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; color: #000; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; -webkit-font-smoothing: none; }
   .label-strip { display: flex; flex-direction: column; }
   .label-item { width: 3in; height: 1.5in; overflow: hidden; page-break-after: always; }
   .label-item:last-child { page-break-after: auto; }
@@ -1097,7 +1097,7 @@ function renderShippingLabelHTML(lbl, opts) {
   const showWeight = o.shippingShowWeight !== false;
   const showOrder = o.shippingShowOrder !== false;
   const showBarcode = o.shippingShowBarcode !== false;
-  const showInvoice = o.shippingShowInvoice === true;
+  const showInvoice = o.shippingShowInvoice !== false;
   const fs = { cat: Number(o.shippingFontCategory) || 9, product: Number(o.shippingFontProduct) || 11, name: Number(o.shippingFontCustomer) || 9, addr: Number(o.shippingFontAddress) || 7.5, label: Number(o.shippingFontLabel) || 7, val: Number(o.shippingFontValue) || 8, order: Number(o.shippingFontOrder) || 8, barH: Number(o.shippingFontBarcode) || 14, shipTo: Math.max((Number(o.shippingFontLabel) || 7) - 1, 5) };
   const catColor = {
     Seafood: "#0284c7",
@@ -1109,13 +1109,15 @@ function renderShippingLabelHTML(lbl, opts) {
   const cc = catColor[lbl.category] || "#374151";
   let bars = "";
   if (showBarcode) {
-    const chars = (lbl.barcode || "").split("").slice(0, 30);
-    chars.forEach((_, i) => {
-      const w = i % 3 === 0 ? 2 : 1;
-      bars += `<div style="width:${w}px;background:#111;height:100%;flex-shrink:0"></div>`;
-    });
+    const barcodeStr = lbl.barcode || "";
+    const totalBars = 60;
+    for (let i = 0; i < totalBars; i++) {
+      const w = i % 3 === 0 ? 2.5 : 1;
+      const gap = i % 5 === 0 ? 1.5 : 0.5;
+      bars += `<div style="width:${w}px;background:#000;height:100%;flex-shrink:0;margin-right:${gap}px"></div>`;
+    }
   }
-  return `<div class="label-item" style="width:3in;height:1.5in;font-family:'DM Sans',Arial,sans-serif;overflow:hidden;background:#fff;display:flex;flex-direction:column;box-sizing:border-box;">
+  return `<div class="label-item" style="width:3in;height:1.5in;font-family:Arial,'Helvetica Neue',Helvetica,sans-serif;overflow:hidden;background:#fff;display:flex;flex-direction:column;box-sizing:border-box;">
     ${showCategory ? `<div style="background:${cc};color:#fff;padding:3px 7px;display:flex;justify-content:space-between;align-items:center;">
       <span style="font-size:${fs.cat}px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">${lbl.category}</span>
       ${showUnitCount ? `<span style="font-size:${fs.cat}px;font-weight:700">${lbl.unitLabel || "PCS"} ${lbl.pieceNum}/${lbl.totalPieces}</span>` : ""}
@@ -1150,8 +1152,8 @@ function renderShippingLabelHTML(lbl, opts) {
           <div style="font-size:${fs.order}px;font-weight:700;color:#111;font-family:monospace">${lbl.soId}</div>` : ""}
           ${showInvoice && lbl.invoiceId ? `<div style="font-size:${fs.label}px;color:#6b7280;text-transform:uppercase;font-weight:700;margin-top:2px">Invoice #</div>
           <div style="font-size:${fs.order}px;font-weight:700;color:#111;font-family:monospace">${lbl.invoiceId}</div>` : ""}
-          ${showBarcode ? `<div style="display:flex;gap:0.5px;margin-top:3px;height:${fs.barH}px">${bars}</div>
-          <div style="font-size:${Math.max(fs.label - 1, 5)}px;color:#374151;margin-top:1px;font-family:monospace;letter-spacing:-0.3px">${(lbl.barcode || "").slice(0, 20)}</div>` : ""}
+          ${showBarcode ? `<div style="display:flex;gap:0;margin-top:3px;height:${fs.barH}px;width:100%">${bars}</div>
+          <div style="font-size:${Math.max(fs.label - 1, 5)}px;color:#000;margin-top:1px;font-family:monospace;font-weight:700;letter-spacing:-0.3px">${(lbl.barcode || "").slice(0, 20)}</div>` : ""}
         </div>
       </div>
     </div>
@@ -1172,16 +1174,19 @@ function renderShippingLabelAvery5363(lbl, opts) {
   const showDeliveryDate = o.shippingShowDeliveryDate !== false;
   const showWeight = o.shippingShowWeight !== false;
   const showOrder = o.shippingShowOrder !== false;
-  const showInvoice = o.shippingShowInvoice === true;
+  const showInvoice = o.shippingShowInvoice !== false;
   const showBarcode = o.shippingShowBarcode !== false;
   const fs = { cat: Number(o.shippingFontCategory) || 7, product: Number(o.shippingFontProduct) || 9, name: Number(o.shippingFontCustomer) || 7, addr: Number(o.shippingFontAddress) || 5.5, label: Number(o.shippingFontLabel) || 5, val: Number(o.shippingFontValue) || 6, order: Number(o.shippingFontOrder) || 7, barH: Number(o.shippingFontBarcode) || 10, shipTo: Math.max((Number(o.shippingFontLabel) || 5) - 1, 4) };
   const catColor = { Seafood: "#0284c7", Beef: "#b91c1c", Pork: "#c2410c", Poultry: "#b45309", Deli: "#7c3aed" };
   const cc = catColor[lbl.category] || "#374151";
   let bars = "";
   if (showBarcode) {
-    (lbl.barcode || "").split("").slice(0, 24).forEach((_, i) => {
-      bars += `<div style="width:${i % 3 === 0 ? 2 : 1}px;background:#111;height:100%;flex-shrink:0"></div>`;
-    });
+    const totalBars = 45;
+    for (let i = 0; i < totalBars; i++) {
+      const w = i % 3 === 0 ? 2 : 0.8;
+      const gap = i % 5 === 0 ? 1 : 0.3;
+      bars += `<div style="width:${w}px;background:#000;height:100%;flex-shrink:0;margin-right:${gap}px"></div>`;
+    }
   }
   const defaultFieldOrder = ["category", "product", "address", "route", "deliveryDate", "weight", "order", "invoice", "barcode"];
   const fieldOrder = o.shippingFieldOrder || defaultFieldOrder;
@@ -1222,15 +1227,15 @@ function renderShippingLabelAvery5363(lbl, opts) {
       rightFields.push(`<div><div style="font-size:${fs.shipTo}px;color:#6b7280;text-transform:uppercase;font-weight:700">Invoice</div>
         <div style="font-size:${fs.order}px;font-weight:700;color:#111;font-family:monospace">${lbl.invoiceId}</div></div>`);
     } else if (field === "barcode" && showBarcode && bars) {
-      rightFields.push(`<div><div style="display:flex;gap:0.5px;height:${fs.barH}px">${bars}</div>
-        <div style="font-size:${Math.max(fs.shipTo - 1, 3)}px;color:#374151;margin-top:1px;font-family:monospace;letter-spacing:-0.3px">${(lbl.barcode || "").slice(0, 16)}</div></div>`);
+      rightFields.push(`<div><div style="display:flex;gap:0;height:${fs.barH}px;width:100%">${bars}</div>
+        <div style="font-size:${Math.max(fs.shipTo - 1, 3)}px;color:#000;margin-top:1px;font-family:monospace;font-weight:700;letter-spacing:-0.3px">${(lbl.barcode || "").slice(0, 16)}</div></div>`);
     }
   });
   if (!showCategory && showUnitCount) {
     topFields.unshift(`<div style="padding:1px 5px;text-align:right;font-size:${fs.cat}px;font-weight:700;color:#111;border-bottom:1px solid #e5e7eb">${lbl.unitLabel || "PCS"} ${lbl.pieceNum}/${lbl.totalPieces}</div>`);
   }
   const hasRight = rightFields.length > 0;
-  return `<div style="width:2.8125in;height:1.375in;font-family:'DM Sans',Arial,sans-serif;overflow:hidden;background:#fff;display:flex;flex-direction:column;box-sizing:border-box;">
+  return `<div style="width:2.8125in;height:1.375in;font-family:Arial,'Helvetica Neue',Helvetica,sans-serif;overflow:hidden;background:#fff;display:flex;flex-direction:column;box-sizing:border-box;">
     ${topFields.join("")}
     <div style="display:flex;flex:1;overflow:hidden;">
       <div style="flex:1;padding:2px 5px;${hasRight ? 'border-right:1px solid #e5e7eb;' : ''}display:flex;flex-direction:column;justify-content:space-between;">
@@ -1267,7 +1272,7 @@ function printAvery5363Labels(labels, title) {
       rowHtml += '</tr>';
       rows += rowHtml;
     }
-    return '<div style="page-break-after:' + (pi < pages.length - 1 ? 'always' : 'auto') + ';padding:0in 0.09375in 0;"><table style="border-collapse:collapse;table-layout:fixed;width:100%;"><tbody>' + rows + '</tbody></table></div>';
+    return '<div style="page-break-after:' + (pi < pages.length - 1 ? 'always' : 'auto') + ';padding:0.5in 0.15625in 0;"><table style="border-collapse:collapse;table-layout:fixed;width:100%;"><tbody>' + rows + '</tbody></table></div>';
   }).join('');
   const win = window.open("", "_blank", "width=850,height=1100");
   if (!win) { alert("Please allow popups to print."); return; }
@@ -1276,7 +1281,7 @@ function printAvery5363Labels(labels, title) {
     '<style>' +
     '@page { size: letter; margin: 0; }' +
     '*, *::before, *::after { box-sizing: border-box; }' +
-    'body { margin: 0; padding: 0; font-family: "DM Sans", Arial, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }' +
+    'body { margin: 0; padding: 0; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; -webkit-font-smoothing: none; }' +
     '@media print { .no-print { display: none !important; } }' +
     '@media screen { .no-print-bar { display: flex; gap: 8px; padding: 12px; background: #1a1a2e; justify-content: center; } .no-print-bar button { padding: 8px 20px; border-radius: 5px; border: none; cursor: pointer; font-weight: 700; font-size: 13px; } .print-btn { background: #22c55e; color: #000; } .close-btn { background: #334155; color: #e2e8f0; } }' +
     '</style></head><body>' +
@@ -1300,10 +1305,13 @@ function renderShippingLabelSheet(lbl) {
   };
   const cc = catColor[lbl.category] || "#374151";
   let bars = "";
-  (lbl.barcode || "").split("").slice(0, 32).forEach((_, i) => {
-    bars += `<div style="width:${i % 3 === 0 ? 2 : 1}px;background:#111;height:100%;flex-shrink:0"></div>`;
-  });
-  return `<div style="width:${W};height:${H};border:1px solid #ccc;border-radius:4px;font-family:'DM Sans',Arial,sans-serif;overflow:hidden;background:#fff;display:flex;flex-direction:column;box-sizing:border-box;">
+  const totalBars = 50;
+  for (let i = 0; i < totalBars; i++) {
+    const w = i % 3 === 0 ? 2 : 1;
+    const gap = i % 5 === 0 ? 1 : 0.3;
+    bars += `<div style="width:${w}px;background:#000;height:100%;flex-shrink:0;margin-right:${gap}px"></div>`;
+  }
+  return `<div style="width:${W};height:${H};border:1px solid #ccc;border-radius:4px;font-family:Arial,'Helvetica Neue',Helvetica,sans-serif;overflow:hidden;background:#fff;display:flex;flex-direction:column;box-sizing:border-box;">
     <div style="background:${cc};color:#fff;padding:3px 6px;display:flex;justify-content:space-between;align-items:center;">
       <span style="font-size:${fs.cat}pt;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">${lbl.category || ""}</span>
       <span style="font-size:${fs.product}pt;font-weight:800">${lbl.unitLabel || "PCS"} ${lbl.pieceNum || ""}/${lbl.totalPieces || ""}</span>
@@ -1331,10 +1339,10 @@ function renderShippingLabelSheet(lbl) {
         <div style="margin-top:auto;">
           ${(o.shippingShowOrder !== false) ? `<div style="font-size:${fs.label}pt;color:#6b7280;text-transform:uppercase;font-weight:700">Order #</div>
           <div style="font-size:${fs.order}pt;font-weight:800;color:#111;font-family:monospace">${lbl.soId || ""}</div>` : ""}
-          ${(o.shippingShowInvoice === true && lbl.invoiceId) ? `<div style="font-size:${fs.label}pt;color:#6b7280;text-transform:uppercase;font-weight:700;margin-top:2px">Invoice #</div>
-          <div style="font-size:${fs.order}pt;font-weight:800;color:#111;font-family:monospace">${lbl.invoiceId}</div>` : ""}
-          ${(o.shippingShowBarcode !== false) ? `<div style="display:flex;gap:0.5px;margin-top:2px;height:${fs.barH}px">${bars}</div>
-          <div style="font-size:${Math.max(fs.label - 1, 4)}pt;color:#374151;margin-top:1px;font-family:monospace">${(lbl.barcode || "").slice(0, 22)}</div>` : ""}
+          ${(o.shippingShowInvoice !== false && lbl.invoiceId) ? `<div style="font-size:${fs.label}pt;color:#6b7280;text-transform:uppercase;font-weight:700;margin-top:2px">Invoice #</div>
+          <div style="font-size:${fs.order}pt;font-weight:800;color:#000;font-family:monospace">${lbl.invoiceId}</div>` : ""}
+          ${(o.shippingShowBarcode !== false) ? `<div style="display:flex;gap:0;margin-top:2px;height:${fs.barH}px;width:100%">${bars}</div>
+          <div style="font-size:${Math.max(fs.label - 1, 4)}pt;color:#000;margin-top:1px;font-family:monospace;font-weight:700">${(lbl.barcode || "").slice(0, 22)}</div>` : ""}
         </div>
       </div>
     </div>
