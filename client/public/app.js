@@ -1641,6 +1641,62 @@ function LabelPrinterChooser({
 }
 
 // Build HTML for a professional invoice (8.5" × 11" letter)
+function generateCode128SVG(text, height, barWidth) {
+  height = height || 30;
+  barWidth = barWidth || 1.5;
+  const CODE128B = [
+    [2,1,2,2,2,2],[2,2,2,1,2,2],[2,2,2,2,2,1],[1,2,1,2,2,3],[1,2,1,3,2,2],
+    [1,3,1,2,2,2],[1,2,2,2,1,3],[1,2,2,3,1,2],[1,3,2,2,1,2],[2,2,1,2,1,3],
+    [2,2,1,3,1,2],[2,3,1,2,1,2],[1,1,2,2,3,2],[1,2,2,1,3,2],[1,2,2,2,3,1],
+    [1,1,3,2,2,2],[1,2,3,1,2,2],[1,2,3,2,2,1],[2,2,3,2,1,1],[2,2,1,1,3,2],
+    [2,2,1,2,3,1],[2,1,3,2,1,2],[2,2,3,1,1,2],[3,1,2,1,3,1],[3,1,1,2,2,2],
+    [3,2,1,1,2,2],[3,2,1,2,2,1],[3,1,2,2,1,2],[3,2,2,1,1,2],[3,2,2,2,1,1],
+    [2,1,2,1,2,3],[2,1,2,3,2,1],[2,3,2,1,2,1],[1,1,1,3,2,3],[1,3,1,1,2,3],
+    [1,3,1,3,2,1],[1,1,2,3,1,3],[1,3,2,1,1,3],[1,3,2,3,1,1],[2,1,1,3,1,3],
+    [2,3,1,1,1,3],[2,3,1,3,1,1],[1,1,2,1,3,3],[1,1,2,3,3,1],[1,3,2,1,3,1],
+    [1,1,3,1,2,3],[1,1,3,3,2,1],[1,3,3,1,2,1],[3,1,3,1,2,1],[2,1,1,3,3,1],
+    [2,3,1,1,3,1],[2,1,3,1,1,3],[2,1,3,3,1,1],[2,1,3,1,3,1],[3,1,1,1,2,3],
+    [3,1,1,3,2,1],[3,3,1,1,2,1],[3,1,2,1,1,3],[3,1,2,3,1,1],[3,3,2,1,1,1],
+    [3,1,4,1,1,1],[2,2,1,4,1,1],[4,3,1,1,1,1],[1,1,1,2,2,4],[1,1,1,4,2,2],
+    [1,2,1,1,2,4],[1,2,1,4,2,1],[1,4,1,1,2,2],[1,4,1,2,2,1],[1,1,2,2,1,4],
+    [1,1,2,4,1,2],[1,2,2,1,1,4],[1,2,2,4,1,1],[1,4,2,1,1,2],[1,4,2,2,1,1],
+    [2,4,1,2,1,1],[2,2,1,1,1,4],[4,1,3,1,1,1],[2,4,1,1,1,2],[1,3,4,1,1,1],
+    [1,1,1,2,4,2],[1,2,1,1,4,2],[1,2,1,2,4,1],[1,1,4,2,1,2],[1,2,4,1,1,2],
+    [1,2,4,2,1,1],[4,1,1,2,1,2],[4,2,1,1,1,2],[4,2,1,2,1,1],[2,1,2,1,4,1],
+    [2,1,4,1,2,1],[4,1,2,1,2,1],[1,1,1,1,4,3],[1,1,1,3,4,1],[1,3,1,1,4,1],
+    [1,1,4,1,1,3],[1,1,4,3,1,1],[4,1,1,1,1,3],[4,1,1,3,1,1],[1,1,3,1,4,1],
+    [1,1,4,1,3,1],[3,1,1,1,4,1],[4,1,1,1,3,1],[2,1,1,4,1,2],[2,1,1,2,1,4],
+    [2,1,1,2,3,2],[2,3,3,1,1,1,2]
+  ];
+  const START_B = 104;
+  const STOP = 106;
+  var codes = [START_B];
+  var checksum = START_B;
+  for (var i = 0; i < text.length; i++) {
+    var val = text.charCodeAt(i) - 32;
+    if (val < 0 || val > 94) val = 0;
+    codes.push(val);
+    checksum += val * (i + 1);
+  }
+  codes.push(checksum % 103);
+  codes.push(STOP);
+  var rects = [];
+  var x = 0;
+  for (var c = 0; c < codes.length; c++) {
+    var pattern = CODE128B[codes[c]];
+    if (!pattern) continue;
+    for (var p = 0; p < pattern.length; p++) {
+      var w = pattern[p] * barWidth;
+      if (p % 2 === 0) {
+        rects.push('<rect x="' + x.toFixed(1) + '" y="0" width="' + w.toFixed(1) + '" height="' + height + '" fill="#000"/>');
+      }
+      x += w;
+    }
+  }
+  var totalW = x;
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="' + totalW.toFixed(1) + '" height="' + height + '" viewBox="0 0 ' + totalW.toFixed(1) + ' ' + height + '">' + rects.join('') + '</svg>';
+}
+
 function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStatement, company) {
   company = company || {};
   const subtotal = inv.subtotal || inv.lines.reduce((s, l) => s + (l.total || 0), 0);
@@ -1794,10 +1850,18 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
           </div>
         </td>
         <td style="text-align:right;vertical-align:middle;padding:0;">
-          <span style="font-size:10px;color:#94a3b8;font-weight:500;margin-right:3px;">No.</span>
-          <span style="font-size:18px;font-weight:800;color:#111;font-family:'DM Mono',monospace;letter-spacing:-0.3px;">${invNum}</span>
-          ${paid ? '<span style="display:inline-block;margin-left:6px;padding:2px 8px;border:2px solid #2563eb;border-radius:3px;font-size:10px;font-weight:800;color:#2563eb;letter-spacing:1.5px;vertical-align:middle;">PAID</span>' : ''}
-          ${voided ? '<span style="display:inline-block;margin-left:6px;padding:2px 8px;border:2px solid #dc2626;border-radius:3px;font-size:10px;font-weight:800;color:#dc2626;letter-spacing:1.5px;vertical-align:middle;">VOIDED</span>' : ''}
+          <div style="display:flex;align-items:center;justify-content:flex-end;gap:10px;">
+            <div style="text-align:right;">
+              <span style="font-size:10px;color:#94a3b8;font-weight:500;margin-right:3px;">No.</span>
+              <span style="font-size:18px;font-weight:800;color:#111;font-family:'DM Mono',monospace;letter-spacing:-0.3px;">${invNum}</span>
+              ${paid ? '<span style="display:inline-block;margin-left:6px;padding:2px 8px;border:2px solid #2563eb;border-radius:3px;font-size:10px;font-weight:800;color:#2563eb;letter-spacing:1.5px;vertical-align:middle;">PAID</span>' : ''}
+              ${voided ? '<span style="display:inline-block;margin-left:6px;padding:2px 8px;border:2px solid #dc2626;border-radius:3px;font-size:10px;font-weight:800;color:#dc2626;letter-spacing:1.5px;vertical-align:middle;">VOIDED</span>' : ''}
+            </div>
+            <div style="text-align:center;">
+              ${generateCode128SVG(String(invNum), 28, 1.2)}
+              <div style="font-size:7px;font-family:'DM Mono',monospace;color:#64748b;margin-top:1px;letter-spacing:0.5px;">${invNum}</div>
+            </div>
+          </div>
         </td>
       </tr>
     </table>
