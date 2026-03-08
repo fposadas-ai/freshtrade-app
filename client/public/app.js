@@ -6511,8 +6511,8 @@ function PickSheetBlock({
       style: {
         padding: "6px 10px",
         fontWeight: 800,
-        fontSize: 12,
-        color: cc,
+        fontSize: 14,
+        color: "#000",
         textTransform: "uppercase",
         letterSpacing: "0.5px",
         borderBottom: `2px solid ${cc}`
