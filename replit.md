@@ -131,6 +131,13 @@ Preferred communication style: Simple, everyday language.
 - **Page Structure**: `fullHeader` on every page, `totalsBox` on last page only, `signatureFooter` + `pageFooter` on every page, "Continued on next page…" on non-last pages
 - **Blank Fill Rows**: Pages are padded with empty alternating-color rows to fill remaining slot capacity
 
+### Customer Order History
+- **Helper Function**: `getCustomerOrderHistory(custId, salesOrders, invoices)` computes per-product order history: count (times ordered), totalQty, avgQty, lastDate
+- **Order Guide**: Product grid has a "History" column showing avg qty (blue) and order count for each product
+- **Sales Order / Invoice Creation**: SpreadsheetGrid shows a "Hist" column when a customer is selected, computed via `useMemo`
+- **Data Sources**: Aggregates from all non-cancelled SOs and non-voided invoices for the selected customer
+- **Display**: Avg qty in blue monospace font, count as gray "Nx" text, tooltip shows full details
+
 ### Other Utilities
 - **date-fns** — date manipulation
 - **nanoid** — unique ID generation

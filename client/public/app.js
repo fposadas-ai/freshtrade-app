@@ -3,7 +3,8 @@ const {
   useState,
   useEffect,
   useCallback,
-  useRef
+  useRef,
+  useMemo
 } = React;
 
 // ============================================================
@@ -755,6 +756,34 @@ const pName = (prod, line) => {
   const baseName = (line === null || line === void 0 ? void 0 : line.customName) || (prod === null || prod === void 0 ? void 0 : prod.name) || "—";
   const unit = (line === null || line === void 0 ? void 0 : line.unit) || "CS";
   return unit === "CS" ? baseName : baseName.toLowerCase();
+};
+
+const getCustomerOrderHistory = (custId, salesOrders, invoices) => {
+  const hist = {};
+  const allDocs = [
+    ...(salesOrders || []).filter(so => so.customerId === custId && so.status !== "cancelled"),
+    ...(invoices || []).filter(inv => inv.customerId === custId && inv.status !== "voided")
+  ];
+  allDocs.forEach(doc => {
+    (doc.lines || []).forEach(l => {
+      const pid = l.productId;
+      if (!pid) return;
+      const qty = Number(l.qty || l.qtyOrdered || l.qtyShipped) || 0;
+      if (qty <= 0) return;
+      if (!hist[pid]) hist[pid] = { count: 0, totalQty: 0, lastDate: null, dates: [] };
+      hist[pid].count++;
+      hist[pid].totalQty += qty;
+      const d = doc.date || doc.deliveryDate;
+      if (d) {
+        hist[pid].dates.push(d);
+        if (!hist[pid].lastDate || d > hist[pid].lastDate) hist[pid].lastDate = d;
+      }
+    });
+  });
+  Object.keys(hist).forEach(pid => {
+    hist[pid].avgQty = Math.round(hist[pid].totalQty / hist[pid].count * 10) / 10;
+  });
+  return hist;
 };
 
 // ── Global AR Balance Helpers ──
@@ -3942,8 +3971,10 @@ const SpreadsheetGrid = ({
   mode = "sales",
   customer = null,
   invoices = [],
+  salesOrders: sgSalesOrders = [],
   settings = null
 }) => {
+  const sgHistory = useMemo(() => customer ? getCustomerOrderHistory(customer.id, sgSalesOrders, invoices) : {}, [customer, sgSalesOrders, invoices]);
   const [search, setSearch] = useState("");
   const [showAll, setShowAll] = useState(false);
   const [lookupPid, setLookupPid] = useState(null);
@@ -8026,7 +8057,7 @@ function SalesOrders({
     rows: filtered.map(so => {
       const cust = customers.find(c => c.id === so.customerId);
       const route = routes.find(r => r.id === so.routeId);
-      const hasCW = so.lines.some(l => {
+      const hasCW = (so.lines || []).some(l => {
         var _products$find;
         return (_products$find = products.find(p => p.id === l.productId)) === null || _products$find === void 0 ? void 0 : _products$find.catchWeight;
       });
@@ -8055,7 +8086,7 @@ function SalesOrders({
           alignItems: "center",
           gap: 4
         }
-      }, so.lines.length, hasCW && /*#__PURE__*/React.createElement("span", {
+      }, (so.lines || []).length, hasCW && /*#__PURE__*/React.createElement("span", {
         title: "Contains catch weight items",
         style: {
           color: "#f59e0b",
@@ -8280,6 +8311,7 @@ function SalesOrders({
     mode: "sales",
     customer: customers.find(c => c.id === form.customerId),
     invoices: invoices,
+    salesOrders: salesOrders,
     settings: settings
   }), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -8990,7 +9022,7 @@ function SalesOrders({
     })), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "grid",
-        gridTemplateColumns: "28px 1fr 70px 80px 80px 90px 36px",
+        gridTemplateColumns: customer ? "28px 1fr 60px 70px 80px 80px 90px 36px" : "28px 1fr 70px 80px 80px 90px 36px",
         gap: 6,
         marginBottom: 6,
         fontSize: 10,
@@ -8999,7 +9031,9 @@ function SalesOrders({
         textTransform: "uppercase",
         padding: "0 4px"
       }
-    }, /*#__PURE__*/React.createElement("span", null), /*#__PURE__*/React.createElement("span", null, "Product / Description"), /*#__PURE__*/React.createElement("span", {
+    }, /*#__PURE__*/React.createElement("span", null), /*#__PURE__*/React.createElement("span", null, "Product / Description"),
+    customer && /*#__PURE__*/React.createElement("span", { style: { textAlign: "center" } }, "Hist"),
+    /*#__PURE__*/React.createElement("span", {
       style: {
         textAlign: "center"
       }
@@ -9271,7 +9305,7 @@ function SalesOrders({
       }, /*#__PURE__*/React.createElement("div", {
         style: {
           display: "grid",
-          gridTemplateColumns: "28px 1fr 70px 80px 80px 90px 36px",
+          gridTemplateColumns: customer ? "28px 1fr 60px 70px 80px 80px 90px 36px" : "28px 1fr 70px 80px 80px 90px 36px",
           gap: 6,
           alignItems: "center"
         }
@@ -9321,7 +9355,15 @@ function SalesOrders({
       }, products.map(p => /*#__PURE__*/React.createElement("option", {
         key: p.id,
         value: p.id
-      }, p.name, " ", p.catchWeight || p.fixedWeight ? "\u2696" : ""))), /*#__PURE__*/React.createElement("input", {
+      }, p.name, " ", p.catchWeight || p.fixedWeight ? "\u2696" : ""))),
+      customer && (() => { const sh = sgHistory[eLine.productId]; return /*#__PURE__*/React.createElement("div", {
+        style: { textAlign: "center" },
+        title: sh ? `Ordered ${sh.count} times, avg ${sh.avgQty} qty, last ${sh.lastDate || "—"}` : "No history"
+      }, sh ? /*#__PURE__*/React.createElement(React.Fragment, null,
+        /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: "#3b82f6", fontFamily: "'DM Mono',monospace" } }, sh.avgQty),
+        /*#__PURE__*/React.createElement("span", { style: { fontSize: 9, color: "#64748b", marginLeft: 2 } }, "(", sh.count, "x)")
+      ) : /*#__PURE__*/React.createElement("span", { style: { fontSize: 10, color: "#334155" } }, "\u2014")); })(),
+      /*#__PURE__*/React.createElement("input", {
         type: "number",
         min: "0",
         value: eLine.qty,
@@ -12164,6 +12206,7 @@ function Invoices({
     mode: "invoice",
     customer: customers.find(c => c.id === form.customerId),
     invoices: invoices,
+    salesOrders: salesOrders,
     settings: settings
   }), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -29088,6 +29131,7 @@ function OrderGuide({
   const [deliveryDate, setDeliveryDate] = useState(dueDate(1));
   const [notes, setNotes] = useState("");
   const cust = customers.find(c => c.id === selectedCustomer);
+  const custHistory = useMemo(() => selectedCustomer ? getCustomerOrderHistory(selectedCustomer, salesOrders, invoices) : {}, [selectedCustomer, salesOrders, invoices]);
   const loadStandardOrder = custId => {
     const c = customers.find(x => x.id === custId);
     if (!c) return;
@@ -29394,7 +29438,7 @@ function OrderGuide({
   }, orderLines.filter(l => l.qty > 0).length, " of ", orderLines.length, " items ordered")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
-      gridTemplateColumns: "40px 2fr 80px 80px 80px 90px 40px",
+      gridTemplateColumns: "40px 2fr 80px 80px 80px 80px 90px 40px",
       gap: 6,
       padding: "6px 8px",
       fontSize: 10,
@@ -29405,6 +29449,10 @@ function OrderGuide({
       marginBottom: 4
     }
   }, /*#__PURE__*/React.createElement("div", null, "#"), /*#__PURE__*/React.createElement("div", null, "Product"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: "center"
+    }
+  }, "History"), /*#__PURE__*/React.createElement("div", {
     style: {
       textAlign: "center"
     }
@@ -29426,12 +29474,14 @@ function OrderGuide({
     const lowStock = p.stockCases <= (p.orderPoint || 3);
     const lineTotal = p.catchWeight ? (line.estWeight || 0) * line.qty * line.price : line.qty * line.price;
     const isSpecial = (_cust$specialPricing5 = cust.specialPricing) === null || _cust$specialPricing5 === void 0 ? void 0 : _cust$specialPricing5[line.productId];
+    const h = custHistory[line.productId];
     return /*#__PURE__*/React.createElement("div", {
       key: i,
       className: "hover-row",
+      "data-testid": "order-guide-row-" + i,
       style: {
         display: "grid",
-        gridTemplateColumns: "40px 2fr 80px 80px 80px 90px 40px",
+        gridTemplateColumns: "40px 2fr 80px 80px 80px 80px 90px 40px",
         gap: 6,
         padding: "8px 8px",
         alignItems: "center",
@@ -29460,7 +29510,15 @@ function OrderGuide({
         color: "#a855f7",
         marginLeft: 6
       }
-    }, "\u2605 Special Price"))), /*#__PURE__*/React.createElement("div", {
+    }, "\u2605 Special Price"))),
+    /*#__PURE__*/React.createElement("div", {
+      style: { textAlign: "center" },
+      title: h ? `Ordered ${h.count} times, avg ${h.avgQty} qty, last ${h.lastDate || "—"}` : "No order history"
+    }, h ? /*#__PURE__*/React.createElement(React.Fragment, null,
+      /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: "#3b82f6", fontFamily: "'DM Mono',monospace" } }, h.avgQty),
+      /*#__PURE__*/React.createElement("div", { style: { fontSize: 9, color: "#64748b" } }, h.count, "x")
+    ) : /*#__PURE__*/React.createElement("span", { style: { fontSize: 10, color: "#334155" } }, "\u2014")),
+    /*#__PURE__*/React.createElement("div", {
       style: {
         textAlign: "center",
         fontSize: 12,
