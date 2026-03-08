@@ -143,7 +143,9 @@ Preferred communication style: Simple, everyday language.
 - **Purpose**: Purely for managing each customer's product list (their "order guide"). No order placement — that happens in Sales Orders
 - **Two-column layout**: Left shows customer's current standard order products (with ✕ remove and ▲▼ reorder); right shows available products to add (with search + category filter)
 - **Persistence**: Changes to `customer.standardOrder` array saved via `setCustomers`
-- **Sales Orders integration**: When creating a new SO, if the customer has guide products, a blue "Load Guide" bar appears above the product grid. Clicking "Load Guide" populates the order with the customer's guide products at their correct prices
+- **Sales Orders integration**: When creating a new SO, selecting a customer auto-loads their guide products into the grid (qty=0, prices auto-filled). A blue "Load Guide" bar also lets you reload manually. SO create/edit modals are 95vw wide for maximum screen usage
+- **SpreadsheetGrid compact mode**: Reduced row padding (4px vs 8px), smaller inputs (height 26-28px), smaller fonts for fitting more products on screen
+- **getPrice fallback**: Tries specialPricing → customer.priceLevel → level3 → level2 → level1 → yourCost → retail → foodService → wholesale → any numeric value
 
 ### Customer Order History
 - **Helper Function**: `getCustomerOrderHistory(custId, salesOrders, invoices)` computes per-product order history: count (times ordered), totalQty, avgQty, lastDate

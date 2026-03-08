@@ -3820,7 +3820,7 @@ const Modal = ({
     borderRadius: 14,
     width: "100%",
     maxWidth: width,
-    maxHeight: "90vh",
+    maxHeight: "96vh",
     overflow: "auto"
   }
 }, /*#__PURE__*/React.createElement("div", {
@@ -4008,11 +4008,11 @@ const SpreadsheetGrid = ({
     width: "100%",
     textAlign: "center",
     fontFamily: "'DM Mono',monospace",
-    fontSize: "15px",
+    fontSize: "13px",
     color: C.tx,
-    padding: "4px 6px",
+    padding: "2px 4px",
     boxSizing: "border-box",
-    height: "34px"
+    height: "26px"
   };
   const qtyIn = {
     background: "#ffffff",
@@ -4022,18 +4022,18 @@ const SpreadsheetGrid = ({
     width: "100%",
     textAlign: "center",
     fontFamily: "'DM Mono',monospace",
-    fontSize: "20px",
+    fontSize: "16px",
     fontWeight: "800",
     color: "#1a4a1a",
-    padding: "4px 2px",
+    padding: "2px 2px",
     boxSizing: "border-box",
-    height: "38px"
+    height: "28px"
   };
   const thS = (w, extra = {}) => ({
     background: C.hd,
     color: C.hdTx,
-    padding: "10px 8px",
-    fontSize: 12,
+    padding: "6px 6px",
+    fontSize: 11,
     fontWeight: 700,
     width: w,
     borderRight: "1px solid #1a3a6a",
@@ -4049,7 +4049,8 @@ const SpreadsheetGrid = ({
     var _customer$specialPric, _prod$pricing, _prod$pricing2;
     if (customer !== null && customer !== void 0 && (_customer$specialPric = customer.specialPricing) !== null && _customer$specialPric !== void 0 && _customer$specialPric[prod.id]) return customer.specialPricing[prod.id];
     if (customer !== null && customer !== void 0 && customer.priceLevel && (_prod$pricing = prod.pricing) !== null && _prod$pricing !== void 0 && _prod$pricing[customer.priceLevel]) return prod.pricing[customer.priceLevel];
-    return ((_prod$pricing2 = prod.pricing) === null || _prod$pricing2 === void 0 ? void 0 : _prod$pricing2.level3) || 0;
+    const pr = (prod === null || prod === void 0 ? void 0 : prod.pricing) || {};
+    return pr.level3 || pr.level2 || pr.level1 || pr.yourCost || pr.retail || pr.foodService || pr.wholesale || Object.values(pr).find(v => typeof v === "number" && v > 0) || 0;
   };
   const getLineIdx = pid => lines.findIndex(l => l.productId === pid);
   const updateLine = (pid, field, value) => {
@@ -4114,7 +4115,8 @@ const SpreadsheetGrid = ({
         updated[idx].priceSet = !!ul.costPerUnit;
       } else if (isWB) {
         const weight = mode === "invoice" ? Number(ul.actualWeight) || Number(ul.nominalWeight) || 0 : Number(ul.estWeight) || 0;
-        const price = Number(ul.pricePerLb) || 0;
+        const price = Number(ul.pricePerLb) || getPrice(prod) || 0;
+        if (!ul.pricePerLb && price) updated[idx].pricePerLb = price;
         if (mode === "invoice") {
           updated[idx].total = weight * price;
         } else {
@@ -4122,7 +4124,8 @@ const SpreadsheetGrid = ({
         }
       } else {
         const qty = Number(ul.qty) || 0;
-        const price = Number(mode === "invoice" ? ul.priceEach || ul.pricePerLb : ul.priceEach) || 0;
+        const price = Number(mode === "invoice" ? ul.priceEach || ul.pricePerLb : ul.priceEach) || getPrice(prod) || 0;
+        if (!ul.priceEach && price && mode !== "invoice") updated[idx].priceEach = price;
         if (mode === "invoice") {
           updated[idx].total = qty * price;
         } else {
@@ -4809,7 +4812,7 @@ const SpreadsheetGrid = ({
       }
     }, /*#__PURE__*/React.createElement("td", {
       style: {
-        padding: "8px 10px 8px 12px",
+        padding: "4px 8px 4px 10px",
         borderRight: C.bdr,
         borderLeft: focusedPid === p.id ? "5px solid #d4a020" : isActive ? "4px solid #2a7a2a" : "4px solid transparent",
         verticalAlign: "middle"
@@ -4817,7 +4820,7 @@ const SpreadsheetGrid = ({
     }, /*#__PURE__*/React.createElement("div", {
       style: {
         fontWeight: isActive || focusedPid === p.id ? 700 : 500,
-        fontSize: 16,
+        fontSize: 14,
         color: C.tx,
         lineHeight: 1.3,
         display: "flex",
@@ -4843,16 +4846,16 @@ const SpreadsheetGrid = ({
         fontSize: 11,
         color: C.txL,
         display: "flex",
-        gap: 5,
+        gap: 4,
         alignItems: "center",
-        marginTop: 2
+        marginTop: 1
       }
     }, /*#__PURE__*/React.createElement("span", {
       style: {
         background: "#c8d8ec",
-        padding: "1px 5px",
+        padding: "0px 4px",
         borderRadius: 2,
-        fontSize: 10,
+        fontSize: 9,
         fontWeight: 700,
         color: "#3a5a80"
       }
@@ -4959,11 +4962,11 @@ const SpreadsheetGrid = ({
         tabIndex: 0,
         style: {
           width: "100%",
-          padding: "6px 2px",
+          padding: "3px 2px",
           borderRadius: 4,
           border: "2px solid #4a78b0",
           cursor: "pointer",
-          fontSize: 13,
+          fontSize: 12,
           fontWeight: 800,
           letterSpacing: "0.5px",
           background: curUnit === "CS" ? "#2c4a7c" : "#e8f0f8",
@@ -8139,7 +8142,7 @@ function SalesOrders({
   })), showNew && /*#__PURE__*/React.createElement(Modal, {
     title: "Create Sales Order",
     onClose: () => setShowNew(false),
-    width: 1260
+    width: "95vw"
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -8164,10 +8167,20 @@ function SalesOrders({
     }
   }, "Customer No."), /*#__PURE__*/React.createElement("select", {
     value: form.customerId,
-    onChange: e => setForm(f => ({
-      ...f,
-      customerId: e.target.value
-    })),
+    onChange: e => {
+      const cid = e.target.value;
+      const c = customers.find(x => x.id === cid);
+      const guideLines = c && (c.standardOrder || []).length > 0 ? (c.standardOrder || []).map(pid => {
+        var _c$specialPricing, _p$pricing, _p$pricing2;
+        const p = products.find(pr => pr.id === pid);
+        if (!p) return null;
+        const price = ((_c$specialPricing = c.specialPricing) === null || _c$specialPricing === void 0 ? void 0 : _c$specialPricing[pid]) || ((_p$pricing = p.pricing) === null || _p$pricing === void 0 ? void 0 : _p$pricing[c.priceLevel || "level3"]) || ((_p$pricing2 = p.pricing) === null || _p$pricing2 === void 0 ? void 0 : _p$pricing2.level1) || 0;
+        const isWB = p.catchWeight || p.fixedWeight;
+        return { productId: pid, qty: 0, pricePerLb: isWB ? price : undefined, priceEach: !isWB ? price : undefined, estWeight: isWB ? (p.avgWeightPerCase || p.caseWeightLbs || 0) : null, unit: "CS", estTotal: 0 };
+      }).filter(Boolean) : [];
+      setForm(f => ({ ...f, customerId: cid, routeId: (c === null || c === void 0 ? void 0 : c.route) || f.routeId, lines: guideLines.length > 0 ? guideLines : f.lines }));
+      if (guideLines.length > 0) showToast(`Loaded ${guideLines.length} products from order guide`);
+    },
     style: {
       width: 200,
       background: "#fff",
@@ -8311,11 +8324,12 @@ function SalesOrders({
       "data-testid": "button-load-guide",
       onClick: () => {
         const guideLines = (guideCust.standardOrder || []).map(pid => {
-          var _guideCust$specialPri;
+          var _guideCust$specialPri, _p$pricing3, _p$pricing4;
           const p = products.find(pr => pr.id === pid);
           if (!p) return null;
-          const price = ((_guideCust$specialPri = guideCust.specialPricing) === null || _guideCust$specialPri === void 0 ? void 0 : _guideCust$specialPri[pid]) || p.pricing[guideCust.priceLevel || "level3"];
-          return { productId: pid, qty: 0, pricePerLb: p.catchWeight ? price : undefined, priceEach: !p.catchWeight ? price : undefined, estWeight: p.catchWeight ? p.avgWeightPerCase : null };
+          const price = ((_guideCust$specialPri = guideCust.specialPricing) === null || _guideCust$specialPri === void 0 ? void 0 : _guideCust$specialPri[pid]) || ((_p$pricing3 = p.pricing) === null || _p$pricing3 === void 0 ? void 0 : _p$pricing3[guideCust.priceLevel || "level3"]) || ((_p$pricing4 = p.pricing) === null || _p$pricing4 === void 0 ? void 0 : _p$pricing4.level1) || 0;
+          const isWB = p.catchWeight || p.fixedWeight;
+          return { productId: pid, qty: 0, pricePerLb: isWB ? price : undefined, priceEach: !isWB ? price : undefined, estWeight: isWB ? (p.avgWeightPerCase || p.caseWeightLbs || 0) : null, unit: "CS", estTotal: 0 };
         }).filter(Boolean);
         const existingIds = new Set(form.lines.filter(l => l.productId).map(l => l.productId));
         const newLines = guideLines.filter(l => !existingIds.has(l.productId));
@@ -8388,7 +8402,7 @@ function SalesOrders({
     key: viewSO.id,
     title: `Sales Order ${viewSO.id}${(editingSO === null || editingSO === void 0 ? void 0 : editingSO.id) === viewSO.id ? " — Editing" : ""}`,
     onClose: () => closeSOModal(viewSO.id),
-    width: 920
+    width: "95vw"
   }, /*#__PURE__*/React.createElement(LockBanner, {
     docType: "SO",
     docId: viewSO.id
@@ -9322,10 +9336,10 @@ function SalesOrders({
         key: i
       }, /*#__PURE__*/React.createElement("div", {
         style: {
-          padding: "8px 4px",
+          padding: "4px 4px",
           background: i % 2 === 0 ? "#151821" : "#0f1117",
-          borderRadius: 6,
-          marginBottom: lookupOpen ? 0 : 4
+          borderRadius: 4,
+          marginBottom: lookupOpen ? 0 : 1
         }
       }, /*#__PURE__*/React.createElement("div", {
         style: {
@@ -9372,9 +9386,9 @@ function SalesOrders({
           background: "#0f1117",
           border: "1px solid #2d3748",
           borderRadius: 6,
-          padding: "4px 6px",
+          padding: "3px 4px",
           color: "#e2e8f0",
-          fontSize: 13,
+          fontSize: 12,
           fontWeight: 600
         }
       }, products.map(p => /*#__PURE__*/React.createElement("option", {
@@ -9396,10 +9410,10 @@ function SalesOrders({
         style: {
           background: "#0f1117",
           border: "2px solid #3b82f6",
-          borderRadius: 6,
-          padding: "5px 6px",
+          borderRadius: 4,
+          padding: "3px 4px",
           color: "#e2e8f0",
-          fontSize: 15,
+          fontSize: 13,
           fontWeight: 700,
           textAlign: "center",
           fontFamily: "'DM Mono',monospace"
@@ -9413,10 +9427,10 @@ function SalesOrders({
         style: {
           background: "#0f1117",
           border: "1px solid #f59e0b44",
-          borderRadius: 6,
-          padding: "5px 6px",
+          borderRadius: 4,
+          padding: "3px 4px",
           color: "#f59e0b",
-          fontSize: 13,
+          fontSize: 12,
           textAlign: "center",
           fontFamily: "'DM Mono',monospace"
         }
@@ -9436,10 +9450,10 @@ function SalesOrders({
         style: {
           background: "#0f1117",
           border: "1px solid #2d3748",
-          borderRadius: 6,
-          padding: "5px 6px",
+          borderRadius: 4,
+          padding: "3px 4px",
           color: "#e2e8f0",
-          fontSize: 13,
+          fontSize: 12,
           textAlign: "center",
           fontFamily: "'DM Mono',monospace"
         }
@@ -9449,18 +9463,18 @@ function SalesOrders({
           fontFamily: "'DM Mono',monospace",
           fontWeight: 700,
           color: "#22c55e",
-          fontSize: 13
+          fontSize: 12
         }
       }, fmt(eLine.estTotal)), /*#__PURE__*/React.createElement("button", {
         onClick: () => removeLine(i),
         style: {
           background: "#ef444422",
           border: "1px solid #ef4444",
-          borderRadius: 6,
+          borderRadius: 4,
           color: "#ef4444",
           cursor: "pointer",
-          padding: "4px",
-          fontSize: 14,
+          padding: "2px",
+          fontSize: 13,
           lineHeight: 1
         }
       }, "\xD7")), /*#__PURE__*/React.createElement("input", {
@@ -9469,14 +9483,14 @@ function SalesOrders({
         placeholder: "Add description...",
         style: {
           width: "calc(100% - 36px)",
-          marginTop: 4,
+          marginTop: 2,
           marginLeft: 34,
           background: "#0f1117",
           border: "1px solid #2d3748",
-          borderRadius: 5,
-          padding: "4px 8px",
+          borderRadius: 3,
+          padding: "2px 6px",
           color: "#94a3b8",
-          fontSize: 12,
+          fontSize: 11,
           fontStyle: eLine.description ? "normal" : "italic"
         }
       }), /*#__PURE__*/React.createElement("input", {
@@ -9485,14 +9499,14 @@ function SalesOrders({
         placeholder: `✏ Rename product (${(prod === null || prod === void 0 ? void 0 : prod.name) || ""})`,
         style: {
           width: "calc(100% - 36px)",
-          marginTop: 3,
+          marginTop: 1,
           marginLeft: 34,
           background: eLine.customName ? "#fef3c711" : "#0f1117",
           border: eLine.customName ? "1px solid #d4a020" : "1px solid #2d3748",
-          borderRadius: 5,
-          padding: "4px 8px",
+          borderRadius: 3,
+          padding: "2px 6px",
           color: eLine.customName ? "#d4a020" : "#475569",
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: eLine.customName ? 600 : 400
         }
       })), lookupPanel);
