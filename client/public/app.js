@@ -724,11 +724,11 @@ const Icon = ({
 // ============================================================
 const fmt = n => `$${Number(n || 0).toFixed(2)}`;
 const fmtW = n => `${Number(n || 0).toFixed(2)} lbs`;
-const today = () => new Date().toISOString().split("T")[0];
+const today = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
 const dueDate = (days = 7) => {
   const d = new Date();
   d.setDate(d.getDate() + days);
-  return d.toISOString().split("T")[0];
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 };
 const TERMS_OPTIONS = ["COD", "Bill to Bill", "1 Week", "2 Weeks", "3 Weeks", "4 Weeks"];
 const termsToDays = terms => {
@@ -24387,6 +24387,12 @@ function Routes({
 }) {
   var _customers$find8, _routes$find3;
   const [tab, setTab] = useState("command"); // command | setup
+  const [routeDate, setRouteDate] = useState(today());
+  const shiftRouteDate = delta => {
+    const d = new Date(routeDate + "T12:00:00");
+    d.setDate(d.getDate() + delta);
+    setRouteDate(d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"));
+  };
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({
     name: "",
@@ -24468,9 +24474,11 @@ function Routes({
     });
   };
 
-  // ═══ ORDER POOL — unassigned open SOs & invoices ═══
-  const openSOs = salesOrders.filter(so => ["confirmed", "picking", "ready", "open"].includes(so.status) && !so.cancelled);
-  const openInvs = invoices.filter(inv => inv.status === "open");
+  // ═══ ORDER POOL — unassigned open SOs & invoices, filtered by routeDate ═══
+  const allOpenSOs = salesOrders.filter(so => ["confirmed", "picking", "ready", "open"].includes(so.status) && !so.cancelled);
+  const allOpenInvs = invoices.filter(inv => inv.status === "open");
+  const openSOs = allOpenSOs.filter(so => (so.deliveryDate || so.date) === routeDate);
+  const openInvs = allOpenInvs.filter(inv => (inv.deliveryDate || inv.date) === routeDate);
   const unassignedSOs = openSOs.filter(so => !so.routeId);
   const unassignedInvs = openInvs.filter(inv => !inv.routeId);
   const poolOrders = [...unassignedSOs.map(so => ({
@@ -24563,6 +24571,18 @@ function Routes({
   const maxWeight = Math.max(1, ...allRouteStats.map(s => s.weight));
   const maxCases = Math.max(1, ...allRouteStats.map(s => s.cases));
   const maxTotal = Math.max(1, ...allRouteStats.map(s => s.total));
+
+  // ═══ CHANGE DELIVERY DATE ═══
+  const [changeDateTarget, setChangeDateTarget] = useState(null);
+  const changeDeliveryDate = (orderId, orderType, newDate) => {
+    if (orderType === "so") {
+      setSalesOrders(prev => prev.map(s => s.id === orderId ? { ...s, deliveryDate: newDate } : s));
+    } else {
+      setInvoices(prev => prev.map(i => i.id === orderId ? { ...i, deliveryDate: newDate, date: i.date } : i));
+    }
+    showToast(`${orderId} moved to ${newDate}`);
+    setChangeDateTarget(null);
+  };
 
   // ═══ ASSIGN / UNASSIGN ORDERS ═══
   const assignToRoute = (orderId, orderType, routeId) => {
@@ -24830,7 +24850,26 @@ function Routes({
         fontSize: 10,
         color: "#64748b"
       }
-    }, order.date, " \xB7 ", stats.lineCount, " items", order.deliveryDate && /*#__PURE__*/React.createElement("span", null, " \xB7 Del: ", order.deliveryDate))), /*#__PURE__*/React.createElement("div", {
+    }, order.date, " \xB7 ", stats.lineCount, " items", order.deliveryDate && /*#__PURE__*/React.createElement("span", null, " \xB7 Del: ", order.deliveryDate),
+      changeDateTarget && changeDateTarget.id === order.id && changeDateTarget.orderType === orderType ? /*#__PURE__*/React.createElement("span", { style: { marginLeft: 6 } },
+        /*#__PURE__*/React.createElement("input", {
+          type: "date",
+          defaultValue: order.deliveryDate || order.date,
+          "data-testid": "input-change-date-" + order.id,
+          onChange: e => { if (e.target.value) changeDeliveryDate(order.id, orderType, e.target.value); },
+          style: { background: "#0f1117", border: "1px solid #3b82f6", borderRadius: 4, padding: "2px 6px", color: "#f1f5f9", fontSize: 10, fontFamily: "'DM Mono',monospace" }
+        }),
+        /*#__PURE__*/React.createElement("button", {
+          onClick: () => setChangeDateTarget(null),
+          style: { marginLeft: 4, background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 10, fontWeight: 700 }
+        }, "\u2715")
+      ) : /*#__PURE__*/React.createElement("button", {
+        onClick: () => setChangeDateTarget({ id: order.id, orderType }),
+        title: "Change delivery date",
+        "data-testid": "button-change-date-" + order.id,
+        style: { marginLeft: 6, background: "none", border: "1px solid #3b82f644", borderRadius: 3, color: "#3b82f6", cursor: "pointer", fontSize: 10, padding: "1px 5px", fontWeight: 700 }
+      }, "\uD83D\uDCC5")
+    )), /*#__PURE__*/React.createElement("div", {
       style: {
         textAlign: "center",
         fontFamily: "'DM Mono',monospace",
@@ -25004,7 +25043,51 @@ function Routes({
       marginTop: 2,
       opacity: 0.8
     }
-  }, t.desc)))), tab === "command" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  }, t.desc)))), tab === "command" && /*#__PURE__*/React.createElement(React.Fragment, null,
+  /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      marginBottom: 16,
+      background: "#0f1117",
+      border: "1px solid #2d3748",
+      borderRadius: 10,
+      padding: "10px 16px"
+    }
+  },
+    /*#__PURE__*/React.createElement("button", {
+      onClick: () => shiftRouteDate(-1),
+      "data-testid": "button-prev-date",
+      style: { padding: "6px 12px", borderRadius: 6, border: "1px solid #2d3748", background: "#1a2030", color: "#94a3b8", cursor: "pointer", fontSize: 14, fontWeight: 700 }
+    }, "\u25C0"),
+    /*#__PURE__*/React.createElement("button", {
+      onClick: () => setRouteDate(today()),
+      "data-testid": "button-today",
+      style: { padding: "6px 12px", borderRadius: 6, border: "none", background: routeDate === today() ? "#22c55e" : "#1a2030", color: routeDate === today() ? "#000" : "#94a3b8", cursor: "pointer", fontSize: 11, fontWeight: 700 }
+    }, "Today"),
+    /*#__PURE__*/React.createElement("input", {
+      type: "date",
+      value: routeDate,
+      onChange: e => setRouteDate(e.target.value),
+      "data-testid": "input-route-date",
+      style: { background: "#0f1117", border: "1px solid #3b82f6", borderRadius: 6, padding: "6px 12px", color: "#f1f5f9", fontSize: 14, fontWeight: 700, fontFamily: "'DM Mono',monospace", cursor: "pointer" }
+    }),
+    /*#__PURE__*/React.createElement("span", {
+      style: { fontSize: 13, color: "#94a3b8", fontWeight: 600 }
+    }, new Date(routeDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })),
+    /*#__PURE__*/React.createElement("button", {
+      onClick: () => shiftRouteDate(1),
+      "data-testid": "button-next-date",
+      style: { padding: "6px 12px", borderRadius: 6, border: "1px solid #2d3748", background: "#1a2030", color: "#94a3b8", cursor: "pointer", fontSize: 14, fontWeight: 700 }
+    }, "\u25B6"),
+    /*#__PURE__*/React.createElement("div", { style: { marginLeft: 16, display: "flex", gap: 8, alignItems: "center" } },
+      /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, color: "#64748b" } }, "Orders this day:"),
+      /*#__PURE__*/React.createElement("span", { style: { fontSize: 14, fontWeight: 800, color: (openSOs.length + openInvs.length) > 0 ? "#22c55e" : "#475569", fontFamily: "'DM Mono',monospace" } }, openSOs.length + openInvs.length)
+    )
+  ),
+  /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
       gridTemplateColumns: "repeat(6,1fr)",

@@ -109,6 +109,13 @@ Preferred communication style: Simple, everyday language.
 - **Field Order Sanitizer**: On load, any missing new fields are appended to existing `shippingFieldOrder` arrays to prevent stale saved settings.
 - **Route-level labels**: Route print paths now use `buildLabels()` instead of manual label construction, ensuring all fields (including invoiceId) are consistent.
 
+### Date-Based Route View
+- **Date Navigator**: Command Center has a date selector bar with prev/next day arrows, "Today" button, date picker, and weekday display
+- **Date Filtering**: All orders (pool + route panels) are filtered by `(deliveryDate || date) === routeDate`; only orders for the selected day are shown
+- **Change Delivery Date**: Each order row has a calendar (📅) button that opens an inline date picker to move the order to a different day
+- **Timezone-Safe Dates**: `today()` and `dueDate()` use local date components (getFullYear/getMonth/getDate) instead of UTC-based `toISOString()`
+- **State**: `routeDate` defaults to `today()`, `changeDateTarget` stores `{id, orderType}` for inline date editing
+
 ### Routing Page Print Tracking
 - **Print Status**: In-memory state tracks per-order print status (`pick`, `label`, `invoice`) with P/L/I indicators
 - **Print Checkboxes**: Per-order checkboxes for selecting which invoices to print and which to include statements
