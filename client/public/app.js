@@ -1719,33 +1719,33 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
       }).join('&nbsp;&nbsp;');
       const cwDetail = '<div style="font-size:11px;color:#92400e;margin-top:2px;line-height:1.5;font-weight:600;">' + cwPieces + '</div>';
       html += `<tr style="background:${bg};">
-        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;color:#9ca3af;font-size:10px;text-align:center;font-weight:500;">${lineNum}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;color:#9ca3af;font-size:12px;text-align:center;font-weight:600;">${lineNum}</td>
         <td style="padding:7px 10px;border-bottom:1px solid #c8cdd3;">
-          <div style="font-weight:600;font-size:13px;color:#111;letter-spacing:-0.1px;">${pName(prod, l)}${cutTag}${cwTag}</div>
+          <div style="font-weight:700;font-size:14px;color:#111;letter-spacing:-0.1px;">${pName(prod, l)}${cutTag}${cwTag}</div>
           <div style="font-size:12px;color:#2563eb;font-weight:700;margin-top:1px;">${catLabel}${packLine}</div>
           ${descLine}
           ${cwDetail}
         </td>
-        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:12px;font-weight:700;color:#111;font-family:'DM Mono',monospace;">${qtyOrd}</td>
-        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:12px;font-weight:700;font-family:'DM Mono',monospace;${shortStyle}">${qtyShip}</td>
-        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:11.5px;font-weight:700;color:#111;font-family:'DM Mono',monospace;">${totalWt.toFixed(2)}</td>
-        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:right;font-size:11px;font-weight:700;color:#111;">${price}</td>
-        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:right;font-size:12px;font-weight:700;color:#111;font-family:'DM Mono',monospace;">$${Number(l.total).toFixed(2)}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:14px;font-weight:700;color:#111;font-family:'DM Mono',monospace;">${qtyOrd}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:14px;font-weight:700;font-family:'DM Mono',monospace;${shortStyle}">${qtyShip}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:13px;font-weight:700;color:#111;font-family:'DM Mono',monospace;">${totalWt.toFixed(2)}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:right;font-size:13px;font-weight:700;color:#111;">${price}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:right;font-size:14px;font-weight:700;color:#111;font-family:'DM Mono',monospace;">$${Number(l.total).toFixed(2)}</td>
       </tr>`;
     } else {
       const wt = l.actualWeight ? Number(l.actualWeight).toFixed(2) : l.nominalWeight ? "~" + Number(l.nominalWeight).toFixed(2) : "";
       html += `<tr style="background:${bg};">
-        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;color:#9ca3af;font-size:10px;text-align:center;font-weight:500;">${lineNum}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;color:#9ca3af;font-size:12px;text-align:center;font-weight:600;">${lineNum}</td>
         <td style="padding:7px 10px;border-bottom:1px solid #c8cdd3;">
-          <div style="font-weight:600;font-size:13px;color:#111;letter-spacing:-0.1px;">${pName(prod, l)}${cutTag}${cwTag}</div>
+          <div style="font-weight:700;font-size:14px;color:#111;letter-spacing:-0.1px;">${pName(prod, l)}${cutTag}${cwTag}</div>
           <div style="font-size:12px;color:#2563eb;font-weight:700;margin-top:1px;">${catLabel}${packLine}</div>
           ${descLine}
         </td>
-        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:12px;font-weight:700;color:#111;font-family:'DM Mono',monospace;">${qtyOrd}</td>
-        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:12px;font-weight:700;font-family:'DM Mono',monospace;${shortStyle}">${qtyShip}</td>
-        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:11.5px;font-weight:700;color:#111;font-family:'DM Mono',monospace;">${wt}</td>
-        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:right;font-size:11px;font-weight:700;color:#111;">${price}</td>
-        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:right;font-size:12px;font-weight:700;color:#111;font-family:'DM Mono',monospace;">$${Number(l.total).toFixed(2)}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:14px;font-weight:700;color:#111;font-family:'DM Mono',monospace;">${qtyOrd}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:14px;font-weight:700;font-family:'DM Mono',monospace;${shortStyle}">${qtyShip}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:13px;font-weight:700;color:#111;font-family:'DM Mono',monospace;">${wt}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:right;font-size:13px;font-weight:700;color:#111;">${price}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid #e2e5e9;text-align:right;font-size:14px;font-weight:700;color:#111;font-family:'DM Mono',monospace;">$${Number(l.total).toFixed(2)}</td>
       </tr>`;
     }
     lineEntries.push({
@@ -1782,14 +1782,14 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
       <tr>
         <td style="padding:0;">
           <div style="display:inline-block;background:#1e40af;padding:3px 14px;border-radius:4px;">
-            <span style="font-size:12px;font-weight:800;color:#ffffff;letter-spacing:1.5px;text-transform:uppercase;">Invoice</span>
+            <span style="font-size:16px;font-weight:800;color:#ffffff;letter-spacing:1.5px;text-transform:uppercase;">Invoice</span>
           </div>
         </td>
         <td style="text-align:right;vertical-align:middle;padding:0;">
-          <span style="font-size:8px;color:#94a3b8;font-weight:500;margin-right:3px;">No.</span>
-          <span style="font-size:14px;font-weight:800;color:#111;font-family:'DM Mono',monospace;letter-spacing:-0.3px;">${invNum}</span>
-          ${paid ? '<span style="display:inline-block;margin-left:6px;padding:2px 8px;border:2px solid #2563eb;border-radius:3px;font-size:8px;font-weight:800;color:#2563eb;letter-spacing:1.5px;vertical-align:middle;">PAID</span>' : ''}
-          ${voided ? '<span style="display:inline-block;margin-left:6px;padding:2px 8px;border:2px solid #dc2626;border-radius:3px;font-size:8px;font-weight:800;color:#dc2626;letter-spacing:1.5px;vertical-align:middle;">VOIDED</span>' : ''}
+          <span style="font-size:10px;color:#94a3b8;font-weight:500;margin-right:3px;">No.</span>
+          <span style="font-size:18px;font-weight:800;color:#111;font-family:'DM Mono',monospace;letter-spacing:-0.3px;">${invNum}</span>
+          ${paid ? '<span style="display:inline-block;margin-left:6px;padding:2px 8px;border:2px solid #2563eb;border-radius:3px;font-size:10px;font-weight:800;color:#2563eb;letter-spacing:1.5px;vertical-align:middle;">PAID</span>' : ''}
+          ${voided ? '<span style="display:inline-block;margin-left:6px;padding:2px 8px;border:2px solid #dc2626;border-radius:3px;font-size:10px;font-weight:800;color:#dc2626;letter-spacing:1.5px;vertical-align:middle;">VOIDED</span>' : ''}
         </td>
       </tr>
     </table>
@@ -1836,8 +1836,8 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
           ${coLogo ? '<img src="' + coLogo + '" alt="' + coName + '" style="max-height:36px;max-width:120px;object-fit:contain;" />' : '<div style="display:flex;align-items:center;gap:8px;"><div style="width:28px;height:28px;background:#1e40af;border-radius:6px;display:flex;align-items:center;justify-content:center;"><span style="font-size:14px;line-height:1;">\uD83D\uDC1F</span></div><div><span style="font-size:14px;font-weight:800;color:#1e3a5f;">' + coName + '</span></div></div>'}
         </td>
         <td style="text-align:right;vertical-align:middle;padding:0;">
-          <span style="font-size:9px;color:#64748b;">Invoice</span>
-          <span style="font-size:16px;font-weight:800;color:#111;font-family:'DM Mono',monospace;margin-left:4px;">${invNum}</span>
+          <span style="font-size:11px;color:#64748b;">Invoice</span>
+          <span style="font-size:18px;font-weight:800;color:#111;font-family:'DM Mono',monospace;margin-left:4px;">${invNum}</span>
           <span style="font-size:10px;color:#111;font-weight:600;margin-left:10px;">${custName}</span>
         </td>
       </tr>
@@ -1847,13 +1847,13 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
     <table style="width:100%;border-collapse:collapse;">
       <thead>
         <tr>
-          <th style="padding:8px;font-size:8px;font-weight:700;color:#ffffff;text-transform:uppercase;letter-spacing:1px;text-align:center;background:#1e40af;width:28px;border-radius:4px 0 0 0;">#</th>
-          <th style="padding:8px 10px;font-size:8px;font-weight:700;color:#ffffff;text-transform:uppercase;letter-spacing:1px;text-align:left;background:#1e40af;">Description</th>
-          <th style="padding:8px;font-size:8px;font-weight:700;color:#ffffff;text-transform:uppercase;letter-spacing:1px;text-align:center;background:#1e40af;width:42px;">Ord</th>
-          <th style="padding:8px;font-size:8px;font-weight:700;color:#ffffff;text-transform:uppercase;letter-spacing:1px;text-align:center;background:#1e40af;width:42px;">Ship</th>
-          <th style="padding:8px;font-size:8px;font-weight:700;color:#ffffff;text-transform:uppercase;letter-spacing:1px;text-align:center;background:#1e40af;width:65px;">Weight</th>
-          <th style="padding:8px;font-size:8px;font-weight:700;color:#ffffff;text-transform:uppercase;letter-spacing:1px;text-align:right;background:#1e40af;width:65px;">Price</th>
-          <th style="padding:8px;font-size:8px;font-weight:700;color:#ffffff;text-transform:uppercase;letter-spacing:1px;text-align:right;background:#1e40af;width:82px;border-radius:0 4px 0 0;">Amount</th>
+          <th style="padding:8px;font-size:11px;font-weight:700;color:#ffffff;text-transform:uppercase;letter-spacing:0.5px;text-align:center;background:#1e40af;width:28px;border-radius:4px 0 0 0;">#</th>
+          <th style="padding:8px 10px;font-size:11px;font-weight:700;color:#ffffff;text-transform:uppercase;letter-spacing:0.5px;text-align:left;background:#1e40af;">Description</th>
+          <th style="padding:8px;font-size:11px;font-weight:700;color:#ffffff;text-transform:uppercase;letter-spacing:0.5px;text-align:center;background:#1e40af;width:42px;">Ord</th>
+          <th style="padding:8px;font-size:11px;font-weight:700;color:#ffffff;text-transform:uppercase;letter-spacing:0.5px;text-align:center;background:#1e40af;width:42px;">Ship</th>
+          <th style="padding:8px;font-size:11px;font-weight:700;color:#ffffff;text-transform:uppercase;letter-spacing:0.5px;text-align:center;background:#1e40af;width:65px;">Weight</th>
+          <th style="padding:8px;font-size:11px;font-weight:700;color:#ffffff;text-transform:uppercase;letter-spacing:0.5px;text-align:right;background:#1e40af;width:65px;">Price</th>
+          <th style="padding:8px;font-size:11px;font-weight:700;color:#ffffff;text-transform:uppercase;letter-spacing:0.5px;text-align:right;background:#1e40af;width:82px;border-radius:0 4px 0 0;">Amount</th>
         </tr>
       </thead>
       <tbody>`;
