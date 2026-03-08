@@ -3417,9 +3417,7 @@ function App() {
     setCustomers: setCustomers,
     products: products,
     salesOrders: salesOrders,
-    setSalesOrders: setSalesOrders,
     invoices: invoices,
-    routes: routes,
     showToast: showToast,
     priceLevels: priceLevels,
     pendingCustomer: pendingCustomer,
@@ -8302,7 +8300,33 @@ function SalesOrders({
         marginLeft: 10
       }
     }, "Terms: ", selCust.terms || "1 Week")))) : null;
-  })(), /*#__PURE__*/React.createElement(SpreadsheetGrid, {
+  })(),
+  form.customerId && (() => {
+    const guideCust = customers.find(c => c.id === form.customerId);
+    const guideCount = guideCust && (guideCust.standardOrder || []).length;
+    return guideCount > 0 ? /*#__PURE__*/React.createElement("div", {
+      style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 6, padding: "6px 10px", background: "#e4ecf4", border: "1px solid #a0b4cc", borderRadius: 4 }
+    }, /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, color: "#506888" } }, "\uD83D\uDCCB ", guideCust.name, " has ", guideCount, " products in their order guide"),
+    /*#__PURE__*/React.createElement("button", {
+      "data-testid": "button-load-guide",
+      onClick: () => {
+        const guideLines = (guideCust.standardOrder || []).map(pid => {
+          var _guideCust$specialPri;
+          const p = products.find(pr => pr.id === pid);
+          if (!p) return null;
+          const price = ((_guideCust$specialPri = guideCust.specialPricing) === null || _guideCust$specialPri === void 0 ? void 0 : _guideCust$specialPri[pid]) || p.pricing[guideCust.priceLevel || "level3"];
+          return { productId: pid, qty: 0, pricePerLb: p.catchWeight ? price : undefined, priceEach: !p.catchWeight ? price : undefined, estWeight: p.catchWeight ? p.avgWeightPerCase : null };
+        }).filter(Boolean);
+        const existingIds = new Set(form.lines.filter(l => l.productId).map(l => l.productId));
+        const newLines = guideLines.filter(l => !existingIds.has(l.productId));
+        if (newLines.length === 0) { showToast("All guide products are already in the order", "info"); return; }
+        setForm(f => ({ ...f, lines: [...f.lines.filter(l => l.productId), ...newLines] }));
+        showToast(`Loaded ${newLines.length} products from order guide`);
+      },
+      style: { padding: "4px 10px", borderRadius: 4, border: "1px solid #2563eb", background: "#2563eb", color: "#fff", cursor: "pointer", fontSize: 11, fontWeight: 600 }
+    }, "Load Guide")) : null;
+  })(),
+  /*#__PURE__*/React.createElement(SpreadsheetGrid, {
     products: products,
     lines: form.lines,
     setLines: l => setForm(f => ({
@@ -29108,16 +29132,14 @@ function PortalManager({
 }
 
 // ============================================================
-// ORDER GUIDE MODULE (Standard Order Entry — Entree-style)
+// ORDER GUIDE MODULE (Customer Product List Manager)
 // ============================================================
 function OrderGuide({
   customers,
   setCustomers,
   products,
   salesOrders,
-  setSalesOrders,
   invoices,
-  routes,
   showToast,
   priceLevels,
   pendingCustomer,
@@ -29125,158 +29147,49 @@ function OrderGuide({
   arPayments,
   creditMemos
 }) {
-  var _priceLevels$find9, _priceLevels$find0;
   const [selectedCustomer, setSelectedCustomer] = useState(null);
-  const [orderLines, setOrderLines] = useState([]);
-  const [searchProduct, setSearchProduct] = useState("");
-  const [showHistory, setShowHistory] = useState(false);
-  const [deliveryDate, setDeliveryDate] = useState(dueDate(1));
-  const [notes, setNotes] = useState("");
-  const [manageMode, setManageMode] = useState(false);
   const [manageSearch, setManageSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const cust = customers.find(c => c.id === selectedCustomer);
   const custHistory = useMemo(() => selectedCustomer ? getCustomerOrderHistory(selectedCustomer, salesOrders, invoices) : {}, [selectedCustomer, salesOrders, invoices]);
-  const loadStandardOrder = custId => {
-    const c = customers.find(x => x.id === custId);
-    if (!c) return;
-    setSelectedCustomer(custId);
-    const lines = (c.standardOrder || []).map(pid => {
-      var _c$specialPricing;
-      const p = products.find(pr => pr.id === pid);
-      if (!p) return null;
-      const price = ((_c$specialPricing = c.specialPricing) === null || _c$specialPricing === void 0 ? void 0 : _c$specialPricing[pid]) || p.pricing[c.priceLevel || "level3"];
-      return {
-        productId: pid,
-        qty: 0,
-        price,
-        estWeight: p.catchWeight ? p.avgWeightPerCase : null,
-        product: p
-      };
-    }).filter(Boolean);
-    setOrderLines(lines);
-    setNotes("");
-  };
 
-  // Auto-load customer from Call List handoff
   useEffect(() => {
     if (pendingCustomer) {
-      loadStandardOrder(pendingCustomer);
+      setSelectedCustomer(pendingCustomer);
       setPendingCustomer(null);
     }
   }, [pendingCustomer]);
-  const updateQty = (idx, qty) => {
-    setOrderLines(prev => prev.map((l, i) => i === idx ? {
-      ...l,
-      qty: Number(qty)
-    } : l));
-  };
-  const updatePrice = (idx, price) => {
-    setOrderLines(prev => prev.map((l, i) => i === idx ? {
-      ...l,
-      price: Number(price)
-    } : l));
-  };
-  const addProduct = pid => {
-    var _cust$specialPricing4;
-    if (orderLines.find(l => l.productId === pid)) return;
-    const p = products.find(pr => pr.id === pid);
-    if (!p) return;
-    const price = (cust === null || cust === void 0 || (_cust$specialPricing4 = cust.specialPricing) === null || _cust$specialPricing4 === void 0 ? void 0 : _cust$specialPricing4[pid]) || p.pricing[(cust === null || cust === void 0 ? void 0 : cust.priceLevel) || "level3"];
-    setOrderLines(prev => [...prev, {
-      productId: pid,
-      qty: 1,
-      price,
-      estWeight: p.catchWeight ? p.avgWeightPerCase : null,
-      product: p
-    }]);
-  };
-  const removeProduct = idx => {
-    setOrderLines(prev => prev.filter((_, i) => i !== idx));
-  };
-  const addToStandardOrder = (pid) => {
+
+  const addToGuide = (pid) => {
     if (!cust) return;
     const current = cust.standardOrder || [];
     if (current.includes(pid)) return;
-    const updated = [...current, pid];
-    setCustomers(prev => prev.map(c => c.id === cust.id ? { ...c, standardOrder: updated } : c));
-    showToast(`Added ${(products.find(p => p.id === pid) || {}).name || pid} to standard order`);
+    setCustomers(prev => prev.map(c => c.id === cust.id ? { ...c, standardOrder: [...(c.standardOrder || []), pid] } : c));
   };
-  const removeFromStandardOrder = (pid) => {
+  const removeFromGuide = (pid) => {
     if (!cust) return;
-    const updated = (cust.standardOrder || []).filter(id => id !== pid);
-    setCustomers(prev => prev.map(c => c.id === cust.id ? { ...c, standardOrder: updated } : c));
-    setOrderLines(prev => prev.filter(l => l.productId !== pid));
-    showToast(`Removed ${(products.find(p => p.id === pid) || {}).name || pid} from standard order`);
+    setCustomers(prev => prev.map(c => c.id === cust.id ? { ...c, standardOrder: (c.standardOrder || []).filter(id => id !== pid) } : c));
   };
-  const reorderStandardItem = (fromIdx, toIdx) => {
+  const reorderGuideItem = (fromIdx, toIdx) => {
     if (!cust) return;
     const arr = [...(cust.standardOrder || [])];
     const [moved] = arr.splice(fromIdx, 1);
     arr.splice(toIdx, 0, moved);
     setCustomers(prev => prev.map(c => c.id === cust.id ? { ...c, standardOrder: arr } : c));
   };
-  const getCustomerHistory = custId => {
-    return invoices.filter(inv => inv.customerId === custId).slice(0, 5);
-  };
-  const submitOrder = (status = "confirmed") => {
-    const linesWithQty = orderLines.filter(l => l.qty > 0);
-    if (!selectedCustomer || linesWithQty.length === 0) return;
-    if (cust.creditHold) {
-      showToast(`⚠️ ${cust.name} is on CREDIT HOLD — order saved as Draft`, "error");
-      status = "draft";
-    }
-    const custArBal = arGetCustBalance(cust.id, invoices, arPayments, creditMemos);
-    const balanceAfter = custArBal + linesWithQty.reduce((s, l) => {
-      const total = l.product.catchWeight ? (l.estWeight || 0) * l.qty * l.price : l.qty * l.price;
-      return s + total;
-    }, 0);
-    if (balanceAfter > (cust.creditLimit || 99999) && !cust.creditHold) {
-      showToast(`⚠️ Order exceeds credit limit (${fmt(cust.creditLimit)}) — saved as Draft`, "error");
-      status = "draft";
-    }
-    const so = {
-      id: genId("SO"),
-      customerId: selectedCustomer,
-      date: today(),
-      deliveryDate,
-      status,
-      routeId: cust.route,
-      notes,
-      lines: linesWithQty.map(l => ({
-        productId: l.productId,
-        qty: l.qty,
-        estWeight: l.product.catchWeight ? l.estWeight * l.qty : null,
-        pricePerLb: l.product.catchWeight ? l.price : undefined,
-        priceEach: !l.product.catchWeight ? l.price : undefined,
-        shipped: 0,
-        estTotal: l.product.catchWeight ? (l.estWeight || 0) * l.qty * l.price : l.qty * l.price
-      })),
-      estTotal: linesWithQty.reduce((s, l) => {
-        return s + (l.product.catchWeight ? (l.estWeight || 0) * l.qty * l.price : l.qty * l.price);
-      }, 0)
-    };
-    setSalesOrders(prev => [so, ...prev]);
-    showToast(`Sales Order ${so.id} created for ${cust.name} — ${fmt(so.estTotal)}`);
-    setOrderLines([]);
-    setSelectedCustomer(null);
-  };
-  const totalEst = orderLines.filter(l => l.qty > 0).reduce((s, l) => {
-    return s + (l.product.catchWeight ? (l.estWeight || 0) * l.qty * l.price : l.qty * l.price);
-  }, 0);
+  const categories = useMemo(() => {
+    const cats = new Set();
+    products.forEach(p => { if (p.category) cats.add(p.category); });
+    return [...cats].sort();
+  }, [products]);
   return /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: 28
-    }
+    style: { padding: 28 }
   }, /*#__PURE__*/React.createElement(PageHeader, {
     title: "Order Guide",
-    subtitle: "Fast order entry using customer standard orders \u2014 like Entr\xE9e order guides"
+    subtitle: "Set up each customer\u2019s product list \u2014 these products appear as a guide when creating sales orders"
   }), !selectedCustomer ? /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 14,
-      color: "#94a3b8",
-      marginBottom: 16
-    }
-  }, "Select a customer to load their standard order guide:"), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 14, color: "#94a3b8", marginBottom: 16 }
+  }, "Select a customer to manage their order guide:"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
       gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
@@ -29303,7 +29216,7 @@ function OrderGuide({
         transition: "all 0.15s"
       }
     }, /*#__PURE__*/React.createElement("div", {
-      onClick: () => loadStandardOrder(c.id)
+      onClick: () => setSelectedCustomer(c.id)
     }, /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
@@ -29354,162 +29267,106 @@ function OrderGuide({
         color: "#475569"
       }
     }, lastOrder ? `Last: ${lastOrder.date}` : "No orders"))));
-  }))) : /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(Card, {
-    style: {
-      marginBottom: 16,
-      borderColor: cust.creditHold ? "#ef444444" : "#22c55e44"
-    }
+  }))) : cust && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(Card, {
+    style: { marginBottom: 16, borderColor: "#3b82f644" }
   }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center"
-    }
+    style: { display: "flex", justifyContent: "space-between", alignItems: "center" }
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 10,
-      marginBottom: 4
-    }
+    style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }
   }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontWeight: 700,
-      fontSize: 16,
-      color: "#f1f5f9"
-    }
-  }, cust.name), cust.creditHold && /*#__PURE__*/React.createElement(Badge, {
-    text: "\uD83D\uDD12 CREDIT HOLD",
-    color: "#ef4444"
-  }), /*#__PURE__*/React.createElement(Badge, {
-    text: ((_priceLevels$find9 = priceLevels.find(p => p.id === cust.priceLevel)) === null || _priceLevels$find9 === void 0 ? void 0 : _priceLevels$find9.label) || cust.priceLevel,
-    color: ((_priceLevels$find0 = priceLevels.find(p => p.id === cust.priceLevel)) === null || _priceLevels$find0 === void 0 ? void 0 : _priceLevels$find0.color) || "#3b82f6"
-  })), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 12,
-      color: "#64748b"
-    }
-  }, cust.contact, " \xB7 ", cust.route, " \xB7 ", cust.terms, " \xB7 Balance: ", fmt(arGetCustBalance(cust.id, invoices, arPayments, creditMemos)), " / ", fmt(cust.creditLimit), " limit")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 8
-    }
-  }, /*#__PURE__*/React.createElement(Btn, {
-    variant: manageMode ? "primary" : "secondary",
-    size: "sm",
-    "data-testid": "button-manage-products",
-    onClick: () => { setManageMode(!manageMode); setManageSearch(""); },
-    style: manageMode ? { background: "#a855f7", borderColor: "#a855f7", color: "#fff" } : {}
-  }, manageMode ? "✓ Done Managing" : "📋 Manage Products"), /*#__PURE__*/React.createElement(Btn, {
-    variant: "secondary",
-    size: "sm",
-    onClick: () => setShowHistory(!showHistory)
-  }, showHistory ? "Hide History" : "Order History"), /*#__PURE__*/React.createElement(Btn, {
-    variant: "secondary",
-    size: "sm",
-    onClick: () => {
-      setSelectedCustomer(null);
-      setOrderLines([]);
-      setManageMode(false);
-    }
-  }, "\u2190 Back")))), showHistory && /*#__PURE__*/React.createElement(Card, {
-    style: {
-      marginBottom: 16
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 13,
-      fontWeight: 600,
-      color: "#94a3b8",
-      marginBottom: 10
-    }
-  }, "RECENT ORDERS"), getCustomerHistory(selectedCustomer).map(inv => /*#__PURE__*/React.createElement("div", {
-    key: inv.id,
-    style: {
-      display: "flex",
-      justifyContent: "space-between",
-      padding: "8px 0",
-      borderBottom: "1px solid #1e2535",
-      fontSize: 12
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: "#22c55e",
-      fontFamily: "'DM Mono',monospace"
-    }
-  }, inv.id), /*#__PURE__*/React.createElement("span", null, inv.date), /*#__PURE__*/React.createElement("span", null, inv.lines.length, " items"), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontWeight: 600
-    }
-  }, fmt(inv.total)), /*#__PURE__*/React.createElement(Badge, {
-    text: inv.status,
-    color: STATUS_COLORS[inv.status]
-  })))),
-
-  manageMode ? /*#__PURE__*/React.createElement(Card, {
-    style: { borderColor: "#a855f744" }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }
-  }, /*#__PURE__*/React.createElement("div", null,
-    /*#__PURE__*/React.createElement("div", { style: { fontSize: 14, fontWeight: 700, color: "#a855f7", marginBottom: 4 } }, "\uD83D\uDCCB Manage Standard Order Products"),
-    /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, color: "#64748b" } }, "Add or remove products from ", cust.name, "'s regular order list. These are the products that appear when you open their order guide.")
-  ), /*#__PURE__*/React.createElement("div", {
-    style: { fontSize: 12, color: "#94a3b8", background: "#1a2030", borderRadius: 6, padding: "6px 12px" }
-  }, (cust.standardOrder || []).length, " products")),
-
+    style: { fontWeight: 700, fontSize: 16, color: "#f1f5f9" }
+  }, cust.name), /*#__PURE__*/React.createElement(Badge, {
+    text: (priceLevels.find(p => p.id === cust.priceLevel) || {}).label || cust.priceLevel,
+    color: (priceLevels.find(p => p.id === cust.priceLevel) || {}).color || "#3b82f6"
+  }), /*#__PURE__*/React.createElement("span", {
+    style: { fontSize: 12, color: "#64748b" }
+  }, (cust.standardOrder || []).length, " products in guide")),
   /*#__PURE__*/React.createElement("div", {
-    style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }
+    style: { fontSize: 12, color: "#64748b" }
+  }, cust.contact, " \xB7 ", cust.route, " \xB7 ", cust.terms)),
+  /*#__PURE__*/React.createElement(Btn, {
+    variant: "secondary", size: "sm",
+    onClick: () => setSelectedCustomer(null)
+  }, "\u2190 Back"))),
+
+  /*#__PURE__*/React.createElement(Card, null,
+  /*#__PURE__*/React.createElement("div", {
+    style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }
   },
+
   /*#__PURE__*/React.createElement("div", null,
-    /*#__PURE__*/React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 8, letterSpacing: "0.5px" } }, "Current Standard Order"),
-    (cust.standardOrder || []).length === 0 ? /*#__PURE__*/React.createElement("div", { style: { padding: 20, textAlign: "center", color: "#475569", fontSize: 13 } }, "No products in standard order yet. Add products from the right.") :
-    /*#__PURE__*/React.createElement("div", { style: { maxHeight: 500, overflowY: "auto" } },
-      (cust.standardOrder || []).map((pid, idx) => {
-        const p = products.find(pr => pr.id === pid);
-        if (!p) return null;
-        const h = custHistory[pid];
-        return /*#__PURE__*/React.createElement("div", {
-          key: pid,
-          "data-testid": "manage-standard-item-" + idx,
-          style: { display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 6, background: idx % 2 === 0 ? "#151821" : "transparent", marginBottom: 2 }
-        },
-        /*#__PURE__*/React.createElement("span", { style: { fontSize: 10, color: "#475569", width: 24, textAlign: "center" } }, idx + 1),
-        /*#__PURE__*/React.createElement("div", { style: { flex: 1, minWidth: 0 } },
-          /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: "#e2e8f0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, pName(p)),
-          /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, color: "#64748b" } }, p.category, " · ", p.billedBy, h ? ` · avg ${h.avgQty} qty (${h.count}x)` : "")
-        ),
-        idx > 0 && /*#__PURE__*/React.createElement("button", {
-          onClick: () => reorderStandardItem(idx, idx - 1),
-          style: { background: "none", border: "none", cursor: "pointer", color: "#475569", fontSize: 14, padding: "2px 4px" },
-          title: "Move up"
-        }, "▲"),
-        idx < (cust.standardOrder || []).length - 1 && /*#__PURE__*/React.createElement("button", {
-          onClick: () => reorderStandardItem(idx, idx + 1),
-          style: { background: "none", border: "none", cursor: "pointer", color: "#475569", fontSize: 14, padding: "2px 4px" },
-          title: "Move down"
-        }, "▼"),
-        /*#__PURE__*/React.createElement(Btn, {
-          variant: "ghost", size: "sm",
-          "data-testid": "button-remove-standard-" + idx,
-          onClick: () => removeFromStandardOrder(pid),
-          style: { color: "#ef4444", fontSize: 11 }
-        }, "✕"));
-      }).filter(Boolean)
-    )
+    /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: "#f1f5f9", marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center" } },
+      /*#__PURE__*/React.createElement("span", null, "Customer\u2019s Order Guide"),
+      /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, color: "#64748b", fontWeight: 400 } }, (cust.standardOrder || []).length, " products")),
+    (cust.standardOrder || []).length === 0 ?
+      /*#__PURE__*/React.createElement("div", { style: { padding: 30, textAlign: "center", color: "#475569", fontSize: 13, background: "#0f1117", borderRadius: 8 } },
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: 28, marginBottom: 8 } }, "\uD83D\uDCCB"),
+        "No products in this customer\u2019s guide yet.", /*#__PURE__*/React.createElement("br", null),
+        /*#__PURE__*/React.createElement("span", { style: { fontSize: 11 } }, "Add products from the right side to build their order guide.")) :
+      /*#__PURE__*/React.createElement("div", { style: { maxHeight: "calc(100vh - 280px)", overflowY: "auto" } },
+        (cust.standardOrder || []).map((pid, idx) => {
+          const p = products.find(pr => pr.id === pid);
+          if (!p) return null;
+          const h = custHistory[pid];
+          return /*#__PURE__*/React.createElement("div", {
+            key: pid,
+            "data-testid": "guide-item-" + idx,
+            style: { display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 6, background: idx % 2 === 0 ? "#151821" : "transparent", marginBottom: 2 }
+          },
+          /*#__PURE__*/React.createElement("span", { style: { fontSize: 10, color: "#475569", width: 24, textAlign: "center", flexShrink: 0 } }, idx + 1),
+          /*#__PURE__*/React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+            /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: "#e2e8f0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, pName(p)),
+            /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, color: "#64748b" } },
+              p.category || "No category", " \xB7 ", p.billedBy,
+              p.catchWeight ? " \xB7 ~" + p.avgWeightPerCase + "lbs/cs" : "",
+              h ? " \xB7 avg " + h.avgQty + " qty (" + h.count + "x)" : "")
+          ),
+          idx > 0 && /*#__PURE__*/React.createElement("button", {
+            onClick: () => reorderGuideItem(idx, idx - 1),
+            "data-testid": "button-move-up-" + idx,
+            style: { background: "none", border: "none", cursor: "pointer", color: "#475569", fontSize: 14, padding: "2px 4px" },
+            title: "Move up"
+          }, "\u25B2"),
+          idx < (cust.standardOrder || []).length - 1 && /*#__PURE__*/React.createElement("button", {
+            onClick: () => reorderGuideItem(idx, idx + 1),
+            "data-testid": "button-move-down-" + idx,
+            style: { background: "none", border: "none", cursor: "pointer", color: "#475569", fontSize: 14, padding: "2px 4px" },
+            title: "Move down"
+          }, "\u25BC"),
+          /*#__PURE__*/React.createElement("button", {
+            "data-testid": "button-remove-guide-" + idx,
+            onClick: () => removeFromGuide(pid),
+            style: { background: "none", border: "none", cursor: "pointer", color: "#ef4444", fontSize: 16, padding: "2px 6px", fontWeight: 700 },
+            title: "Remove from guide"
+          }, "\xD7"));
+        }).filter(Boolean)
+      )
   ),
 
   /*#__PURE__*/React.createElement("div", null,
-    /*#__PURE__*/React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 8, letterSpacing: "0.5px" } }, "Add Products"),
+    /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: "#f1f5f9", marginBottom: 10 } }, "Add Products"),
     /*#__PURE__*/React.createElement("input", {
-      "data-testid": "input-manage-search",
+      "data-testid": "input-guide-search",
       placeholder: "Search products to add...",
       value: manageSearch,
       onChange: e => setManageSearch(e.target.value),
       style: { width: "100%", background: "#0f1117", border: "1px solid #2d3748", borderRadius: 6, padding: "8px 10px", color: "#e2e8f0", fontSize: 12, boxSizing: "border-box", marginBottom: 8 }
     }),
-    /*#__PURE__*/React.createElement("div", { style: { maxHeight: 460, overflowY: "auto" } },
+    /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 } },
+      /*#__PURE__*/React.createElement("button", {
+        onClick: () => setCategoryFilter("all"),
+        style: { padding: "3px 8px", borderRadius: 4, border: categoryFilter === "all" ? "1px solid #3b82f6" : "1px solid #2d3748", background: categoryFilter === "all" ? "#3b82f622" : "transparent", color: categoryFilter === "all" ? "#3b82f6" : "#64748b", cursor: "pointer", fontSize: 10, fontWeight: 600 }
+      }, "All"),
+      categories.map(cat => /*#__PURE__*/React.createElement("button", {
+        key: cat,
+        onClick: () => setCategoryFilter(cat),
+        style: { padding: "3px 8px", borderRadius: 4, border: categoryFilter === cat ? "1px solid #3b82f6" : "1px solid #2d3748", background: categoryFilter === cat ? "#3b82f622" : "transparent", color: categoryFilter === cat ? "#3b82f6" : "#64748b", cursor: "pointer", fontSize: 10, fontWeight: 600 }
+      }, cat))
+    ),
+    /*#__PURE__*/React.createElement("div", { style: { maxHeight: "calc(100vh - 330px)", overflowY: "auto" } },
       products.filter(p => {
         if ((cust.standardOrder || []).includes(p.id)) return false;
+        if (categoryFilter !== "all" && p.category !== categoryFilter) return false;
         if (!manageSearch) return true;
         const s = manageSearch.toLowerCase();
         return p.name.toLowerCase().includes(s) || (p.category || "").toLowerCase().includes(s);
@@ -29517,355 +29374,28 @@ function OrderGuide({
         const h = custHistory[p.id];
         return /*#__PURE__*/React.createElement("div", {
           key: p.id,
-          "data-testid": "manage-available-item-" + idx,
+          "data-testid": "available-product-" + idx,
+          className: "hover-row",
           style: { display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 6, marginBottom: 2, cursor: "pointer", background: idx % 2 === 0 ? "#0f1117" : "transparent" },
-          onClick: () => { addToStandardOrder(p.id); addProduct(p.id); }
+          onClick: () => addToGuide(p.id)
         },
         /*#__PURE__*/React.createElement("div", { style: { flex: 1, minWidth: 0 } },
           /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, fontWeight: 600, color: "#94a3b8" } }, pName(p)),
-          /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, color: "#475569" } }, p.category, " · ", p.billedBy, h ? ` · ordered ${h.count}x` : "")
+          /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, color: "#475569" } },
+            p.category || "No category", " \xB7 ", p.billedBy,
+            h ? " \xB7 ordered " + h.count + "x, avg " + h.avgQty : "")
         ),
-        /*#__PURE__*/React.createElement(Btn, {
-          variant: "ghost", size: "sm",
-          style: { color: "#22c55e", fontSize: 11 }
-        }, "+ Add"));
+        /*#__PURE__*/React.createElement("span", {
+          style: { color: "#22c55e", fontSize: 18, fontWeight: 700, flexShrink: 0 }
+        }, "+"));
       })
     )
   )),
 
   /*#__PURE__*/React.createElement("div", { style: { marginTop: 12, padding: "10px 12px", background: "#1a2030", borderRadius: 8, fontSize: 11, color: "#64748b" } },
-    "💡 Products you add here will appear every time you open this customer's order guide. Remove products they no longer order to keep the list clean.")
+    "\uD83D\uDCA1 Products added here will appear as the customer\u2019s guide when creating a sales order. Use the arrows to set the order products appear in.")
 
-  ) :
-
-  /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: "1fr 320px",
-      gap: 16
-    }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginBottom: 14
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 13,
-      fontWeight: 600,
-      color: "#94a3b8"
-    }
-  }, "STANDARD ORDER \u2014 Fill in quantities"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 12,
-      color: "#64748b"
-    }
-  }, orderLines.filter(l => l.qty > 0).length, " of ", orderLines.length, " items ordered")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: "40px 2fr 80px 80px 80px 80px 90px 40px",
-      gap: 6,
-      padding: "6px 8px",
-      fontSize: 10,
-      color: "#64748b",
-      fontWeight: 700,
-      textTransform: "uppercase",
-      borderBottom: "1px solid #2d3748",
-      marginBottom: 4
-    }
-  }, /*#__PURE__*/React.createElement("div", null, "#"), /*#__PURE__*/React.createElement("div", null, "Product"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      textAlign: "center"
-    }
-  }, "History"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      textAlign: "center"
-    }
-  }, "In Stock"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      textAlign: "center"
-    }
-  }, "Qty"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      textAlign: "center"
-    }
-  }, "Price"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      textAlign: "right"
-    }
-  }, "Est Total"), /*#__PURE__*/React.createElement("div", null)), orderLines.map((line, i) => {
-    var _cust$specialPricing5;
-    const p = line.product;
-    const lowStock = p.stockCases <= (p.orderPoint || 3);
-    const lineTotal = p.catchWeight ? (line.estWeight || 0) * line.qty * line.price : line.qty * line.price;
-    const isSpecial = (_cust$specialPricing5 = cust.specialPricing) === null || _cust$specialPricing5 === void 0 ? void 0 : _cust$specialPricing5[line.productId];
-    const h = custHistory[line.productId];
-    return /*#__PURE__*/React.createElement("div", {
-      key: i,
-      className: "hover-row",
-      "data-testid": "order-guide-row-" + i,
-      style: {
-        display: "grid",
-        gridTemplateColumns: "40px 2fr 80px 80px 80px 80px 90px 40px",
-        gap: 6,
-        padding: "8px 8px",
-        alignItems: "center",
-        borderRadius: 6,
-        background: line.qty > 0 ? "#22c55e06" : "transparent",
-        borderLeft: line.qty > 0 ? "3px solid #22c55e" : "3px solid transparent"
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 11,
-        color: "#475569"
-      }
-    }, i + 1), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 13,
-        fontWeight: 600,
-        color: line.qty > 0 ? "#f1f5f9" : "#94a3b8"
-      }
-    }, pName(p)), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 10,
-        color: "#64748b"
-      }
-    }, p.category, " \xB7 ", p.billedBy, p.catchWeight ? ` · ~${p.avgWeightPerCase}lbs/cs` : "", isSpecial && /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: "#a855f7",
-        marginLeft: 6
-      }
-    }, "\u2605 Special Price"))),
-    /*#__PURE__*/React.createElement("div", {
-      style: { textAlign: "center" },
-      title: h ? `Ordered ${h.count} times, avg ${h.avgQty} qty, last ${h.lastDate || "—"}` : "No order history"
-    }, h ? /*#__PURE__*/React.createElement(React.Fragment, null,
-      /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: "#3b82f6", fontFamily: "'DM Mono',monospace" } }, h.avgQty),
-      /*#__PURE__*/React.createElement("div", { style: { fontSize: 9, color: "#64748b" } }, h.count, "x")
-    ) : /*#__PURE__*/React.createElement("span", { style: { fontSize: 10, color: "#334155" } }, "\u2014")),
-    /*#__PURE__*/React.createElement("div", {
-      style: {
-        textAlign: "center",
-        fontSize: 12,
-        color: lowStock ? "#ef4444" : "#64748b"
-      }
-    }, p.stockCases, " cs ", lowStock && "⚠️"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("input", {
-      type: "number",
-      min: "0",
-      value: line.qty || "",
-      onChange: e => updateQty(i, e.target.value),
-      placeholder: "0",
-      style: {
-        width: "100%",
-        background: "#0f1117",
-        border: line.qty > 0 ? "1px solid #22c55e44" : "1px solid #2d3748",
-        borderRadius: 6,
-        padding: "6px",
-        color: "#e2e8f0",
-        fontSize: 13,
-        textAlign: "center",
-        fontWeight: 700,
-        boxSizing: "border-box"
-      }
-    })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("input", {
-      type: "number",
-      step: "0.01",
-      value: line.price || "",
-      onChange: e => updatePrice(i, e.target.value),
-      style: {
-        width: "100%",
-        background: "#0f1117",
-        border: isSpecial ? "1px solid #a855f744" : "1px solid #2d3748",
-        borderRadius: 6,
-        padding: "6px",
-        color: isSpecial ? "#a855f7" : "#e2e8f0",
-        fontSize: 12,
-        textAlign: "center",
-        boxSizing: "border-box"
-      }
-    })), /*#__PURE__*/React.createElement("div", {
-      style: {
-        textAlign: "right",
-        fontSize: 12,
-        fontFamily: "'DM Mono',monospace",
-        fontWeight: 600,
-        color: line.qty > 0 ? "#22c55e" : "#475569"
-      }
-    }, line.qty > 0 ? fmt(lineTotal) : "—"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(Btn, {
-      variant: "ghost",
-      size: "sm",
-      onClick: () => removeProduct(i),
-      icon: "trash"
-    })));
-  }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: 12,
-      padding: "10px",
-      background: "#1a2030",
-      borderRadius: 8
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 11,
-      color: "#64748b",
-      marginBottom: 6
-    }
-  }, "ADD PRODUCT (not in standard order)"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 8
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      position: "relative",
-      flex: 1
-    }
-  }, /*#__PURE__*/React.createElement("input", {
-    placeholder: "Search products...",
-    value: searchProduct,
-    onChange: e => setSearchProduct(e.target.value),
-    style: {
-      width: "100%",
-      background: "#0f1117",
-      border: "1px solid #2d3748",
-      borderRadius: 6,
-      padding: "8px 10px",
-      color: "#e2e8f0",
-      fontSize: 12,
-      boxSizing: "border-box"
-    }
-  }), searchProduct && /*#__PURE__*/React.createElement("div", {
-    style: {
-      position: "absolute",
-      top: "100%",
-      left: 0,
-      right: 0,
-      background: "#1a2030",
-      border: "1px solid #2d3748",
-      borderRadius: 8,
-      maxHeight: 200,
-      overflowY: "auto",
-      zIndex: 100
-    }
-  }, products.filter(p => p.name.toLowerCase().includes(searchProduct.toLowerCase()) && !orderLines.find(l => l.productId === p.id)).map(p => /*#__PURE__*/React.createElement("div", {
-    key: p.id,
-    className: "hover-row",
-    onClick: () => {
-      addProduct(p.id);
-      setSearchProduct("");
-    },
-    style: {
-      padding: "8px 12px",
-      cursor: "pointer",
-      fontSize: 12
-    }
-  }, p.name, " ", /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: "#64748b"
-    }
-  }, "(", p.category, ")"))))))))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(Card, {
-    style: {
-      position: "sticky",
-      top: 20
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 13,
-      fontWeight: 700,
-      color: "#f1f5f9",
-      marginBottom: 14
-    }
-  }, "ORDER SUMMARY"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginBottom: 14
-    }
-  }, /*#__PURE__*/React.createElement(Input, {
-    label: "Delivery Date",
-    type: "date",
-    value: deliveryDate,
-    onChange: e => setDeliveryDate(e.target.value)
-  }), /*#__PURE__*/React.createElement(Input, {
-    label: "Notes",
-    value: notes,
-    onChange: e => setNotes(e.target.value),
-    placeholder: "Special instructions..."
-  })), /*#__PURE__*/React.createElement("div", {
-    style: {
-      background: "#1a2030",
-      borderRadius: 8,
-      padding: 12,
-      marginBottom: 14
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      justifyContent: "space-between",
-      fontSize: 12,
-      color: "#64748b",
-      marginBottom: 8
-    }
-  }, /*#__PURE__*/React.createElement("span", null, "Items with qty"), /*#__PURE__*/React.createElement("span", null, orderLines.filter(l => l.qty > 0).length)), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      justifyContent: "space-between",
-      fontSize: 12,
-      color: "#64748b",
-      marginBottom: 8
-    }
-  }, /*#__PURE__*/React.createElement("span", null, "Total cases"), /*#__PURE__*/React.createElement("span", null, orderLines.reduce((s, l) => s + l.qty, 0))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      borderTop: "1px solid #2d3748",
-      paddingTop: 8,
-      display: "flex",
-      justifyContent: "space-between"
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontWeight: 700,
-      color: "#f1f5f9"
-    }
-  }, "Estimated Total"), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontWeight: 700,
-      color: "#22c55e",
-      fontSize: 18,
-      fontFamily: "'DM Mono',monospace"
-    }
-  }, fmt(totalEst)))), arGetCustBalance(cust === null || cust === void 0 ? void 0 : cust.id, invoices, arPayments, creditMemos) + totalEst > ((cust === null || cust === void 0 ? void 0 : cust.creditLimit) || 99999) && /*#__PURE__*/React.createElement("div", {
-    style: {
-      background: "#ef444422",
-      border: "1px solid #ef4444",
-      borderRadius: 8,
-      padding: 10,
-      marginBottom: 14,
-      fontSize: 11,
-      color: "#ef4444"
-    }
-  }, "\u26A0\uFE0F This order will exceed credit limit (", fmt(cust.creditLimit), "). Current balance: ", fmt(arGetCustBalance(cust.id, invoices, arPayments, creditMemos))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      flexDirection: "column",
-      gap: 8
-    }
-  }, /*#__PURE__*/React.createElement(Btn, {
-    onClick: () => submitOrder("draft"),
-    variant: "secondary",
-    style: {
-      width: "100%",
-      justifyContent: "center"
-    },
-    icon: "salesorder"
-  }, "Save as Draft"), /*#__PURE__*/React.createElement(Btn, {
-    onClick: () => submitOrder("confirmed"),
-    style: {
-      width: "100%",
-      justifyContent: "center"
-    },
-    icon: "check",
-    disabled: orderLines.filter(l => l.qty > 0).length === 0
-  }, "Confirm Order")))))));
+  )));
 }
 
 // ============================================================

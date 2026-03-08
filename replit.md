@@ -139,12 +139,11 @@ Preferred communication style: Simple, everyday language.
 - **Barcode format from labels**: `SO-XXXX-PRODID-NNN` (order ID + product ID + sequence)
 - **Manual entry**: Text input in scanner bar accepts manual barcode entry (Enter to submit)
 
-### Order Guide Product Management
-- **Manage Products button**: Purple toggle in Order Guide header, shows two-column management panel
-- **Left column**: Current standard order products with remove (✕) and reorder (▲▼) controls
-- **Right column**: Available products to add, with search filter
-- **Sync**: Adding a product updates both `customer.standardOrder` array and current `orderLines`; removing does the same
-- **Persistence**: Changes to `standardOrder` are saved via `setCustomers` which persists to the data store
+### Order Guide (Customer Product List Manager)
+- **Purpose**: Purely for managing each customer's product list (their "order guide"). No order placement — that happens in Sales Orders
+- **Two-column layout**: Left shows customer's current standard order products (with ✕ remove and ▲▼ reorder); right shows available products to add (with search + category filter)
+- **Persistence**: Changes to `customer.standardOrder` array saved via `setCustomers`
+- **Sales Orders integration**: When creating a new SO, if the customer has guide products, a blue "Load Guide" bar appears above the product grid. Clicking "Load Guide" populates the order with the customer's guide products at their correct prices
 
 ### Customer Order History
 - **Helper Function**: `getCustomerOrderHistory(custId, salesOrders, invoices)` computes per-product order history: count (times ordered), totalQty, avgQty, lastDate
