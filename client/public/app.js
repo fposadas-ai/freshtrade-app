@@ -1946,8 +1946,8 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
   // Page 1 has full header (Bill To, Ship To, dates) ~2.4in + footer ~2.1in = ~4.5in overhead
   // Each row ~0.31in. Available space on letter (11in - 1in wrapper padding - 4.5in) = ~5.5in ÷ 0.31 = 17
   // Continuation pages have compact header ~0.6in, so ~6.2in for rows = 20
-  const ROWS_PAGE1 = 16;
-  const ROWS_CONT = 20;
+  const ROWS_PAGE1 = 13;
+  const ROWS_CONT = 16;
 
   // Empty row template
   const emptyRow = n => `<tr style="background:${n % 2 === 0 ? rowB : rowA};">
