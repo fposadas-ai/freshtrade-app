@@ -131,6 +131,14 @@ Preferred communication style: Simple, everyday language.
 - **Page Structure**: `fullHeader` on every page, `totalsBox` on last page only, `signatureFooter` + `pageFooter` on every page, "Continued on next page…" on non-last pages
 - **Blank Fill Rows**: Pages are padded with empty alternating-color rows to fill remaining slot capacity
 
+### USB Barcode Scanner (Proof of Delivery)
+- **Toggle**: "Scanner" button in POD header toggles scanner mode on/off (green when active)
+- **How it works**: USB barcode scanners act like keyboards — they type characters rapidly and end with Enter. The `useEffect` keydown listener captures rapid input (100ms buffer timeout) and processes on Enter.
+- **Matching logic** (in `processScanCodeRef`): 1) Direct invoice ID match, 2) SO number prefix extraction (`SO-XXXX`), 3) Fuzzy numeric match
+- **UI**: Green scanner status bar with pulsing dot, manual barcode input field, last scan result indicator
+- **Barcode format from labels**: `SO-XXXX-PRODID-NNN` (order ID + product ID + sequence)
+- **Manual entry**: Text input in scanner bar accepts manual barcode entry (Enter to submit)
+
 ### Customer Order History
 - **Helper Function**: `getCustomerOrderHistory(custId, salesOrders, invoices)` computes per-product order history: count (times ordered), totalQty, avgQty, lastDate
 - **Order Guide**: Product grid has a "History" column showing avg qty (blue) and order count for each product

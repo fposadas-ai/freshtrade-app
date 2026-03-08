@@ -31207,6 +31207,12 @@ function ProofOfDelivery({
   });
   const scanRef = useRef(null);
 
+  // ── USB Barcode Scanner State ──
+  const [scannerActive, setScannerActive] = useState(false);
+  const scannerBuf = useRef("");
+  const scannerTimer = useRef(null);
+  const [lastScan, setLastScan] = useState(null); // {code, matched, invId, time}
+
   // ── Batch OCR Scan State ──
   const [showBatchScan, setShowBatchScan] = useState(false);
   const [ocrScans, setOcrScans] = useState([]); // [{id, fileName, preview, ocrText, matchedInvId, status, confidence, processing}]
@@ -31501,6 +31507,65 @@ function ProofOfDelivery({
   // Filter by route
   const filteredInvoices = podRoute === "all" ? dayInvoices : dayInvoices.filter(inv => getInvRoute(inv) === podRoute);
 
+  // ── USB Barcode Scanner Logic ──
+  const processScanCodeRef = useRef(null);
+  processScanCodeRef.current = (code) => {
+    const upper = code.toUpperCase();
+    const directInv = filteredInvoices.find(inv => inv.id.toUpperCase() === upper);
+    if (directInv) {
+      setSelectedInv(directInv);
+      setLastScan({ code, matched: true, invId: directInv.id, time: Date.now() });
+      showToast(`Scanned: ${directInv.id}`, "success");
+      return;
+    }
+    const soParts = upper.match(/^(SO-\d+)/);
+    if (soParts) {
+      const soId = soParts[1];
+      const matchInv = filteredInvoices.find(inv => inv.soId === soId || (inv.fromSO || "").toUpperCase() === soId);
+      if (matchInv) {
+        setSelectedInv(matchInv);
+        setLastScan({ code, matched: true, invId: matchInv.id, time: Date.now() });
+        showToast(`Scanned: ${matchInv.id} (from ${soId})`, "success");
+        return;
+      }
+    }
+    const numMatch = upper.match(/(\d{3,6})/);
+    if (numMatch) {
+      const num = numMatch[1];
+      const fuzzyInv = filteredInvoices.find(inv => inv.id.includes(num));
+      if (fuzzyInv) {
+        setSelectedInv(fuzzyInv);
+        setLastScan({ code, matched: true, invId: fuzzyInv.id, time: Date.now() });
+        showToast(`Scanned: ${fuzzyInv.id}`, "success");
+        return;
+      }
+    }
+    setLastScan({ code, matched: false, invId: null, time: Date.now() });
+    showToast(`Barcode "${code}" — no matching invoice found`, "warn");
+  };
+
+  useEffect(() => {
+    if (!scannerActive) return;
+    const handleKey = (e) => {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT" || e.target.isContentEditable) return;
+      if (e.key === "Enter" && scannerBuf.current.length >= 4) {
+        e.preventDefault();
+        const code = scannerBuf.current.trim();
+        scannerBuf.current = "";
+        clearTimeout(scannerTimer.current);
+        if (processScanCodeRef.current) processScanCodeRef.current(code);
+        return;
+      }
+      if (e.key.length === 1) {
+        scannerBuf.current += e.key;
+        clearTimeout(scannerTimer.current);
+        scannerTimer.current = setTimeout(() => { scannerBuf.current = ""; }, 100);
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [scannerActive]);
+
   // Group by route
   const grouped = {};
   filteredInvoices.forEach(inv => {
@@ -31625,6 +31690,10 @@ function ProofOfDelivery({
         gap: 8
       }
     }, /*#__PURE__*/React.createElement(Btn, {
+      variant: scannerActive ? "primary" : "secondary",
+      onClick: () => { setScannerActive(!scannerActive); if (!scannerActive) showToast("Barcode scanner active — scan any label barcode", "success"); },
+      style: scannerActive ? { background: "#22c55e", color: "#000", borderColor: "#22c55e" } : {}
+    }, scannerActive ? "📡 Scanner ON" : "📡 Scanner"), /*#__PURE__*/React.createElement(Btn, {
       variant: "secondary",
       icon: "clipboard",
       onClick: () => {
@@ -31808,7 +31877,19 @@ function ProofOfDelivery({
       color: "#22c55e",
       fontFamily: "'DM Mono',monospace"
     }
-  }, fmt(totalAmount)))), /*#__PURE__*/React.createElement("div", {
+  }, fmt(totalAmount)))),
+  scannerActive && /*#__PURE__*/React.createElement("div", {
+    style: { background: "#0d2818", border: "1px solid #22c55e44", borderLeft: "1px solid #2d3748", borderRight: "1px solid #2d3748", padding: "6px 14px", display: "flex", alignItems: "center", gap: 12, fontSize: 11 }
+  }, /*#__PURE__*/React.createElement("span", { style: { color: "#22c55e", fontWeight: 700, display: "flex", alignItems: "center", gap: 4 } }, /*#__PURE__*/React.createElement("span", { style: { width: 8, height: 8, borderRadius: "50%", background: "#22c55e", display: "inline-block", animation: "pulse 1.5s infinite" } }), "Scanner Ready"),
+  /*#__PURE__*/React.createElement("span", { style: { color: "#64748b", fontSize: 10 } }, "Scan a barcode label or type a code below"),
+  /*#__PURE__*/React.createElement("input", {
+    "data-testid": "input-barcode-manual",
+    placeholder: "Type barcode manually...",
+    style: { background: "#1a2030", border: "1px solid #22c55e44", borderRadius: 6, padding: "4px 8px", color: "#e2e8f0", fontSize: 12, width: 180, fontFamily: "'DM Mono',monospace" },
+    onKeyDown: e => { if (e.key === "Enter" && e.target.value.trim().length >= 3) { if (processScanCodeRef.current) processScanCodeRef.current(e.target.value.trim()); e.target.value = ""; } }
+  }),
+  lastScan && /*#__PURE__*/React.createElement("span", { style: { marginLeft: "auto", fontSize: 10, color: lastScan.matched ? "#22c55e" : "#ef4444" } }, lastScan.matched ? `✓ ${lastScan.invId}` : `✗ "${lastScan.code}" not found`)),
+  /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
       gridTemplateColumns: "40px 80px 50px 1fr 95px 80px 85px",
