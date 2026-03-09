@@ -1061,14 +1061,17 @@ function printZebraLabel(labelHtml, title = "Zebra Label") {
     alert("Please allow popups to print.");
     return;
   }
+  const _zs = window.__labelSettings || {};
+  const _zw = Number(_zs.width) || 3;
+  const _zh = Number(_zs.height) || 1.5;
   win.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  @page { size: 3in 1.5in; margin: 0; }
+  @page { size: ${_zw}in ${_zh}in; margin: 0; }
   *, *::before, *::after { box-sizing: border-box; }
   body { margin: 0; padding: 0; font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; color: #000; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; -webkit-font-smoothing: none; }
   .label-strip { display: flex; flex-direction: column; }
-  .label-item { width: 3in; height: 1.5in; overflow: hidden; page-break-after: always; }
+  .label-item { width: ${_zw}in; height: ${_zh}in; overflow: hidden; page-break-after: always; }
   .label-item:last-child { page-break-after: auto; }
   @media print {
     body { background: #fff; }
@@ -1096,75 +1099,69 @@ function printZebraLabel(labelHtml, title = "Zebra Label") {
 // Render a shipping label to an HTML string for Zebra printing (1.5" × 3")
 function renderShippingLabelHTML(lbl, opts) {
   const o = opts || window.__labelSettings || {};
-  const showCategory = o.shippingShowCategory !== false;
-  const showProduct = o.shippingShowProduct !== false;
-  const showUnitCount = o.shippingShowUnitCount !== false;
-  const showAddress = o.shippingShowAddress !== false;
-  const showRoute = o.shippingShowRoute !== false;
-  const showDeliveryDate = o.shippingShowDeliveryDate !== false;
-  const showWeight = o.shippingShowWeight !== false;
-  const showOrder = o.shippingShowOrder !== false;
-  const showBarcode = o.shippingShowBarcode !== false;
-  const showInvoice = o.shippingShowInvoice !== false;
-  const fs = { cat: Number(o.shippingFontCategory) || 9, product: Number(o.shippingFontProduct) || 11, name: Number(o.shippingFontCustomer) || 9, addr: Number(o.shippingFontAddress) || 7.5, label: Number(o.shippingFontLabel) || 7, val: Number(o.shippingFontValue) || 8, order: Number(o.shippingFontOrder) || 8, barH: Number(o.shippingFontBarcode) || 14, shipTo: Math.max((Number(o.shippingFontLabel) || 7) - 1, 5) };
-  const catColor = {
-    Seafood: "#0284c7",
-    Beef: "#b91c1c",
-    Pork: "#c2410c",
-    Poultry: "#b45309",
-    Deli: "#7c3aed"
-  };
+  const show = f => o["shippingShow" + f.charAt(0).toUpperCase() + f.slice(1)] !== false;
+  const fieldOrder = o.shippingFieldOrder || ["category", "product", "address", "route", "deliveryDate", "weight", "order", "invoice", "barcode"];
+  const fs = { cat: Number(o.shippingFontCategory) || 9, product: Number(o.shippingFontProduct) || 11, name: Number(o.shippingFontCustomer) || 9, addr: Number(o.shippingFontAddress) || 7.5, label: Number(o.shippingFontLabel) || 7, val: Number(o.shippingFontValue) || 8, order: Number(o.shippingFontOrder) || 8, invoice: Number(o.shippingFontInvoice) || 8, barH: Number(o.shippingFontBarcode) || 14, shipTo: Math.max((Number(o.shippingFontLabel) || 7) - 1, 5) };
+  const catColor = { Seafood: "#0284c7", Beef: "#b91c1c", Pork: "#c2410c", Poultry: "#b45309", Deli: "#7c3aed" };
   const cc = catColor[lbl.category] || "#374151";
+  const showUC = show("unitCount");
   let bars = "";
-  if (showBarcode) {
-    const barcodeStr = lbl.barcode || "";
-    const totalBars = 60;
-    for (let i = 0; i < totalBars; i++) {
+  if (show("barcode")) {
+    for (let i = 0; i < 60; i++) {
       const w = i % 3 === 0 ? 2.5 : 1;
       const gap = i % 5 === 0 ? 1.5 : 0.5;
       bars += `<div style="width:${w}px;background:#000;height:100%;flex-shrink:0;margin-right:${gap}px"></div>`;
     }
   }
-  return `<div class="label-item" style="width:3in;height:1.5in;font-family:Arial,'Helvetica Neue',Helvetica,sans-serif;overflow:hidden;background:#fff;display:flex;flex-direction:column;box-sizing:border-box;">
-    ${showCategory ? `<div style="background:${cc};color:#fff;padding:3px 7px;display:flex;justify-content:space-between;align-items:center;">
-      <span style="font-size:${fs.cat}px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">${lbl.category}</span>
-      ${showUnitCount ? `<span style="font-size:${fs.cat}px;font-weight:700">${lbl.unitLabel || "PCS"} ${lbl.pieceNum}/${lbl.totalPieces}</span>` : ""}
-    </div>` : (showUnitCount ? `<div style="padding:2px 7px;text-align:right;font-size:${fs.cat}px;font-weight:700;color:#111;border-bottom:1px solid #e5e7eb">${lbl.unitLabel || "PCS"} ${lbl.pieceNum}/${lbl.totalPieces}</div>` : "")}
-    ${showProduct ? `<div style="padding:3px 7px 1px;border-bottom:1px solid #e5e7eb;">
-      <div style="font-size:${fs.product}px;font-weight:700;color:#111;line-height:1.2;overflow:hidden;max-height:28px">${lbl.productName}</div>
-    </div>` : ""}
-    <div style="display:flex;flex:1;overflow:hidden;">
-      <div style="flex:1;padding:3px 6px;border-right:1px solid #e5e7eb;display:flex;flex-direction:column;justify-content:space-between;">
-        ${showAddress ? `<div>
-          <div style="font-size:${fs.shipTo}px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:0.3px">Ship To</div>
-          <div style="font-size:${fs.name}px;font-weight:700;color:#111;line-height:1.2">${lbl.customerName}</div>
-          <div style="font-size:${fs.addr}px;color:#374151;line-height:1.3;margin-top:1px">${lbl.address}</div>
-        </div>` : ""}
-        ${showRoute ? `<div style="margin-top:3px">
-          <div style="font-size:${fs.label}px;color:#6b7280;font-weight:700;text-transform:uppercase">Route / Driver</div>
-          <div style="font-size:${fs.val}px;font-weight:600;color:#111">${lbl.routeName}</div>
-          <div style="font-size:${fs.addr}px;color:#374151">${lbl.driverName}</div>
-        </div>` : ""}
-        ${showDeliveryDate && lbl.deliveryDate ? `<div style="margin-top:3px">
-          <div style="font-size:${fs.label}px;color:#6b7280;font-weight:700;text-transform:uppercase">Delivery</div>
-          <div style="font-size:${fs.val}px;font-weight:600;color:#111">${lbl.deliveryDate}</div>
-        </div>` : ""}
-      </div>
-      <div style="width:90px;padding:3px 5px;display:flex;flex-direction:column;justify-content:space-between;">
-        ${showWeight ? (lbl.catchWeight ? `<div style="border:1.5px solid #f59e0b;border-radius:3px;padding:3px 4px;background:#fffbeb;">
+  const renderField = f => {
+    if (!show(f)) return "";
+    switch (f) {
+      case "category": return `<div style="background:${cc};color:#fff;padding:3px 7px;display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:${fs.cat}px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">${lbl.category || ""}</span>
+        ${showUC ? `<span style="font-size:${fs.cat}px;font-weight:700">${lbl.unitLabel || "PCS"} ${lbl.pieceNum}/${lbl.totalPieces}</span>` : ""}
+      </div>`;
+      case "product": return `<div style="padding:3px 7px 1px;border-bottom:1px solid #e5e7eb;">
+        <div style="font-size:${fs.product}px;font-weight:700;color:#111;line-height:1.2;overflow:hidden;max-height:28px">${lbl.productName || ""}</div>
+      </div>`;
+      case "address": return `<div style="padding:2px 7px;">
+        <div style="font-size:${fs.shipTo}px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:0.3px">Ship To</div>
+        <div style="font-size:${fs.name}px;font-weight:700;color:#111;line-height:1.2">${lbl.customerName || ""}</div>
+        <div style="font-size:${fs.addr}px;color:#374151;line-height:1.3;margin-top:1px">${lbl.address || ""}</div>
+      </div>`;
+      case "route": return `<div style="padding:2px 7px;">
+        <div style="font-size:${fs.label}px;color:#6b7280;font-weight:700;text-transform:uppercase">Route / Driver</div>
+        <div style="font-size:${fs.val}px;font-weight:600;color:#111">${lbl.routeName || ""}</div>
+        <div style="font-size:${fs.addr}px;color:#374151">${lbl.driverName || ""}</div>
+      </div>`;
+      case "deliveryDate": return lbl.deliveryDate ? `<div style="padding:2px 7px;">
+        <div style="font-size:${fs.label}px;color:#6b7280;font-weight:700;text-transform:uppercase">Delivery</div>
+        <div style="font-size:${fs.val}px;font-weight:600;color:#111">${lbl.deliveryDate}</div>
+      </div>` : "";
+      case "weight": return lbl.catchWeight ? `<div style="padding:2px 7px;">
+        <div style="border:1.5px solid #f59e0b;border-radius:3px;padding:3px 4px;background:#fffbeb;display:inline-block;">
           <div style="font-size:${fs.label}px;color:#92400e;font-weight:700;text-transform:uppercase">⚖️ Act. Weight</div>
           <div style="font-size:${fs.name}px;color:#92400e;font-weight:700;border-bottom:1px solid #d97706;min-height:16px;margin-top:2px">${lbl.estWeightEach ? "~" + Number(lbl.estWeightEach).toFixed(2) + " lbs" : "_____ lbs"}</div>
-        </div>` : `<div style="font-size:${fs.addr}px;color:#6b7280;font-style:italic">Fixed weight</div>`) : ""}
-        <div style="margin-top:auto;">
-          ${showOrder ? `<div style="font-size:${fs.label}px;color:#6b7280;text-transform:uppercase;font-weight:700">Order #</div>
-          <div style="font-size:${fs.order}px;font-weight:700;color:#111;font-family:monospace">${lbl.soId}</div>` : ""}
-          ${showInvoice && lbl.invoiceId ? `<div style="font-size:${fs.label}px;color:#6b7280;text-transform:uppercase;font-weight:700;margin-top:2px">Invoice #</div>
-          <div style="font-size:${fs.order}px;font-weight:700;color:#111;font-family:monospace">${lbl.invoiceId}</div>` : ""}
-          ${showBarcode ? `<div style="display:flex;gap:0;margin-top:3px;height:${fs.barH}px;width:100%">${bars}</div>
-          <div style="font-size:${Math.max(fs.label - 1, 5)}px;color:#000;margin-top:1px;font-family:monospace;font-weight:700;letter-spacing:-0.3px">${(lbl.barcode || "").slice(0, 20)}</div>` : ""}
         </div>
-      </div>
-    </div>
+      </div>` : `<div style="padding:2px 7px;font-size:${fs.addr}px;color:#6b7280;font-style:italic">Fixed weight</div>`;
+      case "order": return `<div style="padding:2px 7px;">
+        <div style="font-size:${fs.label}px;color:#6b7280;text-transform:uppercase;font-weight:700">Order #</div>
+        <div style="font-size:${fs.order}px;font-weight:700;color:#111;font-family:monospace">${lbl.soId || ""}</div>
+      </div>`;
+      case "invoice": return lbl.invoiceId ? `<div style="padding:2px 7px;">
+        <div style="font-size:${fs.label}px;color:#6b7280;text-transform:uppercase;font-weight:700">Invoice #</div>
+        <div style="font-size:${fs.invoice}px;font-weight:700;color:#111;font-family:monospace">${lbl.invoiceId}</div>
+      </div>` : "";
+      case "barcode": return bars ? `<div style="padding:2px 7px;">
+        <div style="display:flex;gap:0;height:${fs.barH}px;width:100%">${bars}</div>
+        <div style="font-size:${Math.max(fs.label - 1, 5)}px;color:#000;margin-top:1px;font-family:monospace;font-weight:700;letter-spacing:-0.3px">${(lbl.barcode || "").slice(0, 20)}</div>
+      </div>` : "";
+      default: return "";
+    }
+  };
+  const lw = Number(o.width) || 3;
+  const lh = Number(o.height) || 1.5;
+  return `<div class="label-item" style="width:${lw}in;height:${lh}in;font-family:Arial,'Helvetica Neue',Helvetica,sans-serif;overflow:hidden;background:#fff;display:flex;flex-direction:column;box-sizing:border-box;">
+    ${fieldOrder.map(f => renderField(f)).join("")}
   </div>`;
 }
 
@@ -2584,12 +2581,14 @@ const defaultSettings = {
     shippingShowRoute: true,
     shippingShowAddress: true,
     shippingShowOrder: true,
+    shippingShowInvoice: true,
     shippingShowCategory: true,
     shippingShowProduct: true,
     shippingShowWeight: true,
     shippingShowBarcode: true,
     shippingShowUnitCount: true,
     shippingShowDeliveryDate: true,
+    shippingFieldOrder: ["category", "product", "address", "route", "deliveryDate", "weight", "order", "invoice", "barcode"],
     shippingFontCategory: 9,
     shippingFontProduct: 11,
     shippingFontCustomer: 9,
@@ -2597,6 +2596,7 @@ const defaultSettings = {
     shippingFontLabel: 7,
     shippingFontValue: 8,
     shippingFontOrder: 8,
+    shippingFontInvoice: 8,
     shippingFontBarcode: 14,
     defaultSellByDays: 7,
     showCompanyName: false,
@@ -2897,8 +2897,14 @@ function App() {
     settings.labelsZebra = { ...settings.labelsZebra, ..._migrated };
     delete settings.labelsZebra.shippingFontSize;
   }
-  window.__labelSettings = settings.labelsZebra || {};
   const _allLabelFields = ["category", "product", "address", "route", "deliveryDate", "weight", "order", "invoice", "barcode"];
+  if (!settings.labelsZebra.shippingFieldOrder) settings.labelsZebra.shippingFieldOrder = [..._allLabelFields];
+  else {
+    const _zExisting = settings.labelsZebra.shippingFieldOrder;
+    const _zMissing = _allLabelFields.filter(f => !_zExisting.includes(f));
+    if (_zMissing.length > 0) settings.labelsZebra.shippingFieldOrder = [..._zExisting, ..._zMissing];
+  }
+  window.__labelSettings = settings.labelsZebra || {};
   const _sheetSettings = settings.labelsSheet || {};
   if (_sheetSettings.shippingFieldOrder) {
     const existing = _sheetSettings.shippingFieldOrder;
@@ -6113,52 +6119,49 @@ function SheetFieldOrder({ settings, update }) {
 
 function ShippingPreviewBlock({ settings }) {
   const z = settings.labelsZebra;
-  const pfs = { cat: Number(z.shippingFontCategory) || 9, product: Number(z.shippingFontProduct) || 11, name: Number(z.shippingFontCustomer) || 9, addr: Number(z.shippingFontAddress) || 7.5, label: Number(z.shippingFontLabel) || 7, val: Number(z.shippingFontValue) || 8, order: Number(z.shippingFontOrder) || 8, barH: Number(z.shippingFontBarcode) || 14, shipTo: Math.max((Number(z.shippingFontLabel) || 7) - 1, 5) };
-  return /*#__PURE__*/React.createElement("div", {
-    style: { width: "100%", aspectRatio: "3/1.5", background: "#fff", borderRadius: 4, overflow: "hidden", border: "1px solid #111", fontSize: 0, display: "flex", flexDirection: "column" }
-  },
-    (settings.labelsZebra.shippingShowCategory !== false) ? /*#__PURE__*/React.createElement("div", {
-      style: { background: "#0284c7", color: "#fff", padding: "3px 7px", display: "flex", justifyContent: "space-between", alignItems: "center" }
-    }, /*#__PURE__*/React.createElement("span", { style: { fontSize: pfs.cat, fontWeight: 700, textTransform: "uppercase" } }, "SEAFOOD"),
-      (settings.labelsZebra.shippingShowUnitCount !== false) && /*#__PURE__*/React.createElement("span", { style: { fontSize: pfs.cat, fontWeight: 700 } }, "CS 1/3"))
-    : ((settings.labelsZebra.shippingShowUnitCount !== false) && /*#__PURE__*/React.createElement("div", {
-      style: { padding: "2px 7px", textAlign: "right", fontSize: pfs.cat, fontWeight: 700, color: "#111", borderBottom: "1px solid #eee" }
-    }, "CS 1/3")),
-    (settings.labelsZebra.shippingShowProduct !== false) && /*#__PURE__*/React.createElement("div", {
-      style: { padding: "3px 7px 1px", borderBottom: "1px solid #eee" }
-    }, /*#__PURE__*/React.createElement("div", { style: { fontSize: pfs.product, fontWeight: 700, color: "#111" } }, "Atlantic Salmon Fillet")),
-    /*#__PURE__*/React.createElement("div", {
-      style: { display: "flex", flex: 1, overflow: "hidden" }
-    },
-      /*#__PURE__*/React.createElement("div", {
-        style: { flex: 1, padding: "3px 6px", borderRight: "1px solid #eee", display: "flex", flexDirection: "column", justifyContent: "space-between" }
-      },
-        (settings.labelsZebra.shippingShowAddress !== false) && /*#__PURE__*/React.createElement("div", null,
-          /*#__PURE__*/React.createElement("div", { style: { fontSize: pfs.shipTo, color: "#6b7280", fontWeight: 700, textTransform: "uppercase" } }, "SHIP TO"),
-          /*#__PURE__*/React.createElement("div", { style: { fontSize: pfs.name, fontWeight: 700, color: "#111" } }, "Oceano Restaurant"),
-          /*#__PURE__*/React.createElement("div", { style: { fontSize: pfs.addr, color: "#374151" } }, "456 Brickell Ave, Miami FL")),
-        (settings.labelsZebra.shippingShowRoute !== false) && /*#__PURE__*/React.createElement("div", { style: { marginTop: 2 } },
-          /*#__PURE__*/React.createElement("div", { style: { fontSize: pfs.label, color: "#6b7280", fontWeight: 700, textTransform: "uppercase" } }, "ROUTE / DRIVER"),
-          /*#__PURE__*/React.createElement("div", { style: { fontSize: pfs.val, fontWeight: 600, color: "#111" } }, "Route A \u2014 Mike")),
-        (settings.labelsZebra.shippingShowDeliveryDate !== false) && /*#__PURE__*/React.createElement("div", { style: { marginTop: 2 } },
-          /*#__PURE__*/React.createElement("div", { style: { fontSize: pfs.label, color: "#6b7280", fontWeight: 700, textTransform: "uppercase" } }, "DELIVERY"),
-          /*#__PURE__*/React.createElement("div", { style: { fontSize: pfs.val, fontWeight: 600, color: "#111" } }, "2026-03-10"))),
-      /*#__PURE__*/React.createElement("div", {
-        style: { width: 80, padding: "3px 5px", display: "flex", flexDirection: "column", justifyContent: "space-between" }
-      },
-        (settings.labelsZebra.shippingShowWeight !== false) && /*#__PURE__*/React.createElement("div", {
-          style: { border: "1px solid #f59e0b", borderRadius: 3, padding: "2px 3px", background: "#fffbeb" }
-        }, /*#__PURE__*/React.createElement("div", { style: { fontSize: pfs.label, color: "#92400e", fontWeight: 700 } }, "\u2696\uFE0F ACT. WEIGHT"),
-          /*#__PURE__*/React.createElement("div", { style: { fontSize: pfs.name, color: "#92400e", fontWeight: 700, borderBottom: "1px solid #d97706", minHeight: 12, marginTop: 1 } }, "~8.50 lbs")),
-        /*#__PURE__*/React.createElement("div", { style: { marginTop: "auto" } },
-          (settings.labelsZebra.shippingShowOrder !== false) && /*#__PURE__*/React.createElement("div", null,
-            /*#__PURE__*/React.createElement("div", { style: { fontSize: pfs.label, color: "#6b7280", textTransform: "uppercase", fontWeight: 700 } }, "ORDER #"),
-            /*#__PURE__*/React.createElement("div", { style: { fontSize: pfs.order, fontWeight: 700, color: "#111", fontFamily: "monospace" } }, "SO-1234")),
-          (settings.labelsZebra.shippingShowBarcode !== false) && /*#__PURE__*/React.createElement("div", {
-            style: { display: "flex", gap: 0.5, marginTop: 2, height: pfs.barH }
-          }, Array.from({ length: 16 }).map((_, i) => /*#__PURE__*/React.createElement("div", {
-            key: i, style: { width: i % 3 === 0 ? 2 : 1, background: "#111", height: "100%" }
-          })))))));
+  const pfs = { cat: Number(z.shippingFontCategory) || 9, product: Number(z.shippingFontProduct) || 11, name: Number(z.shippingFontCustomer) || 9, addr: Number(z.shippingFontAddress) || 7.5, label: Number(z.shippingFontLabel) || 7, val: Number(z.shippingFontValue) || 8, order: Number(z.shippingFontOrder) || 8, invoice: Number(z.shippingFontInvoice) || 8, barH: Number(z.shippingFontBarcode) || 14, shipTo: Math.max((Number(z.shippingFontLabel) || 7) - 1, 5) };
+  const fieldOrder = z.shippingFieldOrder || ["category", "product", "address", "route", "deliveryDate", "weight", "order", "invoice", "barcode"];
+  const showF = f => z["shippingShow" + f.charAt(0).toUpperCase() + f.slice(1)] !== false;
+  const showUC = showF("unitCount");
+  const sampleData = { category: "SEAFOOD", productName: "Atlantic Salmon Fillet", customerName: "Oceano Restaurant", address: "456 Brickell Ave, Miami FL", routeName: "Route A", driverName: "Mike", deliveryDate: "2026-03-10", soId: "SO-1234", invoiceId: "INV-1001" };
+  const renderField = f => {
+    if (!showF(f)) return null;
+    switch (f) {
+      case "category": return React.createElement("div", { key: f, style: { background: "#0284c7", color: "#fff", padding: "3px 7px", display: "flex", justifyContent: "space-between", alignItems: "center" } },
+        React.createElement("span", { style: { fontSize: pfs.cat, fontWeight: 700, textTransform: "uppercase" } }, sampleData.category),
+        showUC && React.createElement("span", { style: { fontSize: pfs.cat, fontWeight: 700 } }, "CS 1/3"));
+      case "product": return React.createElement("div", { key: f, style: { padding: "3px 7px 1px", borderBottom: "1px solid #eee" } },
+        React.createElement("div", { style: { fontSize: pfs.product, fontWeight: 700, color: "#111" } }, sampleData.productName));
+      case "address": return React.createElement("div", { key: f, style: { padding: "2px 7px" } },
+        React.createElement("div", { style: { fontSize: pfs.shipTo, color: "#6b7280", fontWeight: 700, textTransform: "uppercase" } }, "SHIP TO"),
+        React.createElement("div", { style: { fontSize: pfs.name, fontWeight: 700, color: "#111" } }, sampleData.customerName),
+        React.createElement("div", { style: { fontSize: pfs.addr, color: "#374151" } }, sampleData.address));
+      case "route": return React.createElement("div", { key: f, style: { padding: "2px 7px" } },
+        React.createElement("div", { style: { fontSize: pfs.label, color: "#6b7280", fontWeight: 700, textTransform: "uppercase" } }, "ROUTE / DRIVER"),
+        React.createElement("div", { style: { fontSize: pfs.val, fontWeight: 600, color: "#111" } }, sampleData.routeName + " — " + sampleData.driverName));
+      case "deliveryDate": return React.createElement("div", { key: f, style: { padding: "2px 7px" } },
+        React.createElement("div", { style: { fontSize: pfs.label, color: "#6b7280", fontWeight: 700, textTransform: "uppercase" } }, "DELIVERY"),
+        React.createElement("div", { style: { fontSize: pfs.val, fontWeight: 600, color: "#111" } }, sampleData.deliveryDate));
+      case "weight": return React.createElement("div", { key: f, style: { padding: "2px 7px" } },
+        React.createElement("div", { style: { border: "1px solid #f59e0b", borderRadius: 3, padding: "2px 3px", background: "#fffbeb", display: "inline-block" } },
+          React.createElement("div", { style: { fontSize: pfs.label, color: "#92400e", fontWeight: 700 } }, "\u2696\uFE0F ACT. WEIGHT"),
+          React.createElement("div", { style: { fontSize: pfs.name, color: "#92400e", fontWeight: 700, borderBottom: "1px solid #d97706", minHeight: 12, marginTop: 1 } }, "~8.50 lbs")));
+      case "order": return React.createElement("div", { key: f, style: { padding: "2px 7px" } },
+        React.createElement("div", { style: { fontSize: pfs.label, color: "#6b7280", textTransform: "uppercase", fontWeight: 700 } }, "ORDER #"),
+        React.createElement("div", { style: { fontSize: pfs.order, fontWeight: 700, color: "#111", fontFamily: "monospace" } }, sampleData.soId));
+      case "invoice": return React.createElement("div", { key: f, style: { padding: "2px 7px" } },
+        React.createElement("div", { style: { fontSize: pfs.label, color: "#6b7280", textTransform: "uppercase", fontWeight: 700 } }, "INVOICE #"),
+        React.createElement("div", { style: { fontSize: pfs.invoice, fontWeight: 700, color: "#111", fontFamily: "monospace" } }, sampleData.invoiceId));
+      case "barcode": return React.createElement("div", { key: f, style: { padding: "2px 7px" } },
+        React.createElement("div", { style: { display: "flex", gap: 0.5, height: pfs.barH } },
+          Array.from({ length: 16 }).map((_, i) => React.createElement("div", { key: i, style: { width: i % 3 === 0 ? 2 : 1, background: "#111", height: "100%" } }))),
+        React.createElement("div", { style: { fontSize: Math.max(pfs.label - 1, 5), fontFamily: "monospace", fontWeight: 700, color: "#000" } }, "SO-1234-P001-001"));
+      default: return null;
+    }
+  };
+  return React.createElement("div", {
+    style: { width: "100%", aspectRatio: (Number(z.width) || 3) + "/" + (Number(z.height) || 1.5), background: "#fff", borderRadius: 4, overflow: "hidden", border: "1px solid #111", fontSize: 0, display: "flex", flexDirection: "column" }
+  }, fieldOrder.map(f => renderField(f)));
 }
 
 function ShippingLabel({
@@ -37142,150 +37145,77 @@ function SystemSettings({
       fontSize: 15,
       color: "#f59e0b"
     }
-  }, "Zebra Thermal Printer"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 11,
-      color: "#64748b"
-    }
-  }, "Single inline labels on roll stock"))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 20
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      flex: 1
-    }
-  }, /*#__PURE__*/React.createElement(SectionLabel, null, "Label Size"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr 1fr",
-      gap: 10
-    }
-  }, /*#__PURE__*/React.createElement(Dropdown, {
-    label: "Preset Size",
-    value: settings.labelsZebra.size,
-    onChange: v => {
-      const sizes = {
-        "1.5x3": {
-          width: 1.5,
-          height: 3
-        },
-        "2x4": {
-          width: 2,
-          height: 4
-        },
-        "2x3": {
-          width: 2,
-          height: 3
-        },
-        "2x1": {
-          width: 2,
-          height: 1
-        },
-        "1x3": {
-          width: 1,
-          height: 3
-        }
-      };
-      updateNested("labelsZebra", {
-        size: v,
-        ...(sizes[v] || {})
-      });
-    },
-    options: [{
-      value: "1.5x3",
-      label: "1.5″ × 3″ (standard)"
-    }, {
-      value: "2x4",
-      label: "2″ × 4″"
-    }, {
-      value: "2x3",
-      label: "2″ × 3″"
-    }, {
-      value: "2x1",
-      label: "2″ × 1″ (small)"
-    }, {
-      value: "1x3",
-      label: "1″ × 3″ (narrow)"
-    }]
-  }), /*#__PURE__*/React.createElement(Field, {
-    label: "Width (inches)",
-    type: "number",
-    value: settings.labelsZebra.width,
-    onChange: v => update("labelsZebra", "width", Number(v))
-  }), /*#__PURE__*/React.createElement(Field, {
-    label: "Height (inches)",
-    type: "number",
-    value: settings.labelsZebra.height,
-    onChange: v => update("labelsZebra", "height", Number(v))
-  })), /*#__PURE__*/React.createElement(SectionLabel, null, "Shipping Label Fields"), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Category Color Bar",
-    value: settings.labelsZebra.shippingShowCategory !== false,
-    onChange: v => update("labelsZebra", "shippingShowCategory", v)
-  }), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Product Name",
-    value: settings.labelsZebra.shippingShowProduct !== false,
-    onChange: v => update("labelsZebra", "shippingShowProduct", v)
-  }), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Unit Count (CS/PCS)",
-    value: settings.labelsZebra.shippingShowUnitCount !== false,
-    onChange: v => update("labelsZebra", "shippingShowUnitCount", v)
-  }), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Customer Name & Address",
-    value: settings.labelsZebra.shippingShowAddress !== false,
-    onChange: v => update("labelsZebra", "shippingShowAddress", v)
-  }), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Route & Driver",
-    value: settings.labelsZebra.shippingShowRoute !== false,
-    onChange: v => update("labelsZebra", "shippingShowRoute", v)
-  }), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Delivery Date",
-    value: settings.labelsZebra.shippingShowDeliveryDate !== false,
-    onChange: v => update("labelsZebra", "shippingShowDeliveryDate", v)
-  }), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Weight / Catch Weight",
-    value: settings.labelsZebra.shippingShowWeight !== false,
-    onChange: v => update("labelsZebra", "shippingShowWeight", v)
-  }), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Order Number",
-    value: settings.labelsZebra.shippingShowOrder !== false,
-    onChange: v => update("labelsZebra", "shippingShowOrder", v)
-  }), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Invoice Number",
-    value: settings.labelsZebra.shippingShowInvoice === true,
-    onChange: v => update("labelsZebra", "shippingShowInvoice", v)
-  }), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Barcode",
-    value: settings.labelsZebra.shippingShowBarcode !== false,
-    onChange: v => update("labelsZebra", "shippingShowBarcode", v)
-  }), /*#__PURE__*/React.createElement(SectionLabel, null, "Shipping Label Font Sizes (pt)"),
-  /*#__PURE__*/React.createElement("div", {
-    style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }
-  },
-    /*#__PURE__*/React.createElement(NumberInput, { label: "Category Bar", value: settings.labelsZebra.shippingFontCategory || 9, onChange: v => update("labelsZebra", "shippingFontCategory", v), min: 4, max: 20, step: 0.5 }),
-    /*#__PURE__*/React.createElement(NumberInput, { label: "Product Name", value: settings.labelsZebra.shippingFontProduct || 11, onChange: v => update("labelsZebra", "shippingFontProduct", v), min: 4, max: 20, step: 0.5 }),
-    /*#__PURE__*/React.createElement(NumberInput, { label: "Customer Name", value: settings.labelsZebra.shippingFontCustomer || 9, onChange: v => update("labelsZebra", "shippingFontCustomer", v), min: 4, max: 20, step: 0.5 }),
-    /*#__PURE__*/React.createElement(NumberInput, { label: "Address", value: settings.labelsZebra.shippingFontAddress || 7.5, onChange: v => update("labelsZebra", "shippingFontAddress", v), min: 4, max: 20, step: 0.5 }),
-    /*#__PURE__*/React.createElement(NumberInput, { label: "Section Headings", value: settings.labelsZebra.shippingFontLabel || 7, onChange: v => update("labelsZebra", "shippingFontLabel", v), min: 4, max: 20, step: 0.5 }),
-    /*#__PURE__*/React.createElement(NumberInput, { label: "Route / Date", value: settings.labelsZebra.shippingFontValue || 8, onChange: v => update("labelsZebra", "shippingFontValue", v), min: 4, max: 20, step: 0.5 }),
-    /*#__PURE__*/React.createElement(NumberInput, { label: "Order Number", value: settings.labelsZebra.shippingFontOrder || 8, onChange: v => update("labelsZebra", "shippingFontOrder", v), min: 4, max: 20, step: 0.5 }),
-    /*#__PURE__*/React.createElement(NumberInput, { label: "Barcode Height", value: settings.labelsZebra.shippingFontBarcode || 14, onChange: v => update("labelsZebra", "shippingFontBarcode", v), min: 6, max: 30, step: 1 }))),
-  /*#__PURE__*/React.createElement("div", {
-    style: {
-      width: 300
-    }
-  },
-  /*#__PURE__*/React.createElement(SectionLabel, null, "Live Preview \u2014 Shipping Label (3\u2033 \xD7 1.5\u2033)"),
-  /*#__PURE__*/React.createElement("div", {
-    style: { background: "#fff", borderRadius: 8, padding: 6, border: "2px solid #3b82f644" }
-  }, /*#__PURE__*/React.createElement(ShippingPreviewBlock, { settings: settings })))),
-  /*#__PURE__*/React.createElement("div", {
-    style: { display: "flex", justifyContent: "flex-end", marginTop: 12 }
-  }, /*#__PURE__*/React.createElement(Btn, {
-    icon: "save",
-    onClick: () => showToast("Label settings saved")
-  }, "Save Label Settings"))), /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
+  }, "Zebra Thermal Printer"), React.createElement("div", { style: { fontSize: 11, color: "#64748b" } }, "Single inline labels on roll stock"))),
+  (() => {
+    const z = settings.labelsZebra;
+    const fieldOrder = z.shippingFieldOrder || ["category", "product", "address", "route", "deliveryDate", "weight", "order", "invoice", "barcode"];
+    const fieldMeta = {
+      category: { label: "Category Color Bar", showKey: "shippingShowCategory", fontKey: "shippingFontCategory", fontDefault: 9 },
+      product: { label: "Product Name", showKey: "shippingShowProduct", fontKey: "shippingFontProduct", fontDefault: 11 },
+      address: { label: "Customer & Address", showKey: "shippingShowAddress", fontKeys: [{ key: "shippingFontCustomer", label: "Name", def: 9 }, { key: "shippingFontAddress", label: "Address", def: 7.5 }] },
+      route: { label: "Route & Driver", showKey: "shippingShowRoute", fontKey: "shippingFontValue", fontDefault: 8 },
+      deliveryDate: { label: "Delivery Date", showKey: "shippingShowDeliveryDate", fontKey: "shippingFontValue", fontDefault: 8 },
+      weight: { label: "Weight / Catch Weight", showKey: "shippingShowWeight" },
+      order: { label: "Order Number", showKey: "shippingShowOrder", fontKey: "shippingFontOrder", fontDefault: 8 },
+      invoice: { label: "Invoice Number", showKey: "shippingShowInvoice", fontKey: "shippingFontInvoice", fontDefault: 8 },
+      barcode: { label: "Barcode", showKey: "shippingShowBarcode", fontKey: "shippingFontBarcode", fontDefault: 14, fontLabel: "Height" }
+    };
+    const moveField = (idx, dir) => {
+      const newOrder = [...fieldOrder];
+      const t = idx + dir;
+      if (t < 0 || t >= newOrder.length) return;
+      [newOrder[idx], newOrder[t]] = [newOrder[t], newOrder[idx]];
+      update("labelsZebra", "shippingFieldOrder", newOrder);
+    };
+    return React.createElement("div", { style: { display: "flex", gap: 20 } },
+      React.createElement("div", { style: { flex: 1 } },
+        React.createElement(SectionLabel, null, "Label Size"),
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 16 } },
+          React.createElement(Dropdown, {
+            label: "Preset Size", value: z.size,
+            onChange: v => {
+              const sizes = { "1.5x3": { width: 1.5, height: 3 }, "2x4": { width: 2, height: 4 }, "2x3": { width: 2, height: 3 }, "2x1": { width: 2, height: 1 }, "1x3": { width: 1, height: 3 } };
+              updateNested("labelsZebra", { size: v, ...(sizes[v] || {}) });
+            },
+            options: [{ value: "1.5x3", label: '1.5″ × 3″ (standard)' }, { value: "2x4", label: '2″ × 4″' }, { value: "2x3", label: '2″ × 3″' }, { value: "2x1", label: '2″ × 1″ (small)' }, { value: "1x3", label: '1″ × 3″ (narrow)' }]
+          }),
+          React.createElement(Field, { label: "Width (in)", type: "number", value: z.width, onChange: v => update("labelsZebra", "width", Number(v)) }),
+          React.createElement(Field, { label: "Height (in)", type: "number", value: z.height, onChange: v => update("labelsZebra", "height", Number(v)) })),
+        React.createElement(SectionLabel, null, "Global Font Sizes"),
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 } },
+          React.createElement(NumberInput, { label: "Section Headings", value: z.shippingFontLabel || 7, onChange: v => update("labelsZebra", "shippingFontLabel", v), min: 4, max: 20, step: 0.5 })),
+        React.createElement(SectionLabel, null, "Label Fields — Drag to Reorder"),
+        React.createElement("div", { style: { fontSize: 10, color: "#64748b", marginBottom: 8 } }, "Use arrows to move fields up/down. Toggle on/off. Adjust font size per field."),
+        React.createElement(Toggle, { label: "Unit Count (CS/PCS)", hint: "Shows in category bar or standalone", value: z.shippingShowUnitCount !== false, onChange: v => update("labelsZebra", "shippingShowUnitCount", v) }),
+        fieldOrder.map((f, idx) => {
+          const meta = fieldMeta[f];
+          if (!meta) return null;
+          const isOn = z[meta.showKey] !== false;
+          return React.createElement("div", { key: f, "data-testid": "label-field-" + f, style: { display: "flex", alignItems: "center", gap: 6, padding: "6px 8px", marginBottom: 2, borderRadius: 6, background: isOn ? "#1a2a3a" : "#111827", border: "1px solid " + (isOn ? "#2d4a5f" : "#1e293b"), opacity: isOn ? 1 : 0.5, transition: "all 0.15s" } },
+            React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 1 } },
+              React.createElement("button", { "data-testid": "move-up-" + f, onClick: () => moveField(idx, -1), disabled: idx === 0, style: { background: "none", border: "none", color: idx === 0 ? "#334155" : "#94a3b8", cursor: idx === 0 ? "default" : "pointer", fontSize: 10, padding: 0, lineHeight: 1 } }, "\u25B2"),
+              React.createElement("button", { "data-testid": "move-down-" + f, onClick: () => moveField(idx, 1), disabled: idx === fieldOrder.length - 1, style: { background: "none", border: "none", color: idx === fieldOrder.length - 1 ? "#334155" : "#94a3b8", cursor: idx === fieldOrder.length - 1 ? "default" : "pointer", fontSize: 10, padding: 0, lineHeight: 1 } }, "\u25BC")),
+            React.createElement("div", { style: { width: 18, textAlign: "center", fontSize: 9, color: "#64748b", fontWeight: 700 } }, idx + 1),
+            React.createElement("button", { "data-testid": "toggle-" + f, onClick: () => update("labelsZebra", meta.showKey, !isOn), style: { width: 32, height: 18, borderRadius: 9, border: "none", background: isOn ? "#22c55e" : "#334155", cursor: "pointer", position: "relative", flexShrink: 0, transition: "background 0.15s" } },
+              React.createElement("div", { style: { width: 14, height: 14, borderRadius: 7, background: "#fff", position: "absolute", top: 2, left: isOn ? 16 : 2, transition: "left 0.15s" } })),
+            React.createElement("div", { style: { flex: 1, fontSize: 12, fontWeight: 600, color: isOn ? "#e2e8f0" : "#64748b" } }, meta.label),
+            meta.fontKeys ? meta.fontKeys.map(fk => React.createElement("div", { key: fk.key, style: { display: "flex", alignItems: "center", gap: 3 } },
+              React.createElement("span", { style: { fontSize: 9, color: "#64748b" } }, fk.label),
+              React.createElement("input", { type: "number", value: z[fk.key] || fk.def, onChange: e => update("labelsZebra", fk.key, Number(e.target.value)), min: 4, max: 24, step: 0.5, style: { width: 42, background: "#0f172a", border: "1px solid #334155", borderRadius: 4, padding: "2px 4px", color: "#e2e8f0", fontSize: 11, textAlign: "center" } })))
+            : meta.fontKey ? React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 3 } },
+              React.createElement("span", { style: { fontSize: 9, color: "#64748b" } }, meta.fontLabel || "Font"),
+              React.createElement("input", { type: "number", value: z[meta.fontKey] || meta.fontDefault, onChange: e => update("labelsZebra", meta.fontKey, Number(e.target.value)), min: 4, max: 30, step: 0.5, style: { width: 42, background: "#0f172a", border: "1px solid #334155", borderRadius: 4, padding: "2px 4px", color: "#e2e8f0", fontSize: 11, textAlign: "center" } }))
+            : null);
+        })),
+      React.createElement("div", { style: { width: 320 } },
+        React.createElement(SectionLabel, null, "Live Preview"),
+        React.createElement("div", { style: { background: "#fff", borderRadius: 8, padding: 6, border: "2px solid #3b82f644", position: "sticky", top: 20 } },
+          React.createElement(ShippingPreviewBlock, { settings: settings })),
+        React.createElement("div", { style: { fontSize: 10, color: "#64748b", textAlign: "center", marginTop: 6 } }, (z.width || 3) + "\u2033 \u00D7 " + (z.height || 1.5) + "\u2033")));
+  })(),
+  React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", marginTop: 12 } },
+    React.createElement(Btn, { icon: "save", onClick: () => showToast("Label settings saved") }, "Save Label Settings"))),
+  /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       alignItems: "center",

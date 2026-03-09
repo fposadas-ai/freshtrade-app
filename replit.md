@@ -102,11 +102,13 @@ Preferred communication style: Simple, everyday language.
 - **Warning State**: `cwWarnings` state keyed by `"lineIdx-pieceIdx"`, stores `{ deviation, dir, expected, actual }`; cleared on invoice change or successful apply
 
 ### Label Customization (Shipping Labels)
-- **Field Toggles**: Both Zebra and Sheet (Avery 5363) label settings now have full toggle sets: Category, Product, Unit Count, Address, Route, Delivery Date, Weight, Order, Invoice Number, Barcode
-- **Invoice Number**: New `shippingShowInvoice` toggle (off by default). `buildLabels` accepts `invoices` param and includes `invoiceId` on each label. All three render functions (`renderShippingLabelHTML`, `renderShippingLabelAvery5363`, `renderShippingLabelSheet`) support it.
-- **Field Ordering**: `SheetFieldOrder` component in Settings > Labels > Sheet section lets you reorder fields with up/down arrows. Stored in `labelsSheet.shippingFieldOrder` array. Avery 5363 render separates fields into top/left/right zones based on this order.
-- **Barcode on Avery**: Avery 5363 labels now support barcode rendering, controlled by the Barcode toggle.
-- **Field Order Sanitizer**: On load, any missing new fields are appended to existing `shippingFieldOrder` arrays to prevent stale saved settings.
+- **Zebra Label Designer**: Comprehensive field-order-based label designer in Settings > Labels > Zebra section. Each field row has: up/down arrows to reorder, toggle on/off, per-field font size input. Live preview updates instantly on every change. Fields rendered dynamically based on `shippingFieldOrder` array.
+- **Field-Order Rendering**: `renderShippingLabelHTML` uses `shippingFieldOrder` array to render fields top-to-bottom in any user-defined order. Each field is a self-contained block. No more fixed two-column layout.
+- **Invoice Number**: `shippingShowInvoice` toggle defaults ON. `buildLabels` matches invoices via `inv.soId || inv.salesOrderId || inv.fromSO`. Dedicated `shippingFontInvoice` font size setting.
+- **Settings Merge**: On app load, `labelsZebra` and `labelsSheet` settings are merged with defaults (`{...defaults, ...saved}`) so newly added fields always have values. Missing fields appended to `shippingFieldOrder` arrays.
+- **Dynamic Label Size**: `printZebraLabel` uses `width`/`height` from settings for `@page` size and `.label-item` dimensions.
+- **Sheet Labels**: `SheetFieldOrder` component in Settings > Labels > Sheet section lets you reorder fields with up/down arrows. Stored in `labelsSheet.shippingFieldOrder` array.
+- **Barcode on Avery**: Avery 5363 labels support barcode rendering, controlled by the Barcode toggle.
 - **Route-level labels**: Route print paths now use `buildLabels()` instead of manual label construction, ensuring all fields (including invoiceId) are consistent.
 
 ### Date-Based Route View
