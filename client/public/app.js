@@ -30951,259 +30951,134 @@ function ProofOfDelivery({
   const scannerTimer = useRef(null);
   const [lastScan, setLastScan] = useState(null); // {code, matched, invId, time}
 
-  // ── Batch OCR Scan State ──
+  // ── Batch File Upload State ──
   const [showBatchScan, setShowBatchScan] = useState(false);
-  const [ocrScans, setOcrScans] = useState([]); // [{id, fileName, preview, ocrText, matchedInvId, status, confidence, processing}]
-  const [ocrBusy, setOcrBusy] = useState(false);
-  const [ocrWorker, setOcrWorker] = useState(null);
-  const [ocrMode, setOcrMode] = useState("ocr"); // ocr, sequential, bulk
-  const [seqIdx, setSeqIdx] = useState(0);
+  const [batchFiles, setBatchFiles] = useState([]);
+  const [batchProcessing, setBatchProcessing] = useState(false);
 
-  // Initialize Tesseract worker
-  const getOcrWorker = async () => {
-    if (ocrWorker) return ocrWorker;
-    if (typeof Tesseract === "undefined") {
-      showToast("Loading OCR engine...", "info");
-      // Try loading Tesseract.js dynamically
-      await new Promise((resolve, reject) => {
-        const script = document.createElement("script");
-        script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
-        script.onload = resolve;
-        script.onerror = () => reject(new Error("Failed to load OCR engine"));
-        document.head.appendChild(script);
-      });
-    }
-    const worker = await Tesseract.createWorker("eng", 1, {
-      logger: () => {}
+  // Load PDF.js library
+  const loadPdfJs = async () => {
+    if (window.pdfjsLib) return window.pdfjsLib;
+    await new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+      script.onload = resolve;
+      script.onerror = () => reject(new Error("Failed to load PDF library"));
+      document.head.appendChild(script);
     });
-    setOcrWorker(worker);
-    return worker;
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    return window.pdfjsLib;
   };
 
-  // Extract invoice number from OCR text
-  const matchOcrText = text => {
-    if (!text) return {
-      matchedInvId: null,
-      confidence: 0,
-      details: "No text found"
-    };
+  // Match invoice number from text extracted from PDF
+  const matchInvNumber = text => {
+    if (!text) return null;
     const upper = text.toUpperCase().replace(/\s+/g, " ");
-
-    // Get invoice prefix from settings or default
-    const prefix = "INV-";
-    const prefixClean = prefix.replace("-", "").toUpperCase();
-
-    // Strategy 1: Direct invoice number match (INV-1001, INV 1001, INV1001)
-    const invPatterns = [/INV[\s\-\._]*(\d{3,6})/gi, /INVOICE[\s#:\-]*(\d{3,6})/gi, /(?:NO|NUM|NUMBER)[\s.:]*(\d{4,6})/gi];
-    for (const pat of invPatterns) {
+    const patterns = [/INV[\s\-\._]*(\d{3,6})/gi, /INVOICE[\s#:\-]*(\d{3,6})/gi, /(?:NO|NUM|NUMBER)[\s.:]*(\d{4,6})/gi];
+    for (const pat of patterns) {
       let m;
       while ((m = pat.exec(upper)) !== null) {
         const num = m[1];
-        const tryIds = [`INV-${num}`, `${prefix}${num}`];
-        for (const tid of tryIds) {
-          const match = invoices.find(inv => inv.id === tid);
-          if (match) return {
-            matchedInvId: match.id,
-            confidence: 95,
-            details: `Found "${m[0]}" in text`
-          };
-        }
-        // Try matching just the number portion
-        const numMatch = invoices.find(inv => inv.id.includes(num));
-        if (numMatch) return {
-          matchedInvId: numMatch.id,
-          confidence: 90,
-          details: `Number ${num} matched ${numMatch.id}`
-        };
+        const match = invoices.find(inv => inv.id.includes(num));
+        if (match) return match.id;
       }
     }
-
-    // Strategy 2: Look for any 4-6 digit number and cross-reference with existing invoices
-    const allNums = [...upper.matchAll(/\b(\d{4,6})\b/g)].map(m => m[1]);
+    const allNums = [...upper.matchAll(/\b(\d{3,6})\b/g)].map(m => m[1]);
     for (const num of allNums) {
       const match = invoices.find(inv => inv.id.endsWith(num) || inv.id.includes(num));
-      if (match) return {
-        matchedInvId: match.id,
-        confidence: 75,
-        details: `Number ${num} likely matches ${match.id}`
-      };
+      if (match) return match.id;
     }
-
-    // Strategy 3: Customer name match
-    for (const cust of customers) {
-      const custWords = cust.name.toUpperCase().split(/\s+/).filter(w => w.length > 3);
-      const matchCount = custWords.filter(w => upper.includes(w)).length;
-      if (matchCount >= 2 || custWords.length === 1 && matchCount === 1) {
-        // Found customer name — find their most recent unscanned invoice
-        const custInvs = invoices.filter(inv => inv.customerId === cust.id && !inv.signedCopy).sort((a, b) => b.date.localeCompare(a.date));
-        if (custInvs.length > 0) {
-          return {
-            matchedInvId: custInvs[0].id,
-            confidence: 60,
-            details: `Customer "${cust.name}" found in text`
-          };
-        }
-      }
-    }
-
-    // Strategy 4: Total amount match
-    const amountPatterns = [...upper.matchAll(/\$?\s*(\d{1,3}[,.]?\d{1,3}\.\d{2})/g)];
-    for (const am of amountPatterns) {
-      const val = parseFloat(am[1].replace(",", ""));
-      if (val > 10) {
-        const match = invoices.find(inv => Math.abs(inv.total - val) < 0.02 && !inv.signedCopy);
-        if (match) return {
-          matchedInvId: match.id,
-          confidence: 70,
-          details: `Total ${fmt(val)} matches ${match.id}`
-        };
-      }
-    }
-    return {
-      matchedInvId: null,
-      confidence: 0,
-      details: "No invoice match found in OCR text"
-    };
+    return null;
   };
 
-  // Process scans with OCR
-  const processOcrScans = async files => {
+  // Process batch files — read PDFs, extract text/barcode, match to invoices
+  const processBatchFiles = async (files) => {
     const fileArr = Array.from(files);
     if (fileArr.length === 0) return;
-    setOcrBusy(true);
+    setBatchProcessing(true);
+    const results = [];
+    let pdfLib = null;
+    try { pdfLib = await loadPdfJs(); } catch (e) { /* will fall back to filename matching */ }
 
-    // First add all files as "processing"
-    const newScans = fileArr.map((file, fi) => ({
-      id: Date.now() + fi,
-      fileName: file.name,
-      preview: null,
-      ocrText: null,
-      matchedInvId: null,
-      status: "processing",
-      confidence: 0,
-      details: "Reading file...",
-      processing: true,
-      file
-    }));
-    setOcrScans(prev => [...prev, ...newScans]);
-    try {
-      const worker = await getOcrWorker();
-      for (let fi = 0; fi < fileArr.length; fi++) {
-        const file = fileArr[fi];
-        const scanId = newScans[fi].id;
-
-        // Read file as base64
-        const base64 = await new Promise((res, rej) => {
-          const reader = new FileReader();
-          reader.onload = () => res(reader.result);
-          reader.onerror = rej;
-          reader.readAsDataURL(file);
-        });
-
-        // Update preview
-        setOcrScans(prev => prev.map(s => s.id === scanId ? {
-          ...s,
-          preview: base64,
-          details: "Running OCR..."
-        } : s));
-
-        // Try filename match first
-        const fname = file.name.toUpperCase();
-        let fileMatch = null;
-        for (const inv of invoices) {
-          if (fname.includes(inv.id.toUpperCase()) || fname.includes(inv.id.replace("INV-", "").toUpperCase())) {
-            fileMatch = inv.id;
-            break;
-          }
-        }
-        if (fileMatch) {
-          // Filename matched — skip OCR
-          setOcrScans(prev => prev.map(s => s.id === scanId ? {
-            ...s,
-            preview: base64,
-            matchedInvId: fileMatch,
-            status: "matched",
-            confidence: 99,
-            details: `Filename matched → ${fileMatch}`,
-            processing: false,
-            ocrText: "(skipped — filename match)"
-          } : s));
-          continue;
-        }
-
-        // Run OCR
-        try {
-          const {
-            data
-          } = await worker.recognize(base64);
-          const ocrText = data.text || "";
-          const match = matchOcrText(ocrText);
-          setOcrScans(prev => prev.map(s => s.id === scanId ? {
-            ...s,
-            preview: base64,
-            ocrText,
-            matchedInvId: match.matchedInvId,
-            status: match.matchedInvId ? "matched" : "unmatched",
-            confidence: match.confidence,
-            details: match.details,
-            processing: false
-          } : s));
-        } catch (ocrErr) {
-          setOcrScans(prev => prev.map(s => s.id === scanId ? {
-            ...s,
-            preview: base64,
-            ocrText: "",
-            status: "error",
-            details: "OCR failed — assign manually",
-            processing: false,
-            confidence: 0
-          } : s));
-        }
-      }
-    } catch (err) {
-      showToast("OCR engine failed to load. You can still assign invoices manually.", "warn");
-      // Mark remaining as error
-      setOcrScans(prev => prev.map(s => s.processing ? {
-        ...s,
-        status: "error",
-        details: "OCR unavailable — assign manually",
-        processing: false
-      } : s));
-    }
-    setOcrBusy(false);
-  };
-
-  // Apply all matched scans
-  const applyOcrMatches = () => {
-    const toApply = ocrScans.filter(s => s.matchedInvId && s.status !== "applied" && s.preview);
-    let applied = 0;
-    let skippedDups = 0;
-    toApply.forEach(s => {
-      const existing = invoices.find(x => x.id === s.matchedInvId);
-      if (existing && existing.signedCopy) {
-        skippedDups++;
-        return;
-      }
-      const dateStr = new Date().toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit"
+    for (const file of fileArr) {
+      const base64 = await new Promise((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = () => res(reader.result);
+        reader.onerror = rej;
+        reader.readAsDataURL(file);
       });
-      setInvoices(prev => prev.map(x => x.id === s.matchedInvId ? {
-        ...x,
-        signedCopy: s.preview,
-        signedCopyDate: dateStr
-      } : x));
-      applied++;
+      const fname = file.name.toUpperCase();
+      let matchedId = null;
+      let method = "";
+
+      // Strategy 1: filename contains invoice number
+      for (const inv of invoices) {
+        if (fname.includes(inv.id.toUpperCase()) || fname.includes(inv.id.replace(/\D/g, ""))) {
+          matchedId = inv.id;
+          method = "filename";
+          break;
+        }
+      }
+
+      // Strategy 2: extract text from PDF and search for invoice number
+      if (!matchedId && pdfLib && file.type === "application/pdf") {
+        try {
+          const arrayBuf = await file.arrayBuffer();
+          const pdf = await pdfLib.getDocument({ data: arrayBuf }).promise;
+          let allText = "";
+          for (let pg = 1; pg <= Math.min(pdf.numPages, 2); pg++) {
+            const page = await pdf.getPage(pg);
+            const content = await page.getTextContent();
+            allText += content.items.map(item => item.str).join(" ") + " ";
+          }
+          matchedId = matchInvNumber(allText);
+          if (matchedId) method = "pdf-text";
+        } catch (e) { /* PDF parsing failed, skip */ }
+      }
+
+      // Strategy 3: try barcode detector on rendered PDF image
+      if (!matchedId && pdfLib && file.type === "application/pdf" && typeof BarcodeDetector !== "undefined") {
+        try {
+          const arrayBuf = await file.arrayBuffer();
+          const pdf = await pdfLib.getDocument({ data: arrayBuf }).promise;
+          const page = await pdf.getPage(1);
+          const viewport = page.getViewport({ scale: 2 });
+          const canvas = document.createElement("canvas");
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          const ctx = canvas.getContext("2d");
+          await page.render({ canvasContext: ctx, viewport }).promise;
+          const detector = new BarcodeDetector({ formats: ["code_128", "code_39", "ean_13", "qr_code"] });
+          const barcodes = await detector.detect(canvas);
+          for (const bc of barcodes) {
+            const val = bc.rawValue;
+            const found = matchInvNumber(val);
+            if (found) { matchedId = found; method = "barcode"; break; }
+          }
+        } catch (e) { /* barcode detection failed */ }
+      }
+
+      results.push({ file, fileName: file.name, base64, matchedId, method });
+    }
+
+    // Apply results
+    const dateStr = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    let matched = 0, skipped = 0, unmatched = 0;
+    const unmatchedFiles = [];
+    results.forEach(r => {
+      if (!r.matchedId) { unmatched++; unmatchedFiles.push(r.fileName); return; }
+      const existing = invoices.find(x => x.id === r.matchedId);
+      if (existing && existing.signedCopy) { skipped++; return; }
+      setInvoices(prev => prev.map(x => x.id === r.matchedId ? { ...x, signedCopy: r.base64, signedCopyDate: dateStr, signedCopyName: r.fileName } : x));
+      matched++;
     });
-    setOcrScans(prev => prev.map(s => s.matchedInvId && s.status !== "applied" ? {
-      ...s,
-      status: "applied"
-    } : s));
-    const msg = skippedDups > 0 ? `✅ ${applied} scans linked, ${skippedDups} skipped (already had signed copy)` : `✅ ${applied} scans linked to invoices`;
-    showToast(msg);
+
+    setBatchFiles(results);
+    setBatchProcessing(false);
+    let msg = `✅ ${matched} invoices filed`;
+    if (skipped > 0) msg += `, ${skipped} skipped (already have copies)`;
+    if (unmatched > 0) msg += `, ${unmatched} could not be matched`;
+    showToast(msg, unmatched > 0 ? "warn" : "success");
   };
 
   // Sequential scan handler
@@ -31474,12 +31349,10 @@ function ProofOfDelivery({
     }, "\uD83D\uDCF7 Scan Invoices"), /*#__PURE__*/React.createElement(Btn, {
       variant: "secondary",
       onClick: () => {
-        setOcrScans([]);
-        setOcrMode("sequential");
-        setSeqIdx(0);
+        setBatchFiles([]);
         setShowBatchScan(true);
       }
-    }, "\uD83D\uDCE4 Upload Signed Copies"), /*#__PURE__*/React.createElement(Btn, {
+    }, "\uD83D\uDCE4 File Scanned Invoices"), /*#__PURE__*/React.createElement(Btn, {
       variant: "secondary",
       icon: "print",
       onClick: () => showToast("Print all route documents", "info")
@@ -32770,832 +32643,71 @@ function ProofOfDelivery({
     onClick: recordDelivery,
     icon: "check"
   }, "Confirm Delivery"))), showBatchScan && (() => {
-    const unsignedInvs = filteredInvoices.filter(inv => !inv.signedCopy);
-    const signedInvs = filteredInvoices.filter(inv => inv.signedCopy);
-    const seqList = unsignedInvs;
-    const activeSeqInv = seqList[seqIdx];
-    const activeSeqCust = activeSeqInv ? customers.find(c => c.id === activeSeqInv.customerId) : null;
-    const attachScan = (invId, base64) => {
-      const dateStr = new Date().toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit"
-      });
-      setInvoices(prev => prev.map(x => x.id === invId ? {
-        ...x,
-        signedCopy: base64,
-        signedCopyDate: dateStr
-      } : x));
-      if ((selectedInv === null || selectedInv === void 0 ? void 0 : selectedInv.id) === invId) setSelectedInv(prev => ({
-        ...prev,
-        signedCopy: base64,
-        signedCopyDate: dateStr
-      }));
-    };
-    const handleBulkFiles = files => {
-      const fileArr = Array.from(files);
-      const newScans = [];
-      let loaded = 0;
-      fileArr.forEach((file, fi) => {
-        const reader = new FileReader();
-        reader.onload = ev => {
-          const base64 = ev.target.result;
-          const fname = file.name.toUpperCase();
-          let matchId = null;
-          for (const inv of unsignedInvs) {
-            if (fname.includes(inv.id.toUpperCase()) || fname.includes(inv.id.replace("INV-", "").toUpperCase())) {
-              matchId = inv.id;
-              break;
-            }
-          }
-          newScans.push({
-            id: Date.now() + fi,
-            fileName: file.name,
-            preview: base64,
-            matchedInvId: matchId,
-            status: matchId ? "matched" : "unmatched"
-          });
-          loaded++;
-          if (loaded === fileArr.length) {
-            setOcrScans(prev => [...prev, ...newScans]);
-            showToast(`${fileArr.length} scan(s) loaded — ${newScans.filter(s => s.matchedInvId).length} auto-matched`);
-          }
-        };
-        reader.readAsDataURL(file);
-      });
-    };
-    const applyBulk = () => {
-      const toApply = ocrScans.filter(s => s.matchedInvId && s.status !== "applied" && s.preview);
-      toApply.forEach(s => attachScan(s.matchedInvId, s.preview));
-      setOcrScans(prev => prev.map(s => s.matchedInvId && s.status !== "applied" ? {
-        ...s,
-        status: "applied"
-      } : s));
-      showToast(`✅ ${toApply.length} scans linked to invoices`);
-    };
-    return /*#__PURE__*/React.createElement(Modal, {
-      title: "\uD83D\uDCF7 Invoice Document Scanner",
-      onClose: () => {
-        setShowBatchScan(false);
-        setOcrScans([]);
-      },
-      width: 960
+    const unsignedCount = filteredInvoices.filter(inv => !inv.signedCopy).length;
+    return /*#__PURE__*/React.createElement("div", {
+      style: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" },
+      onClick: e => { if (e.target === e.currentTarget) setShowBatchScan(false); }
     }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        gap: 10,
-        marginBottom: 14
-      }
-    }, [{
-      n: unsignedInvs.length,
-      label: "Need Scanning",
-      color: "#f59e0b",
-      icon: "⏳"
-    }, {
-      n: signedInvs.length,
-      label: "Scanned",
-      color: "#22c55e",
-      icon: "✅"
-    }, {
-      n: filteredInvoices.length,
-      label: `Total (${podDate})`,
-      color: "#3b82f6",
-      icon: "📄"
-    }].map((s, i) => /*#__PURE__*/React.createElement("div", {
-      key: i,
-      style: {
-        flex: 1,
-        background: "#1a2030",
-        borderRadius: 8,
-        padding: "8px 12px",
-        display: "flex",
-        alignItems: "center",
-        gap: 10
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 20
-      }
-    }, s.icon), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 20,
-        fontWeight: 700,
-        color: s.color,
-        fontFamily: "'DM Mono',monospace"
-      }
-    }, s.n), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 10,
-        color: "#64748b"
-      }
-    }, s.label))))), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        gap: 4,
-        marginBottom: 14,
-        background: "#0f1117",
-        borderRadius: 8,
-        padding: 3
-      }
-    }, [{
-      id: "sequential",
-      label: "📋 One-by-One",
-      desc: "Scan each invoice in order"
-    }, {
-      id: "bulk",
-      label: "🖨️ Bulk Upload",
-      desc: "Upload multiple scans at once"
-    }, {
-      id: "ocr",
-      label: "🔍 Smart OCR Match",
-      desc: "Auto-read invoice numbers from scans"
-    }].map(t => /*#__PURE__*/React.createElement("button", {
-      key: t.id,
-      onClick: () => setOcrMode(t.id),
-      style: {
-        flex: 1,
-        padding: "8px 12px",
-        borderRadius: 6,
-        border: "none",
-        cursor: "pointer",
-        background: ocrMode === t.id ? "#22c55e" : "transparent",
-        color: ocrMode === t.id ? "#000" : "#94a3b8",
-        fontSize: 12,
-        fontWeight: 600,
-        transition: "all 0.15s"
-      }
-    }, t.label))), ocrMode === "sequential" && (seqList.length === 0 ? /*#__PURE__*/React.createElement("div", {
-      style: {
-        textAlign: "center",
-        padding: 40,
-        color: "#64748b"
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 40,
-        marginBottom: 12
-      }
-    }, "\u2705"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 16,
-        fontWeight: 600,
-        color: "#22c55e"
-      }
-    }, "All invoices scanned!"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 12,
-        marginTop: 4
-      }
-    }, "No unsigned invoices for ", podDate)) : /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "grid",
-        gridTemplateColumns: "220px 1fr",
-        gap: 14
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        background: "#0f1117",
-        borderRadius: 8,
-        overflow: "hidden",
-        maxHeight: 400,
-        overflowY: "auto"
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        padding: "8px 10px",
-        background: "#1a2030",
-        fontSize: 10,
-        fontWeight: 700,
-        color: "#64748b",
-        letterSpacing: "0.5px",
-        position: "sticky",
-        top: 0,
-        zIndex: 1
-      }
-    }, "PENDING (", seqList.length, ")"), seqList.map((inv, idx) => {
-      const c = customers.find(cu => cu.id === inv.customerId);
-      const isActive = idx === seqIdx;
-      return /*#__PURE__*/React.createElement("div", {
-        key: inv.id,
-        onClick: () => setSeqIdx(idx),
-        style: {
-          padding: "8px 10px",
-          cursor: "pointer",
-          borderLeft: isActive ? "3px solid #22c55e" : "3px solid transparent",
-          background: isActive ? "#22c55e11" : "transparent",
-          borderBottom: "1px solid #1a1e2a"
-        }
-      }, /*#__PURE__*/React.createElement("div", {
-        style: {
-          display: "flex",
-          justifyContent: "space-between"
-        }
-      }, /*#__PURE__*/React.createElement("span", {
-        style: {
-          fontFamily: "'DM Mono',monospace",
-          fontSize: 11,
-          fontWeight: 600,
-          color: isActive ? "#22c55e" : "#e2e8f0"
-        }
-      }, inv.id), /*#__PURE__*/React.createElement("span", {
-        style: {
-          fontFamily: "'DM Mono',monospace",
-          fontSize: 10,
-          color: "#64748b"
-        }
-      }, fmt(inv.total))), /*#__PURE__*/React.createElement("div", {
-        style: {
-          fontSize: 10,
-          color: "#94a3b8",
-          marginTop: 1
-        }
-      }, (c === null || c === void 0 ? void 0 : c.name) || "—"));
-    })), activeSeqInv && /*#__PURE__*/React.createElement("div", {
-      style: {
-        background: "#1a2030",
-        borderRadius: 8,
-        padding: 16
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "flex-start",
-        marginBottom: 12
-      }
-    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 20,
-        fontWeight: 800,
-        color: "#22c55e",
-        fontFamily: "'DM Mono',monospace"
-      }
-    }, activeSeqInv.id), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 13,
-        fontWeight: 600,
-        color: "#f1f5f9"
-      }
-    }, activeSeqCust === null || activeSeqCust === void 0 ? void 0 : activeSeqCust.name), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 11,
-        color: "#64748b"
-      }
-    }, activeSeqInv.date, " \xB7 ", fmt(activeSeqInv.total), " \xB7 ", activeSeqInv.lines.length, " items")), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 11,
-        color: "#64748b",
-        background: "#0f1117",
-        borderRadius: 6,
-        padding: "5px 8px"
-      }
-    }, seqIdx + 1, " / ", seqList.length)), /*#__PURE__*/React.createElement("div", {
-      style: {
-        border: "2px dashed #3b82f6",
-        borderRadius: 10,
-        padding: 20,
-        textAlign: "center",
-        background: "#0f1117",
-        marginBottom: 12
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 32,
-        marginBottom: 6
-      }
-    }, "\uD83D\uDDA8\uFE0F"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 12,
-        color: "#94a3b8",
-        marginBottom: 10
-      }
-    }, "Place invoice on scanner or take a photo"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        gap: 8,
-        justifyContent: "center"
-      }
-    }, /*#__PURE__*/React.createElement("label", {
-      style: {
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        padding: "10px 20px",
-        borderRadius: 8,
-        background: "#3b82f6",
-        color: "#fff",
-        fontSize: 13,
-        fontWeight: 700,
-        cursor: "pointer"
-      }
-    }, "\uD83D\uDDA8\uFE0F From Scanner / File", /*#__PURE__*/React.createElement("input", {
-      type: "file",
-      accept: "image/*,.pdf",
-      style: {
-        display: "none"
-      },
-      onChange: e => {
-        var _e$target$files7;
-        const file = (_e$target$files7 = e.target.files) === null || _e$target$files7 === void 0 ? void 0 : _e$target$files7[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = ev => {
-          attachScan(activeSeqInv.id, ev.target.result);
-          showToast(`✅ Scan linked to ${activeSeqInv.id}`);
-          setTimeout(() => {
-            if (seqIdx < seqList.length - 1) setSeqIdx(i => i + 1);
-          }, 300);
-        };
-        reader.readAsDataURL(file);
-        e.target.value = "";
-      }
-    })), /*#__PURE__*/React.createElement("label", {
-      style: {
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        padding: "10px 20px",
-        borderRadius: 8,
-        background: "#059669",
-        color: "#fff",
-        fontSize: 13,
-        fontWeight: 700,
-        cursor: "pointer"
-      }
-    }, "\uD83D\uDCF7 Camera", /*#__PURE__*/React.createElement("input", {
-      type: "file",
-      accept: "image/*",
-      capture: "environment",
-      style: {
-        display: "none"
-      },
-      onChange: e => {
-        var _e$target$files8;
-        const file = (_e$target$files8 = e.target.files) === null || _e$target$files8 === void 0 ? void 0 : _e$target$files8[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = ev => {
-          attachScan(activeSeqInv.id, ev.target.result);
-          showToast(`✅ Photo linked to ${activeSeqInv.id}`);
-          setTimeout(() => {
-            if (seqIdx < seqList.length - 1) setSeqIdx(i => i + 1);
-          }, 300);
-        };
-        reader.readAsDataURL(file);
-        e.target.value = "";
-      }
-    }))), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 10,
-        color: "#475569",
-        marginTop: 8
-      }
-    }, "Supports JPEG, PNG, TIFF, BMP, PDF")), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        justifyContent: "space-between"
-      }
-    }, /*#__PURE__*/React.createElement(Btn, {
-      variant: "secondary",
-      size: "sm",
-      disabled: seqIdx === 0,
-      onClick: () => setSeqIdx(i => i - 1)
-    }, "\u2190 Prev"), /*#__PURE__*/React.createElement(Btn, {
-      variant: "secondary",
-      size: "sm",
-      onClick: () => {
-        if (seqIdx < seqList.length - 1) setSeqIdx(i => i + 1);
-      }
-    }, "Skip \u2192"), /*#__PURE__*/React.createElement(Btn, {
-      variant: "secondary",
-      size: "sm",
-      disabled: seqIdx >= seqList.length - 1,
-      onClick: () => setSeqIdx(i => i + 1)
-    }, "Next \u2192"))))), ocrMode === "bulk" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-      style: {
-        display: "block",
-        border: "2px dashed #3b82f6",
-        borderRadius: 10,
-        padding: 30,
-        textAlign: "center",
-        background: "#0f1117",
-        marginBottom: 14,
-        cursor: "pointer"
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 36,
-        marginBottom: 6
-      }
-    }, "\uD83D\uDDA8\uFE0F\uD83D\uDCC4"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 14,
-        fontWeight: 700,
-        color: "#3b82f6",
-        marginBottom: 4
-      }
-    }, "Drop scanned files or click to upload"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 11,
-        color: "#94a3b8",
-        marginBottom: 8
-      }
-    }, "Select multiple files from your scanner's output folder"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "inline-block",
-        padding: "10px 28px",
-        borderRadius: 8,
-        background: "#3b82f6",
-        color: "#fff",
-        fontSize: 13,
-        fontWeight: 700
-      }
-    }, "Choose Files"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 10,
-        color: "#475569",
-        marginTop: 8
-      }
-    }, "Name files with invoice number for auto-matching (e.g. INV-1001.jpg)"), /*#__PURE__*/React.createElement("input", {
-      type: "file",
-      accept: "image/*,.pdf,.tiff,.bmp",
-      multiple: true,
-      style: {
-        display: "none"
-      },
-      onChange: e => {
-        var _e$target$files9;
-        if ((_e$target$files9 = e.target.files) !== null && _e$target$files9 !== void 0 && _e$target$files9.length) handleBulkFiles(e.target.files);
-        e.target.value = "";
-      }
-    })), ocrScans.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginBottom: 10
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 12,
-        fontWeight: 600,
-        color: "#f1f5f9"
-      }
-    }, ocrScans.length, " scans \xB7 ", ocrScans.filter(s => s.matchedInvId).length, " matched \xB7 ", ocrScans.filter(s => !s.matchedInvId).length, " unmatched"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        gap: 8
-      }
-    }, /*#__PURE__*/React.createElement(Btn, {
-      variant: "secondary",
-      size: "sm",
-      onClick: () => setOcrScans([])
-    }, "Clear All"), /*#__PURE__*/React.createElement(Btn, {
-      size: "sm",
-      onClick: applyBulk,
-      disabled: !ocrScans.some(s => s.matchedInvId && s.status !== "applied")
-    }, "Link All Matched (", ocrScans.filter(s => s.matchedInvId && s.status !== "applied").length, ")"))), /*#__PURE__*/React.createElement("div", {
-      style: {
-        maxHeight: 300,
-        overflowY: "auto",
-        background: "#0f1117",
-        borderRadius: 8
-      }
-    }, ocrScans.map((scan, si) => /*#__PURE__*/React.createElement("div", {
-      key: scan.id,
-      style: {
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        padding: "8px 12px",
-        borderBottom: "1px solid #1a2030",
-        background: scan.status === "applied" ? "#22c55e08" : scan.matchedInvId ? "#3b82f608" : "#f59e0b08"
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        width: 48,
-        height: 36,
-        borderRadius: 4,
-        overflow: "hidden",
-        border: "1px solid #2d3748",
-        flexShrink: 0,
-        cursor: "pointer"
-      },
-      onClick: () => {
-        if (!scan.preview) return;
-        const w = window.open("", "_blank", "width=800,height=1000");
-        w.document.write(`<html><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh;"><img src="${scan.preview}" style="max-width:100%;max-height:100vh;"/></body></html>`);
-      }
-    }, scan.preview && /*#__PURE__*/React.createElement("img", {
-      src: scan.preview,
-      style: {
-        width: "100%",
-        height: "100%",
-        objectFit: "cover"
-      },
-      alt: ""
-    })), /*#__PURE__*/React.createElement("div", {
-      style: {
-        flex: 1,
-        minWidth: 0
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 11,
-        fontWeight: 600,
-        color: "#e2e8f0",
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-        whiteSpace: "nowrap"
-      }
-    }, scan.fileName), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 10,
-        color: scan.status === "applied" ? "#22c55e" : scan.matchedInvId ? "#3b82f6" : "#f59e0b"
-      }
-    }, scan.status === "applied" ? "✅ Linked" : scan.matchedInvId ? `Auto-matched → ${scan.matchedInvId}` : "⚠ No match — assign manually")), /*#__PURE__*/React.createElement("select", {
-      value: scan.matchedInvId || "",
-      onChange: e => {
-        setOcrScans(prev => prev.map((s, i) => i === si ? {
-          ...s,
-          matchedInvId: e.target.value || null,
-          status: e.target.value ? "matched" : "unmatched"
-        } : s));
-      },
-      disabled: scan.status === "applied",
-      style: {
-        width: 140,
-        background: "#1a2030",
-        border: "1px solid #2d3748",
-        borderRadius: 6,
-        padding: "5px 8px",
-        color: "#e2e8f0",
-        fontSize: 11
-      }
-    }, /*#__PURE__*/React.createElement("option", {
-      value: ""
-    }, "\u2014 Assign invoice \u2014"), unsignedInvs.map(inv => {
-      const c = customers.find(cu => cu.id === inv.customerId);
-      return /*#__PURE__*/React.createElement("option", {
-        key: inv.id,
-        value: inv.id
-      }, inv.id, " \xB7 ", (c === null || c === void 0 ? void 0 : c.name) || "—");
-    })), /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 16
-      }
-    }, scan.status === "applied" ? "✅" : scan.matchedInvId ? "🔗" : "❓"))))), ocrScans.length === 0 && /*#__PURE__*/React.createElement("div", {
-      style: {
-        textAlign: "center",
-        padding: 20,
-        color: "#475569",
-        fontSize: 12
-      }
-    }, /*#__PURE__*/React.createElement("b", null, "Tip:"), " Name files with invoice numbers (INV-1001.jpg) for automatic matching. Select multiple files at once.")), ocrMode === "ocr" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-      style: {
-        display: "block",
-        border: "2px dashed #8b5cf6",
-        borderRadius: 10,
-        padding: 30,
-        textAlign: "center",
-        background: "#0f1117",
-        marginBottom: 14,
-        cursor: "pointer"
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 36,
-        marginBottom: 6
-      }
-    }, "\uD83D\uDD0D\uD83D\uDCC4"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 14,
-        fontWeight: 700,
-        color: "#8b5cf6",
-        marginBottom: 4
-      }
-    }, "Smart OCR \u2014 Auto-Read Invoice Numbers"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 11,
-        color: "#94a3b8",
-        marginBottom: 8
-      }
-    }, "Upload scanned invoices and OCR will read the invoice number, customer name, and total to auto-match"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "inline-flex",
-        gap: 8
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        padding: "10px 28px",
-        borderRadius: 8,
-        background: "#8b5cf6",
-        color: "#fff",
-        fontSize: 13,
-        fontWeight: 700
-      }
-    }, "Upload Scans for OCR")), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 10,
-        color: "#475569",
-        marginTop: 8
-      }
-    }, "Files don't need to be named with invoice numbers \u2014 OCR reads them automatically"), /*#__PURE__*/React.createElement("input", {
-      type: "file",
-      accept: "image/*,.pdf,.tiff,.bmp",
-      multiple: true,
-      style: {
-        display: "none"
-      },
-      onChange: e => {
-        var _e$target$files0;
-        if ((_e$target$files0 = e.target.files) !== null && _e$target$files0 !== void 0 && _e$target$files0.length) processOcrScans(e.target.files);
-        e.target.value = "";
-      }
-    })), ocrBusy && /*#__PURE__*/React.createElement("div", {
-      style: {
-        textAlign: "center",
-        padding: 16,
-        color: "#8b5cf6"
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "inline-block",
-        width: 20,
-        height: 20,
-        border: "2px solid #2d3748",
-        borderTopColor: "#8b5cf6",
-        borderRadius: "50%",
-        animation: "spin 0.8s linear infinite",
-        marginRight: 8,
-        verticalAlign: "middle"
-      }
-    }), "Processing scans with OCR... (", ocrScans.filter(s => s.processing).length, " remaining)"), ocrScans.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginBottom: 10
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 12,
-        fontWeight: 600,
-        color: "#f1f5f9"
-      }
-    }, ocrScans.length, " scans \xB7 ", ocrScans.filter(s => s.matchedInvId).length, " matched \xB7 ", ocrScans.filter(s => !s.matchedInvId && !s.processing).length, " unmatched"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        gap: 8
-      }
-    }, /*#__PURE__*/React.createElement(Btn, {
-      variant: "secondary",
-      size: "sm",
-      onClick: () => setOcrScans([])
-    }, "Clear All"), /*#__PURE__*/React.createElement(Btn, {
-      size: "sm",
-      onClick: applyOcrMatches,
-      disabled: !ocrScans.some(s => s.matchedInvId && s.status !== "applied")
-    }, "Link All Matched (", ocrScans.filter(s => s.matchedInvId && s.status !== "applied").length, ")"))), /*#__PURE__*/React.createElement("div", {
-      style: {
-        maxHeight: 300,
-        overflowY: "auto",
-        background: "#0f1117",
-        borderRadius: 8
-      }
-    }, ocrScans.map((scan, si) => /*#__PURE__*/React.createElement("div", {
-      key: scan.id,
-      style: {
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        padding: "8px 12px",
-        borderBottom: "1px solid #1a2030",
-        background: scan.status === "applied" ? "#22c55e08" : scan.processing ? "#8b5cf608" : scan.matchedInvId ? "#3b82f608" : "#f59e0b08"
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        width: 48,
-        height: 36,
-        borderRadius: 4,
-        overflow: "hidden",
-        border: "1px solid #2d3748",
-        flexShrink: 0,
-        cursor: "pointer"
-      },
-      onClick: () => {
-        if (!scan.preview) return;
-        const w = window.open("", "_blank", "width=800,height=1000");
-        w.document.write(`<html><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh;"><img src="${scan.preview}" style="max-width:100%;max-height:100vh;"/></body></html>`);
-      }
-    }, scan.preview ? /*#__PURE__*/React.createElement("img", {
-      src: scan.preview,
-      style: {
-        width: "100%",
-        height: "100%",
-        objectFit: "cover"
-      },
-      alt: ""
-    }) : /*#__PURE__*/React.createElement("div", {
-      style: {
-        width: "100%",
-        height: "100%",
-        background: "#1a2030",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: 10,
-        color: "#475569"
-      }
-    }, "...")), /*#__PURE__*/React.createElement("div", {
-      style: {
-        flex: 1,
-        minWidth: 0
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 11,
-        fontWeight: 600,
-        color: "#e2e8f0",
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-        whiteSpace: "nowrap"
-      }
-    }, scan.fileName), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 10,
-        color: scan.processing ? "#8b5cf6" : scan.status === "applied" ? "#22c55e" : scan.matchedInvId ? "#3b82f6" : "#f59e0b"
-      }
-    }, scan.processing ? "🔄 Running OCR..." : scan.status === "applied" ? "✅ Linked" : scan.matchedInvId ? `Matched → ${scan.matchedInvId}` : `⚠ ${scan.details || "No match"}`), scan.confidence > 0 && !scan.processing && /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        alignItems: "center",
-        gap: 4,
-        marginTop: 2
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        width: 60,
-        height: 4,
-        background: "#2d3748",
-        borderRadius: 2,
-        overflow: "hidden"
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        width: `${scan.confidence}%`,
-        height: "100%",
-        background: scan.confidence > 80 ? "#22c55e" : scan.confidence > 50 ? "#f59e0b" : "#ef4444",
-        borderRadius: 2
-      }
-    })), /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 9,
-        color: "#64748b"
-      }
-    }, scan.confidence, "%"))), /*#__PURE__*/React.createElement("select", {
-      value: scan.matchedInvId || "",
-      onChange: e => {
-        setOcrScans(prev => prev.map((s, i) => i === si ? {
-          ...s,
-          matchedInvId: e.target.value || null,
-          status: e.target.value ? "matched" : "unmatched"
-        } : s));
-      },
-      disabled: scan.status === "applied" || scan.processing,
-      style: {
-        width: 140,
-        background: "#1a2030",
-        border: "1px solid #2d3748",
-        borderRadius: 6,
-        padding: "5px 8px",
-        color: "#e2e8f0",
-        fontSize: 11
-      }
-    }, /*#__PURE__*/React.createElement("option", {
-      value: ""
-    }, "\u2014 Assign invoice \u2014"), unsignedInvs.map(inv => {
-      const c = customers.find(cu => cu.id === inv.customerId);
-      return /*#__PURE__*/React.createElement("option", {
-        key: inv.id,
-        value: inv.id
-      }, inv.id, " \xB7 ", (c === null || c === void 0 ? void 0 : c.name) || "—");
-    })), /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 16
-      }
-    }, scan.processing ? "⏳" : scan.status === "applied" ? "✅" : scan.matchedInvId ? "🔗" : "❓"))))), ocrScans.length === 0 && !ocrBusy && /*#__PURE__*/React.createElement("div", {
-      style: {
-        textAlign: "center",
-        padding: 20,
-        color: "#475569",
-        fontSize: 12
-      }
-    }, /*#__PURE__*/React.createElement("b", null, "How it works:"), " Upload scanned signed invoices \u2192 OCR reads text \u2192 matches invoice number, customer name, or total amount \u2192 link to invoices automatically.")));
+      style: { background: "#1a2030", borderRadius: 12, width: 560, maxHeight: "80vh", overflow: "auto", border: "1px solid #2d3748", padding: 24 }
+    },
+    /*#__PURE__*/React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 } },
+      /*#__PURE__*/React.createElement("div", { style: { fontSize: 18, fontWeight: 700, color: "#f1f5f9" } }, "File Scanned Invoices"),
+      /*#__PURE__*/React.createElement("button", { onClick: () => setShowBatchScan(false), style: { background: "none", border: "none", color: "#64748b", fontSize: 20, cursor: "pointer" } }, "✕")),
+    /*#__PURE__*/React.createElement("div", { style: { color: "#94a3b8", fontSize: 13, marginBottom: 16, lineHeight: 1.6 } },
+      "Select the PDF files from your scanner folder. The system reads the barcode or invoice number from each PDF and automatically files it to the correct invoice.",
+      /*#__PURE__*/React.createElement("div", { style: { marginTop: 6, color: "#64748b", fontSize: 11 } }, unsignedCount, " invoices still need signed copies")),
+    /*#__PURE__*/React.createElement("label", {
+      "data-testid": "button-select-scanned-files",
+      style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: 32, borderRadius: 10, border: "2px dashed #2d3748", background: "#0f1117", cursor: "pointer", textAlign: "center" }
+    },
+      /*#__PURE__*/React.createElement("span", { style: { fontSize: 36 } }, "📂"),
+      /*#__PURE__*/React.createElement("span", { style: { fontSize: 14, fontWeight: 700, color: "#3b82f6" } }, batchProcessing ? "Processing..." : "Select Files from Scanner Folder"),
+      /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, color: "#64748b" } }, "PDF, images — select multiple files at once"),
+      /*#__PURE__*/React.createElement("input", {
+        type: "file",
+        accept: ".pdf,image/*",
+        multiple: true,
+        disabled: batchProcessing,
+        style: { display: "none" },
+        onChange: e => { if (e.target.files && e.target.files.length) { processBatchFiles(e.target.files); } e.target.value = ""; }
+      })),
+    batchProcessing && /*#__PURE__*/React.createElement("div", { style: { textAlign: "center", padding: 16, color: "#3b82f6", fontSize: 13 } },
+      /*#__PURE__*/React.createElement("div", { style: { display: "inline-block", width: 20, height: 20, border: "2px solid #2d3748", borderTopColor: "#3b82f6", borderRadius: "50%", animation: "spin 0.8s linear infinite", marginRight: 8, verticalAlign: "middle" } }),
+      "Reading barcodes from files..."),
+    batchFiles.length > 0 && /*#__PURE__*/React.createElement("div", { style: { marginTop: 16 } },
+      /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: "#f1f5f9", marginBottom: 8 } },
+        "Results: ", batchFiles.filter(f => f.matchedId).length, " matched, ", batchFiles.filter(f => !f.matchedId).length, " unmatched"),
+      /*#__PURE__*/React.createElement("div", { style: { maxHeight: 300, overflowY: "auto", background: "#0f1117", borderRadius: 8, border: "1px solid #2d3748" } },
+        batchFiles.map((f, i) => /*#__PURE__*/React.createElement("div", {
+          key: i,
+          style: { display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderBottom: "1px solid #1a2030", background: f.matchedId ? "#22c55e08" : "#ef444408" }
+        },
+          /*#__PURE__*/React.createElement("span", { style: { fontSize: 16 } }, f.matchedId ? "✅" : "❌"),
+          /*#__PURE__*/React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+            /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, fontWeight: 600, color: "#e2e8f0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, f.fileName),
+            /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, color: f.matchedId ? "#22c55e" : "#ef4444" } },
+              f.matchedId ? `Filed to ${f.matchedId} (${f.method})` : "No invoice number found")),
+          !f.matchedId && /*#__PURE__*/React.createElement("select", {
+            "data-testid": "select-manual-assign-" + i,
+            onChange: e => {
+              if (!e.target.value) return;
+              const invId = e.target.value;
+              const dateStr = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
+              setInvoices(prev => prev.map(x => x.id === invId ? { ...x, signedCopy: f.base64, signedCopyDate: dateStr, signedCopyName: f.fileName } : x));
+              setBatchFiles(prev => prev.map((bf, bi) => bi === i ? { ...bf, matchedId: invId, method: "manual" } : bf));
+              showToast(`Filed to ${invId}`);
+            },
+            style: { width: 140, background: "#1a2030", border: "1px solid #2d3748", borderRadius: 6, padding: "4px 6px", color: "#e2e8f0", fontSize: 11 }
+          }, /*#__PURE__*/React.createElement("option", { value: "" }, "— Assign —"),
+            filteredInvoices.filter(inv => !inv.signedCopy).map(inv => {
+              const c = customers.find(cu => cu.id === inv.customerId);
+              return /*#__PURE__*/React.createElement("option", { key: inv.id, value: inv.id }, inv.id, " · ", (c === null || c === void 0 ? void 0 : c.name) || "—");
+            }))))),
+      /*#__PURE__*/React.createElement("div", { style: { textAlign: "right", marginTop: 12 } },
+        /*#__PURE__*/React.createElement(Btn, { variant: "secondary", onClick: () => { setBatchFiles([]); setShowBatchScan(false); } }, "Done")))));
   })());
 }
+
 
 // ============================================================
 // DRIVER PORTAL MODULE
