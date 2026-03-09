@@ -19,8 +19,9 @@ const initialSalespeople = [];
 const initialCreditMemos = [];
 const initialDeliveries = [];
 const initialPurchaseOrders = [];
-const CATEGORIES = ["Seafood", "Beef", "Pork", "Poultry", "Deli", "Lamb", "Veal", "Grocery", "Frozen", "Dairy"];
-const SUB_CATEGORIES = {
+const DEFAULT_CATEGORIES = ["Seafood", "Beef", "Pork", "Poultry", "Deli", "Lamb", "Veal", "Grocery", "Frozen", "Dairy"];
+const CATEGORIES = DEFAULT_CATEGORIES;
+const DEFAULT_SUB_CATEGORIES = {
   Seafood: ["Fin Fish", "Shellfish", "Smoked", "Breaded", "Value Added", "Other"],
   Beef: ["Chuck", "Rib", "Loin", "Round", "Brisket", "Short Plate", "Flank", "Ground", "Offal", "Other"],
   Pork: ["Loin", "Shoulder", "Belly", "Ham", "Ribs", "Ground", "Offal", "Other"],
@@ -32,6 +33,13 @@ const SUB_CATEGORIES = {
   Frozen: ["Vegetables", "Fruits", "Prepared", "Desserts", "Other"],
   Dairy: ["Milk", "Cheese", "Butter", "Cream", "Yogurt", "Other"]
 };
+const SUB_CATEGORIES = DEFAULT_SUB_CATEGORIES;
+function getCategories(settings) {
+  return (settings && settings.preferences && settings.preferences.categories) || DEFAULT_CATEGORIES;
+}
+function getSubCategories(settings) {
+  return (settings && settings.preferences && settings.preferences.subCategories) || DEFAULT_SUB_CATEGORIES;
+}
 const COUNTRIES_OF_ORIGIN = ["USA", "Canada", "Mexico", "Brazil", "Argentina", "Chile", "Norway", "Scotland", "Iceland", "Ireland", "Australia", "New Zealand", "Japan", "China", "Vietnam", "Thailand", "India", "Indonesia", "Ecuador", "Peru", "Spain", "Italy", "France", "Netherlands", "Denmark", "Poland", "Uruguay", "South Africa", "Philippines", "South Korea", "Taiwan", "Other"];
 const STATUS_COLORS = {
   open: "#f59e0b",
@@ -2724,6 +2732,19 @@ const defaultSettings = {
     requireSignature: false,
     autoBackup: false,
     backupFrequency: "daily",
+    categories: ["Seafood", "Beef", "Pork", "Poultry", "Deli", "Lamb", "Veal", "Grocery", "Frozen", "Dairy"],
+    subCategories: {
+      Seafood: ["Fin Fish", "Shellfish", "Smoked", "Breaded", "Value Added", "Other"],
+      Beef: ["Chuck", "Rib", "Loin", "Round", "Brisket", "Short Plate", "Flank", "Ground", "Offal", "Other"],
+      Pork: ["Loin", "Shoulder", "Belly", "Ham", "Ribs", "Ground", "Offal", "Other"],
+      Poultry: ["Whole", "Parts", "Breast", "Thigh/Leg", "Wings", "Ground", "Other"],
+      Deli: ["Sliced Meats", "Cheese", "Prepared", "Salads", "Other"],
+      Lamb: ["Rack", "Leg", "Shoulder", "Loin", "Ground", "Other"],
+      Veal: ["Loin", "Rack", "Shoulder", "Leg", "Ground", "Offal", "Other"],
+      Grocery: ["Dry Goods", "Canned", "Sauces", "Spices", "Oil/Vinegar", "Other"],
+      Frozen: ["Vegetables", "Fruits", "Prepared", "Desserts", "Other"],
+      Dairy: ["Milk", "Cheese", "Butter", "Cream", "Yogurt", "Other"]
+    },
     categoryOrder: ["Seafood", "Beef", "Pork", "Poultry", "Deli"],
     pricingLevels: {
       level1: {
@@ -3449,7 +3470,8 @@ function App() {
     priceLevels: priceLevels,
     suppliers: suppliers,
     customers: customers,
-    setCustomers: setCustomers
+    setCustomers: setCustomers,
+    settings: settings
   }), activeModule === "customers" && /*#__PURE__*/React.createElement(Customers, {
     customers: customers,
     setCustomers: setCustomers,
@@ -3540,7 +3562,8 @@ function App() {
   }), activeModule === "cyclecount" && /*#__PURE__*/React.createElement(CycleCount, {
     products: products,
     setProducts: setProducts,
-    showToast: showToast
+    showToast: showToast,
+    settings: settings
   }), activeModule === "salespeople" && /*#__PURE__*/React.createElement(SalespeopleModule, {
     salespeople: salespeople,
     setSalespeople: setSalespeople,
@@ -3572,7 +3595,8 @@ function App() {
     products: products,
     customers: customers,
     showToast: showToast,
-    priceLevels: priceLevels
+    priceLevels: priceLevels,
+    settings: settings
   }), activeModule === "settings" && /*#__PURE__*/React.createElement(SystemSettings, {
     settings: settings,
     setSettings: setSettings,
@@ -19286,7 +19310,7 @@ function Purchasing({
       gap: 8,
       flexWrap: "wrap"
     }
-  }, ["all", ...CATEGORIES].map(cat => /*#__PURE__*/React.createElement("button", {
+  }, ["all", ...getCategories(settings)].map(cat => /*#__PURE__*/React.createElement("button", {
     key: cat,
     onClick: () => setPriceChangeCategory(cat),
     style: {
@@ -19495,7 +19519,7 @@ function Purchasing({
       gap: 8,
       flexWrap: "wrap"
     }
-  }, CATEGORIES.map(cat => /*#__PURE__*/React.createElement("button", {
+  }, getCategories(settings).map(cat => /*#__PURE__*/React.createElement("button", {
     key: cat,
     onClick: () => setVendorForm(f => ({
       ...f,
@@ -19546,8 +19570,11 @@ function Inventory({
   priceLevels,
   suppliers,
   customers,
-  setCustomers
+  setCustomers,
+  settings
 }) {
+  const cats = getCategories(settings);
+  const subCats = getSubCategories(settings);
   var _priceLevels$find2;
   const [showAdd, setShowAdd] = useState(false);
   const [editProduct, setEditProduct] = useState(null);
@@ -19790,7 +19817,7 @@ function Inventory({
         return v ? Number(String(v).replace(/[$,]/g, "")) || 0 : fallback;
       };
       const cat = getVal("category") || (existing === null || existing === void 0 ? void 0 : existing.category) || "Seafood";
-      const validCat = CATEGORIES.includes(cat) ? cat : CATEGORIES.find(c => c.toLowerCase() === cat.toLowerCase()) || "Seafood";
+      const validCat = cats.includes(cat) ? cat : cats.find(c => c.toLowerCase() === cat.toLowerCase()) || "Seafood";
       const isBool = v => v && (v.toLowerCase() === "y" || v.toLowerCase() === "yes" || v === "1" || v.toLowerCase() === "true");
       const billedByRaw = getVal("billedBy");
       const billedBy = billedByRaw ? billedByRaw.toUpperCase().includes("CS") || billedByRaw.toUpperCase().includes("CASE") ? "CASE" : billedByRaw.toUpperCase().includes("LB") ? "LBS" : "PIECE" : (existing === null || existing === void 0 ? void 0 : existing.billedBy) || "PIECE";
@@ -20197,7 +20224,7 @@ function Inventory({
       gap: 12,
       marginBottom: 24
     }
-  }, CATEGORIES.map(cat => {
+  }, cats.map(cat => {
     const catProds = products.filter(p => p.category === cat);
     const totalCases = catProds.reduce((s, p) => s + p.stockCases, 0);
     const totalPieces = catProds.reduce((s, p) => s + p.stockPieces, 0);
@@ -20268,7 +20295,7 @@ function Inventory({
       color: "#e2e8f0",
       fontSize: 13
     }
-  })), ["all", ...CATEGORIES].map(c => /*#__PURE__*/React.createElement("button", {
+  })), ["all", ...cats].map(c => /*#__PURE__*/React.createElement("button", {
     key: c,
     onClick: () => setFilterCat(c),
     style: {
@@ -20545,7 +20572,7 @@ function Inventory({
       onClick: () => !isEd("category") && startEd("category", p.category)
     }, cellInput("category", p.category, {
       select: true,
-      options: CATEGORIES
+      options: cats
     }) || /*#__PURE__*/React.createElement(Badge, {
       text: p.category,
       color: catColors[p.category] || "#6b7280"
@@ -21112,7 +21139,7 @@ function Inventory({
       gap: 8,
       flexWrap: "wrap"
     }
-  }, ["all", ...CATEGORIES].map(cat => /*#__PURE__*/React.createElement("button", {
+  }, ["all", ...cats].map(cat => /*#__PURE__*/React.createElement("button", {
     key: cat,
     onClick: () => setCountSheetCat(cat),
     style: {
@@ -21921,7 +21948,7 @@ function Inventory({
       ...f,
       category: e.target.value
     }))
-  }, CATEGORIES.map(c => /*#__PURE__*/React.createElement("option", {
+  }, cats.map(c => /*#__PURE__*/React.createElement("option", {
     key: c,
     value: c
   }, c)))), /*#__PURE__*/React.createElement("div", {
@@ -21942,7 +21969,7 @@ function Inventory({
       style: { width: "100%", background: "#1a2030", border: "1px solid #2d3748", borderRadius: 6, padding: "8px 10px", color: "#e2e8f0", fontSize: 13, boxSizing: "border-box" }
     }),
     /*#__PURE__*/React.createElement("datalist", { id: "subcat-list-" + form.category },
-      (SUB_CATEGORIES[form.category] || []).map(sc => /*#__PURE__*/React.createElement("option", { key: sc, value: sc }))
+      (subCats[form.category] || []).map(sc => /*#__PURE__*/React.createElement("option", { key: sc, value: sc }))
     )
   ),
   /*#__PURE__*/React.createElement("div", null,
@@ -27193,8 +27220,10 @@ function PriceList({
   products,
   customers,
   showToast,
-  priceLevels
+  priceLevels,
+  settings
 }) {
+  const cats = getCategories(settings);
   const [priceLevel, setPriceLevel] = useState("level3");
   const [selectedCats, setSelectedCats] = useState(new Set(["Seafood", "Beef", "Pork", "Poultry", "Deli"]));
   const [showStock, setShowStock] = useState(true);
@@ -30336,8 +30365,10 @@ function AutoPurchase({
 function CycleCount({
   products,
   setProducts,
-  showToast
+  showToast,
+  settings
 }) {
+  const cats = getCategories(settings);
   const [activeCount, setActiveCount] = useState(null);
   const [counts, setCounts] = useState({});
   const [history, setHistory] = useState([{
@@ -30425,7 +30456,7 @@ function CycleCount({
       gap: 12,
       marginBottom: 24
     }
-  }, ["all", ...CATEGORIES].map(cat => {
+  }, ["all", ...cats].map(cat => {
     const count = cat === "all" ? products.length : products.filter(p => p.category === cat).length;
     return /*#__PURE__*/React.createElement(Card, {
       key: cat,
@@ -38017,7 +38048,84 @@ function SystemSettings({
     label: "Require Signature on Delivery",
     value: settings.preferences.requireSignature,
     onChange: v => update("preferences", "requireSignature", v)
-  }), /*#__PURE__*/React.createElement(SectionLabel, null, "Category Print Order"), /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement(SectionLabel, null, "Manage Categories"), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 12, color: "#64748b", marginBottom: 12 }
+  }, "Add, rename, reorder, or remove product categories. These appear in product forms, pick sheets, invoices, and labels."), /*#__PURE__*/React.createElement("div", {
+    style: { background: "#1a2030", borderRadius: 10, padding: 16, marginBottom: 24 }
+  },
+  getCategories(settings).map((cat, idx, arr) => {
+    const sc = (getSubCategories(settings)[cat] || []);
+    return /*#__PURE__*/React.createElement("div", { key: cat, style: { display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", marginBottom: 4, background: "#0f1117", borderRadius: 8, border: "1px solid #2d3748" } },
+      /*#__PURE__*/React.createElement("div", { style: { width: 24, height: 24, borderRadius: 6, background: "#1e293b", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 11, color: "#94a3b8" } }, idx + 1),
+      /*#__PURE__*/React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+        /*#__PURE__*/React.createElement("div", { style: { fontWeight: 700, fontSize: 13, color: "#e2e8f0" } }, cat),
+        sc.length > 0 && /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, color: "#64748b", marginTop: 2 } }, sc.join(", "))),
+      /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 4 } },
+        /*#__PURE__*/React.createElement("button", {
+          "data-testid": "button-move-up-cat-" + idx,
+          disabled: idx === 0,
+          onClick: () => {
+            const newCats = [...arr];
+            [newCats[idx - 1], newCats[idx]] = [newCats[idx], newCats[idx - 1]];
+            setSettings(prev => ({ ...prev, preferences: { ...prev.preferences, categories: newCats } }));
+          },
+          style: { width: 28, height: 28, borderRadius: 6, border: "1px solid #2d3748", background: idx === 0 ? "#0a0d14" : "#1a2030", color: idx === 0 ? "#374151" : "#e2e8f0", cursor: idx === 0 ? "default" : "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }
+        }, "\u2191"),
+        /*#__PURE__*/React.createElement("button", {
+          "data-testid": "button-move-down-cat-" + idx,
+          disabled: idx === arr.length - 1,
+          onClick: () => {
+            const newCats = [...arr];
+            [newCats[idx], newCats[idx + 1]] = [newCats[idx + 1], newCats[idx]];
+            setSettings(prev => ({ ...prev, preferences: { ...prev.preferences, categories: newCats } }));
+          },
+          style: { width: 28, height: 28, borderRadius: 6, border: "1px solid #2d3748", background: idx === arr.length - 1 ? "#0a0d14" : "#1a2030", color: idx === arr.length - 1 ? "#374151" : "#e2e8f0", cursor: idx === arr.length - 1 ? "default" : "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }
+        }, "\u2193"),
+        /*#__PURE__*/React.createElement("button", {
+          "data-testid": "button-remove-cat-" + idx,
+          onClick: () => {
+            if (!confirm("Remove category \"" + cat + "\"? Products using it will keep their current category.")) return;
+            const newCats = arr.filter((_, i) => i !== idx);
+            const newSubs = { ...getSubCategories(settings) };
+            delete newSubs[cat];
+            setSettings(prev => ({ ...prev, preferences: { ...prev.preferences, categories: newCats, subCategories: newSubs, categoryOrder: (prev.preferences.categoryOrder || []).filter(c => c !== cat) } }));
+            showToast("Removed \"" + cat + "\"");
+          },
+          style: { width: 28, height: 28, borderRadius: 6, border: "1px solid #ef444444", background: "#1a2030", color: "#ef4444", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }
+        }, "\u2715"))); }),
+  /*#__PURE__*/React.createElement("div", { style: { marginTop: 12, display: "flex", gap: 8 } },
+    /*#__PURE__*/React.createElement("input", {
+      "data-testid": "input-new-category",
+      id: "new-cat-input",
+      placeholder: "New category name...",
+      style: { flex: 1, background: "#0f1117", border: "1px solid #2d3748", borderRadius: 6, padding: "8px 10px", color: "#e2e8f0", fontSize: 13 },
+      onKeyDown: e => {
+        if (e.key === "Enter") {
+          const val = e.target.value.trim();
+          if (!val) return;
+          const existing = getCategories(settings);
+          if (existing.some(c => c.toLowerCase() === val.toLowerCase())) { showToast("Category already exists", "warn"); return; }
+          setSettings(prev => ({ ...prev, preferences: { ...prev.preferences, categories: [...existing, val], categoryOrder: [...(prev.preferences.categoryOrder || existing), val] } }));
+          e.target.value = "";
+          showToast("Added \"" + val + "\"");
+        }
+      }
+    }),
+    /*#__PURE__*/React.createElement(Btn, {
+      "data-testid": "button-add-category",
+      variant: "secondary",
+      onClick: () => {
+        const inp = document.getElementById("new-cat-input");
+        const val = (inp && inp.value || "").trim();
+        if (!val) { showToast("Enter a category name", "warn"); return; }
+        const existing = getCategories(settings);
+        if (existing.some(c => c.toLowerCase() === val.toLowerCase())) { showToast("Category already exists", "warn"); return; }
+        setSettings(prev => ({ ...prev, preferences: { ...prev.preferences, categories: [...existing, val], categoryOrder: [...(prev.preferences.categoryOrder || existing), val] } }));
+        inp.value = "";
+        showToast("Added \"" + val + "\"");
+      }
+    }, "+ Add"))),
+  /*#__PURE__*/React.createElement(SectionLabel, null, "Category Print Order"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 12,
       color: "#64748b",
@@ -38029,7 +38137,7 @@ function SystemSettings({
       borderRadius: 10,
       padding: 16
     }
-  }, (settings.preferences.categoryOrder || CATEGORIES).map((cat, idx, arr) => {
+  }, (settings.preferences.categoryOrder || getCategories(settings)).map((cat, idx, arr) => {
     const catColors = {
       Seafood: "#0284c7",
       Beef: "#b91c1c",
