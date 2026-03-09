@@ -1363,10 +1363,10 @@ function printSheetLabels(labelsHtml, title = "Sheet Labels") {
   const layout = sls.layout || "2x5";
   const gridCols = parseInt(layout.split("x")[0]) || 2;
   const colTemplate = Array(gridCols).fill("1fr").join(" ");
-  const mTop = (sls.margins && sls.margins.top) ? sls.margins.top + "in" : "0.25in";
-  const mBot = (sls.margins && sls.margins.bottom) ? sls.margins.bottom + "in" : "0.25in";
-  const mLeft = (sls.margins && sls.margins.left) ? sls.margins.left + "in" : "0.375in";
-  const mRight = (sls.margins && sls.margins.right) ? sls.margins.right + "in" : "0.375in";
+  const mTop = (sls.margins && sls.margins.top != null) ? sls.margins.top + "in" : "0.25in";
+  const mBot = (sls.margins && sls.margins.bottom != null) ? sls.margins.bottom + "in" : "0.25in";
+  const mLeft = (sls.margins && sls.margins.left != null) ? sls.margins.left + "in" : "0.375in";
+  const mRight = (sls.margins && sls.margins.right != null) ? sls.margins.right + "in" : "0.375in";
   const win = window.open("", "_blank");
   if (!win) {
     alert("Please allow popups to print.");
@@ -37089,35 +37089,43 @@ function SystemSettings({
   }, /*#__PURE__*/React.createElement(Field, {
     label: "Top",
     type: "number",
-    value: ((_settings$labelsSheet = settings.labelsSheet.margins) === null || _settings$labelsSheet === void 0 ? void 0 : _settings$labelsSheet.top) || 0.5,
+    value: settings.labelsSheet.margins && settings.labelsSheet.margins.top != null ? settings.labelsSheet.margins.top : 0.5,
     onChange: v => update("labelsSheet", "margins", {
       ...settings.labelsSheet.margins,
       top: Number(v)
-    })
+    }),
+    step: "0.01",
+    min: "0"
   }), /*#__PURE__*/React.createElement(Field, {
     label: "Bottom",
     type: "number",
-    value: ((_settings$labelsSheet2 = settings.labelsSheet.margins) === null || _settings$labelsSheet2 === void 0 ? void 0 : _settings$labelsSheet2.bottom) || 0.5,
+    value: settings.labelsSheet.margins && settings.labelsSheet.margins.bottom != null ? settings.labelsSheet.margins.bottom : 0.5,
     onChange: v => update("labelsSheet", "margins", {
       ...settings.labelsSheet.margins,
       bottom: Number(v)
-    })
+    }),
+    step: "0.01",
+    min: "0"
   }), /*#__PURE__*/React.createElement(Field, {
     label: "Left",
     type: "number",
-    value: ((_settings$labelsSheet3 = settings.labelsSheet.margins) === null || _settings$labelsSheet3 === void 0 ? void 0 : _settings$labelsSheet3.left) || 0.19,
+    value: settings.labelsSheet.margins && settings.labelsSheet.margins.left != null ? settings.labelsSheet.margins.left : 0.19,
     onChange: v => update("labelsSheet", "margins", {
       ...settings.labelsSheet.margins,
       left: Number(v)
-    })
+    }),
+    step: "0.01",
+    min: "0"
   }), /*#__PURE__*/React.createElement(Field, {
     label: "Right",
     type: "number",
-    value: ((_settings$labelsSheet4 = settings.labelsSheet.margins) === null || _settings$labelsSheet4 === void 0 ? void 0 : _settings$labelsSheet4.right) || 0.19,
+    value: settings.labelsSheet.margins && settings.labelsSheet.margins.right != null ? settings.labelsSheet.margins.right : 0.19,
     onChange: v => update("labelsSheet", "margins", {
       ...settings.labelsSheet.margins,
       right: Number(v)
-    })
+    }),
+    step: "0.01",
+    min: "0"
   })), /*#__PURE__*/React.createElement(SectionLabel, null, "Shipping Label Fields"), /*#__PURE__*/React.createElement(Toggle, {
     label: "Category Color Bar",
     value: settings.labelsSheet.shippingShowCategory !== false,
