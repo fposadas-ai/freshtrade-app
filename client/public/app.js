@@ -27257,9 +27257,9 @@ function PriceList({
   const [showSpecials, setShowSpecials] = useState(true);
   const [showCuts, setShowCuts] = useState(true);
   const [showCost, setShowCost] = useState(false);
-  const [companyName, setCompanyName] = useState("FreshTrade Distribution");
-  const [companyPhone, setCompanyPhone] = useState("(305) 555-8200");
-  const [companyEmail, setCompanyEmail] = useState("orders@freshtrade.com");
+  const [companyName, setCompanyName] = useState((settings && settings.company && settings.company.name) || "FreshTrade Distribution");
+  const [companyPhone, setCompanyPhone] = useState((settings && settings.company && settings.company.phone) || "");
+  const [companyEmail, setCompanyEmail] = useState((settings && settings.company && settings.company.email) || "");
   const [headerMsg, setHeaderMsg] = useState("Fresh products available today! Order by 2PM for next-day delivery.");
   const [previewMode, setPreviewMode] = useState("email"); // email | sms
   const [selectedCustomer, setSelectedCustomer] = useState("");
