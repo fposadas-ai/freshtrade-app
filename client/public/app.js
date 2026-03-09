@@ -5666,6 +5666,49 @@ const SpreadsheetGrid = ({
 // ============================================================
 // DASHBOARD
 // ============================================================
+function QpcProductSearch({ products, value, onChange }) {
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const selected = products.find(p => p.id === value);
+  const filtered = search.trim() ? products.filter(p => (p.name || "").toLowerCase().includes(search.toLowerCase()) || (p.id || "").toLowerCase().includes(search.toLowerCase()) || (p.category || "").toLowerCase().includes(search.toLowerCase())).sort((a, b) => (a.name || "").localeCompare(b.name || "")) : [...products].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  useEffect(() => {
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+  return React.createElement("div", { ref: ref, style: { flex: 2, minWidth: 220, position: "relative" } },
+    React.createElement("label", { style: { display: "block", fontSize: 11, color: "#94a3b8", fontWeight: 600, marginBottom: 4 } }, "Product"),
+    React.createElement("div", { style: { position: "relative" } },
+      React.createElement("input", {
+        type: "text",
+        "data-testid": "input-qpc-search",
+        placeholder: selected ? selected.name : "Search products...",
+        value: open ? search : (selected ? selected.name : ""),
+        onFocus: () => { setOpen(true); setSearch(""); },
+        onChange: e => { setSearch(e.target.value); setOpen(true); },
+        style: { width: "100%", background: "#0f1117", border: "1px solid " + (open ? "#3b82f6" : "#2d3748"), borderRadius: 6, padding: "8px 10px", color: open ? "#e2e8f0" : (selected ? "#e2e8f0" : "#64748b"), fontSize: 13, outline: "none" }
+      }),
+      selected && !open && React.createElement("button", {
+        onClick: () => { onChange(""); setSearch(""); },
+        style: { position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: 14, padding: 0 }
+      }, "\u2715")),
+    open && React.createElement("div", { style: { position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50, background: "#0f1117", border: "1px solid #2d3748", borderRadius: 6, marginTop: 2, maxHeight: 240, overflowY: "auto", boxShadow: "0 8px 24px rgba(0,0,0,0.5)" } },
+      filtered.length === 0 ? React.createElement("div", { style: { padding: "12px 16px", color: "#64748b", fontSize: 12 } }, "No products found")
+      : filtered.slice(0, 50).map(p => React.createElement("button", {
+          key: p.id,
+          "data-testid": "qpc-option-" + p.id,
+          onClick: () => { onChange(p.id); setOpen(false); setSearch(""); },
+          style: { width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 12px", background: p.id === value ? "#1e3a5f" : "transparent", border: "none", borderBottom: "1px solid #1a2030", cursor: "pointer", textAlign: "left", color: "#e2e8f0", fontSize: 12 }
+        },
+        React.createElement("div", null,
+          React.createElement("div", { style: { fontWeight: 600 } }, p.name),
+          React.createElement("div", { style: { fontSize: 10, color: "#64748b" } }, p.category || "", p.packSize ? " · " + p.packSize : "")),
+        p.pricing && React.createElement("div", { style: { textAlign: "right", flexShrink: 0, marginLeft: 8 } },
+          React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "#f59e0b", fontFamily: "'DM Mono',monospace" } }, "$" + (Number(p.pricing.cost) || 0).toFixed(2)),
+          React.createElement("div", { style: { fontSize: 9, color: "#64748b" } }, "cost"))))));
+}
+
 function Dashboard({
   invoices,
   setInvoices,
@@ -5784,14 +5827,11 @@ function Dashboard({
     title: "\u26A1 Quick Price Change"
   }, /*#__PURE__*/React.createElement("div", {
     style: { display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 16 }
-  }, /*#__PURE__*/React.createElement("div", { style: { flex: 2, minWidth: 220 } }, /*#__PURE__*/React.createElement("label", {
-    style: { display: "block", fontSize: 11, color: "#94a3b8", fontWeight: 600, marginBottom: 4 }
-  }, "Product"), /*#__PURE__*/React.createElement("select", {
+  }, /*#__PURE__*/React.createElement(QpcProductSearch, {
+    products: products,
     value: qpcProduct,
-    "data-testid": "select-qpc-product",
-    onChange: e => { setQpcProduct(e.target.value); const p = products.find(pp => pp.id === e.target.value); setQpcNewCost(p && p.pricing ? String(p.pricing.cost || "") : ""); },
-    style: { width: "100%", background: "#0f1117", border: "1px solid #2d3748", borderRadius: 6, padding: "8px 10px", color: "#e2e8f0", fontSize: 13 }
-  }, /*#__PURE__*/React.createElement("option", { value: "" }, "Select product..."), products.sort((a, b) => (a.name || "").localeCompare(b.name || "")).map(p => /*#__PURE__*/React.createElement("option", { key: p.id, value: p.id }, p.name)))), /*#__PURE__*/React.createElement("div", { style: { flex: 1, minWidth: 130 } }, /*#__PURE__*/React.createElement("label", {
+    onChange: id => { setQpcProduct(id); const p = products.find(pp => pp.id === id); setQpcNewCost(p && p.pricing ? String(p.pricing.cost || "") : ""); }
+  }), /*#__PURE__*/React.createElement("div", { style: { flex: 1, minWidth: 130 } }, /*#__PURE__*/React.createElement("label", {
     style: { display: "block", fontSize: 11, color: "#94a3b8", fontWeight: 600, marginBottom: 4 }
   }, "Cost Price", qpcIsWeight ? " (per lb)" : ""), /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 6 } }, /*#__PURE__*/React.createElement("input", {
     type: "number",
