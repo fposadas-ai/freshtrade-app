@@ -11940,8 +11940,13 @@ function Invoices({
         }
       }, hasScan && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
         onClick: () => {
+          const isPdf = inv.signedCopy.startsWith("data:application/pdf");
           const w = window.open("", "_blank", "width=800,height=1000");
-          w.document.write(`<html><head><title>${inv.id}</title></head><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh;"><img src="${inv.signedCopy}" style="max-width:100%;max-height:100vh;"/></body></html>`);
+          if (isPdf) {
+            w.document.write(`<html><head><title>${inv.id}</title></head><body style="margin:0;"><iframe src="${inv.signedCopy}" style="width:100%;height:100vh;border:none;"></iframe></body></html>`);
+          } else {
+            w.document.write(`<html><head><title>${inv.id}</title></head><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh;"><img src="${inv.signedCopy}" style="max-width:100%;max-height:100vh;"/></body></html>`);
+          }
         },
         style: {
           padding: "4px 8px",
@@ -13480,8 +13485,13 @@ function Invoices({
       variant: "secondary",
       size: "sm",
       onClick: () => {
+        const isPdf = inv.signedCopy.startsWith("data:application/pdf");
         const w = window.open("", "_blank", "width=800,height=1000");
-        w.document.write(`<html><head><title>Signed Invoice ${inv.id}</title></head><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh;"><img src="${inv.signedCopy}" style="max-width:100%;max-height:100vh;" /></body></html>`);
+        if (isPdf) {
+          w.document.write(`<html><head><title>Signed Invoice ${inv.id}</title></head><body style="margin:0;"><iframe src="${inv.signedCopy}" style="width:100%;height:100vh;border:none;"></iframe></body></html>`);
+        } else {
+          w.document.write(`<html><head><title>Signed Invoice ${inv.id}</title></head><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh;"><img src="${inv.signedCopy}" style="max-width:100%;max-height:100vh;" /></body></html>`);
+        }
       }
     }, "View Full"), /*#__PURE__*/React.createElement(Btn, {
       variant: "secondary",
@@ -13499,7 +13509,8 @@ function Invoices({
       onClick: () => {
         const link = document.createElement("a");
         link.href = inv.signedCopy;
-        link.download = `${inv.id}-signed.png`;
+        const ext = inv.signedCopy.startsWith("data:application/pdf") ? "pdf" : "png";
+        link.download = `${inv.id}-signed.${ext}`;
         link.click();
         showToast("Scan downloaded");
       }
@@ -13585,10 +13596,17 @@ function Invoices({
         cursor: "pointer"
       },
       onClick: () => {
+        const isPdf = inv.signedCopy.startsWith("data:application/pdf");
         const w = window.open("", "_blank", "width=800,height=1000");
-        w.document.write(`<html><head><title>Signed Invoice ${inv.id}</title></head><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh;"><img src="${inv.signedCopy}" style="max-width:100%;max-height:100vh;" /></body></html>`);
+        if (isPdf) {
+          w.document.write(`<html><head><title>Signed Invoice ${inv.id}</title></head><body style="margin:0;"><iframe src="${inv.signedCopy}" style="width:100%;height:100vh;border:none;"></iframe></body></html>`);
+        } else {
+          w.document.write(`<html><head><title>Signed Invoice ${inv.id}</title></head><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh;"><img src="${inv.signedCopy}" style="max-width:100%;max-height:100vh;" /></body></html>`);
+        }
       }
-    }, /*#__PURE__*/React.createElement("img", {
+    }, inv.signedCopy.startsWith("data:application/pdf") ? /*#__PURE__*/React.createElement("div", {
+      style: { padding: 20, color: "#64748b", fontSize: 13 }
+    }, /*#__PURE__*/React.createElement("span", { style: { fontSize: 32, display: "block", marginBottom: 6 } }, "\uD83D\uDCC4"), "PDF attached", inv.signedCopyName ? ` — ${inv.signedCopyName}` : "", /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, color: "#475569", marginTop: 4 } }, "Click to view")) : /*#__PURE__*/React.createElement("img", {
       src: inv.signedCopy,
       style: {
         maxWidth: "100%",
@@ -31158,7 +31176,14 @@ function ProofOfDelivery({
   // Apply all matched scans
   const applyOcrMatches = () => {
     const toApply = ocrScans.filter(s => s.matchedInvId && s.status !== "applied" && s.preview);
+    let applied = 0;
+    let skippedDups = 0;
     toApply.forEach(s => {
+      const existing = invoices.find(x => x.id === s.matchedInvId);
+      if (existing && existing.signedCopy) {
+        skippedDups++;
+        return;
+      }
       const dateStr = new Date().toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
@@ -31171,19 +31196,25 @@ function ProofOfDelivery({
         signedCopy: s.preview,
         signedCopyDate: dateStr
       } : x));
+      applied++;
     });
     setOcrScans(prev => prev.map(s => s.matchedInvId && s.status !== "applied" ? {
       ...s,
       status: "applied"
     } : s));
-    showToast(`✅ ${toApply.length} scans linked to invoices`);
+    const msg = skippedDups > 0 ? `✅ ${applied} scans linked, ${skippedDups} skipped (already had signed copy)` : `✅ ${applied} scans linked to invoices`;
+    showToast(msg);
   };
 
   // Sequential scan handler
   const handleSeqScan = invId => {
+    const existing = invoices.find(x => x.id === invId);
+    if (existing && existing.signedCopy) {
+      if (!confirm(`${invId} already has a signed copy attached (${existing.signedCopyDate || "unknown date"}). Replace it?`)) return;
+    }
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = "image/*";
+    input.accept = "image/*,.pdf";
     input.onchange = e => {
       const file = e.target.files[0];
       if (!file) return;
@@ -31199,7 +31230,8 @@ function ProofOfDelivery({
         setInvoices(prev => prev.map(x => x.id === invId ? {
           ...x,
           signedCopy: reader.result,
-          signedCopyDate: dateStr
+          signedCopyDate: dateStr,
+          signedCopyName: file.name
         } : x));
         showToast(`✅ Scan linked to ${invId}`);
       };
@@ -31354,9 +31386,13 @@ function ProofOfDelivery({
 
   // Scan upload handler
   const handleScanUpload = invId => {
+    const existing = invoices.find(x => x.id === invId);
+    if (existing && existing.signedCopy) {
+      if (!confirm(`${invId} already has a signed copy attached (${existing.signedCopyDate || "unknown date"}). Replace it?`)) return;
+    }
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = "image/*";
+    input.accept = "image/*,.pdf";
     input.onchange = e => {
       const file = e.target.files[0];
       if (!file) return;
@@ -31367,12 +31403,14 @@ function ProofOfDelivery({
         setInvoices(prev => prev.map(x => x.id === invId ? {
           ...x,
           signedCopy: base64,
-          signedCopyDate: dateStr
+          signedCopyDate: dateStr,
+          signedCopyName: file.name
         } : x));
         if ((selectedInv === null || selectedInv === void 0 ? void 0 : selectedInv.id) === invId) setSelectedInv(prev => ({
           ...prev,
           signedCopy: base64,
-          signedCopyDate: dateStr
+          signedCopyDate: dateStr,
+          signedCopyName: file.name
         }));
         showToast(`📷 Scan attached to ${invId}`);
       };
