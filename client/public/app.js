@@ -30917,6 +30917,7 @@ function ProofOfDelivery({
   const [filterPrinted, setFilterPrinted] = useState(false);
   const [filterScanned, setFilterScanned] = useState(false);
   const [filterDelivered, setFilterDelivered] = useState(false);
+  const [hideScanned, setHideScanned] = useState(true);
   const [showRecordModal, setShowRecordModal] = useState(false);
   const [recordForm, setRecordForm] = useState({
     signedBy: "",
@@ -31224,43 +31225,48 @@ function ProofOfDelivery({
   };
 
   // Filter by route
-  const filteredInvoices = podRoute === "all" ? dayInvoices : dayInvoices.filter(inv => getInvRoute(inv) === podRoute);
+  const routeInvoices = podRoute === "all" ? dayInvoices : dayInvoices.filter(inv => getInvRoute(inv) === podRoute);
+  const filteredInvoices = hideScanned ? routeInvoices.filter(inv => !inv.podScanned) : routeInvoices;
+  const scannedOutCount = routeInvoices.filter(inv => inv.podScanned).length;
 
   // ── USB Barcode Scanner Logic ──
   const processScanCodeRef = useRef(null);
   processScanCodeRef.current = (code) => {
     const upper = code.toUpperCase();
-    const directInv = filteredInvoices.find(inv => inv.id.toUpperCase() === upper);
-    if (directInv) {
-      setSelectedInv(directInv);
-      setLastScan({ code, matched: true, invId: directInv.id, time: Date.now() });
-      showToast(`Scanned: ${directInv.id}`, "success");
+    const allDayInvs = invoices.filter(inv => inv.date === podDate || inv.deliveryDate === podDate);
+    const findInv = (list) => {
+      const direct = list.find(inv => inv.id.toUpperCase() === upper);
+      if (direct) return direct;
+      const soParts = upper.match(/^(SO-\d+)/);
+      if (soParts) {
+        const soId = soParts[1];
+        const m = list.find(inv => inv.soId === soId || (inv.fromSO || "").toUpperCase() === soId);
+        if (m) return m;
+      }
+      const numMatch = upper.match(/(\d{3,6})/);
+      if (numMatch) {
+        const num = numMatch[1];
+        const m = list.find(inv => inv.id.includes(num));
+        if (m) return m;
+      }
+      return null;
+    };
+    const matched = findInv(allDayInvs);
+    if (!matched) {
+      setLastScan({ code, matched: false, invId: null, time: Date.now() });
+      showToast(`Barcode "${code}" — no matching invoice found`, "warn");
       return;
     }
-    const soParts = upper.match(/^(SO-\d+)/);
-    if (soParts) {
-      const soId = soParts[1];
-      const matchInv = filteredInvoices.find(inv => inv.soId === soId || (inv.fromSO || "").toUpperCase() === soId);
-      if (matchInv) {
-        setSelectedInv(matchInv);
-        setLastScan({ code, matched: true, invId: matchInv.id, time: Date.now() });
-        showToast(`Scanned: ${matchInv.id} (from ${soId})`, "success");
-        return;
-      }
+    if (matched.podScanned) {
+      setLastScan({ code, matched: true, invId: matched.id, time: Date.now(), duplicate: true });
+      showToast(`${matched.id} already scanned — skipping duplicate`, "info");
+      return;
     }
-    const numMatch = upper.match(/(\d{3,6})/);
-    if (numMatch) {
-      const num = numMatch[1];
-      const fuzzyInv = filteredInvoices.find(inv => inv.id.includes(num));
-      if (fuzzyInv) {
-        setSelectedInv(fuzzyInv);
-        setLastScan({ code, matched: true, invId: fuzzyInv.id, time: Date.now() });
-        showToast(`Scanned: ${fuzzyInv.id}`, "success");
-        return;
-      }
-    }
-    setLastScan({ code, matched: false, invId: null, time: Date.now() });
-    showToast(`Barcode "${code}" — no matching invoice found`, "warn");
+    const now = new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    setInvoices(prev => prev.map(x => x.id === matched.id ? { ...x, podScanned: true, podScannedAt: now } : x));
+    setLastScan({ code, matched: true, invId: matched.id, time: Date.now() });
+    const remaining = allDayInvs.filter(inv => !inv.podScanned && inv.id !== matched.id).length;
+    showToast(`✓ ${matched.id} scanned — ${remaining} remaining`, "success");
   };
 
   useEffect(() => {
@@ -31600,14 +31606,33 @@ function ProofOfDelivery({
   scannerActive && /*#__PURE__*/React.createElement("div", {
     style: { background: "#0d2818", border: "1px solid #22c55e44", borderLeft: "1px solid #2d3748", borderRight: "1px solid #2d3748", padding: "6px 14px", display: "flex", alignItems: "center", gap: 12, fontSize: 11 }
   }, /*#__PURE__*/React.createElement("span", { style: { color: "#22c55e", fontWeight: 700, display: "flex", alignItems: "center", gap: 4 } }, /*#__PURE__*/React.createElement("span", { style: { width: 8, height: 8, borderRadius: "50%", background: "#22c55e", display: "inline-block", animation: "pulse 1.5s infinite" } }), "Scanner Ready"),
-  /*#__PURE__*/React.createElement("span", { style: { color: "#64748b", fontSize: 10 } }, "Scan a barcode label or type a code below"),
+  /*#__PURE__*/React.createElement("span", {
+    "data-testid": "text-scan-progress",
+    style: { color: scannedOutCount === routeInvoices.length && routeInvoices.length > 0 ? "#22c55e" : "#f59e0b", fontWeight: 700, fontSize: 12, fontFamily: "'DM Mono',monospace" }
+  }, scannedOutCount, "/", routeInvoices.length, " scanned"),
   /*#__PURE__*/React.createElement("input", {
     "data-testid": "input-barcode-manual",
-    placeholder: "Type barcode manually...",
+    placeholder: "Scan or type invoice #...",
     style: { background: "#1a2030", border: "1px solid #22c55e44", borderRadius: 6, padding: "4px 8px", color: "#e2e8f0", fontSize: 12, width: 180, fontFamily: "'DM Mono',monospace" },
     onKeyDown: e => { if (e.key === "Enter" && e.target.value.trim().length >= 3) { if (processScanCodeRef.current) processScanCodeRef.current(e.target.value.trim()); e.target.value = ""; } }
   }),
-  lastScan && /*#__PURE__*/React.createElement("span", { style: { marginLeft: "auto", fontSize: 10, color: lastScan.matched ? "#22c55e" : "#ef4444" } }, lastScan.matched ? `✓ ${lastScan.invId}` : `✗ "${lastScan.code}" not found`)),
+  /*#__PURE__*/React.createElement("button", {
+    "data-testid": "button-toggle-hide-scanned",
+    onClick: () => setHideScanned(!hideScanned),
+    style: { padding: "3px 8px", borderRadius: 5, border: "1px solid " + (hideScanned ? "#22c55e44" : "#2d3748"), background: hideScanned ? "#22c55e18" : "transparent", color: hideScanned ? "#22c55e" : "#64748b", cursor: "pointer", fontSize: 10, fontWeight: 600 }
+  }, hideScanned ? "Hiding Scanned ✓" : "Show All"),
+  scannedOutCount > 0 && /*#__PURE__*/React.createElement("button", {
+    "data-testid": "button-reset-scans",
+    onClick: () => {
+      if (confirm("Reset all scanned invoices for this date? They will reappear in the list.")) {
+        const dayIds = routeInvoices.map(inv => inv.id);
+        setInvoices(prev => prev.map(x => dayIds.includes(x.id) ? { ...x, podScanned: false, podScannedAt: null } : x));
+        showToast("All scans reset for " + podDate);
+      }
+    },
+    style: { padding: "3px 8px", borderRadius: 5, border: "1px solid #ef444444", background: "transparent", color: "#ef4444", cursor: "pointer", fontSize: 10, fontWeight: 600 }
+  }, "Reset Scans"),
+  lastScan && /*#__PURE__*/React.createElement("span", { style: { marginLeft: "auto", fontSize: 10, color: lastScan.matched ? (lastScan.duplicate ? "#f59e0b" : "#22c55e") : "#ef4444" } }, lastScan.matched ? (lastScan.duplicate ? `⚠ ${lastScan.invId} (duplicate)` : `✓ ${lastScan.invId} removed`) : `✗ "${lastScan.code}" not found`)),
   /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
