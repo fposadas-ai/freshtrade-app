@@ -2884,7 +2884,12 @@ function App() {
   const [receipts, setReceipts] = useState(init("receipts", []));
   const [arPayments, setArPayments] = useState(init("arPayments", []));
   const [arDeposits, setArDeposits] = useState(init("arDeposits", []));
-  const [settings, setSettings] = useState(init("settings", defaultSettings));
+  const [settings, setSettings] = useState(() => {
+    const s = init("settings", defaultSettings);
+    if (s.labelsZebra) s.labelsZebra = { ...defaultSettings.labelsZebra, ...s.labelsZebra };
+    if (s.labelsSheet) s.labelsSheet = { ...defaultSettings.labelsSheet, ...s.labelsSheet };
+    return s;
+  });
   // Migrate legacy shippingFontSize preset to individual numeric sizes
   if (settings.labelsZebra && settings.labelsZebra.shippingFontSize && !settings.labelsZebra.shippingFontCategory) {
     const _legacyMap = { compact: { shippingFontCategory: 7, shippingFontProduct: 9, shippingFontCustomer: 8, shippingFontAddress: 6, shippingFontLabel: 6, shippingFontValue: 7, shippingFontOrder: 7, shippingFontBarcode: 10 }, standard: { shippingFontCategory: 9, shippingFontProduct: 11, shippingFontCustomer: 9, shippingFontAddress: 7.5, shippingFontLabel: 7, shippingFontValue: 8, shippingFontOrder: 8, shippingFontBarcode: 14 }, large: { shippingFontCategory: 10, shippingFontProduct: 13, shippingFontCustomer: 10, shippingFontAddress: 8.5, shippingFontLabel: 8, shippingFontValue: 9, shippingFontOrder: 9, shippingFontBarcode: 16 } };
