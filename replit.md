@@ -154,6 +154,13 @@ Preferred communication style: Simple, everyday language.
 - **Data Sources**: Aggregates from all non-cancelled SOs and non-voided invoices for the selected customer
 - **Display**: Avg qty in blue monospace font, count as gray "Nx" text, tooltip shows full details
 
+### Reports Module
+- **5 Report Types**: Customer Ledger (all invoices/payments/credits for one customer), Purchase History (products bought by customer in date range), Payment History (all payments by a customer), Open Receivables (all unpaid invoices across all customers with aging buckets), Sales Report (total sales by date range with customer and category breakdowns)
+- **Controls**: Report type dropdown, optional customer dropdown (shown only for customer-specific reports), date range pickers, Generate and Print buttons
+- **Output**: White print-friendly area inside a Card, with tables, summary cards (for Sales Report), and aging bucket visualization (for Open AR)
+- **Print**: Opens a new window with styled HTML for printing
+- **Data Filters**: Voided invoices excluded from all reports; void/returned payments excluded; void credit memos excluded
+
 ### Other Utilities
 - **date-fns** — date manipulation
 - **nanoid** — unique ID generation
