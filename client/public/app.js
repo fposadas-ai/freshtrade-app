@@ -1769,9 +1769,12 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
     const unitLabel = l.unit === "CS" ? "cases" : "pcs";
     const descLine = l.description ? '<div style="font-size:9px;color:#6b7280;font-style:italic;margin-top:1px;line-height:1.3;">' + l.description + '</div>' : '';
     const _packParts = [];
-    if (prod && prod.piecesPerBox && prod.piecesPerBox > 1) _packParts.push(prod.piecesPerBox + ' pcs/cs');
-    if (prod && prod.caseWeightLbs) _packParts.push(prod.caseWeightLbs + ' lbs/cs');
-    if (prod && prod.weightPerPack) _packParts.push(prod.weightPerPack + ' lbs/pc');
+    if (prod && prod.packSize) _packParts.push(prod.packSize);
+    else {
+      if (prod && prod.piecesPerBox && prod.piecesPerBox > 1) _packParts.push(prod.piecesPerBox + ' pcs/cs');
+      if (prod && prod.caseWeightLbs) _packParts.push(prod.caseWeightLbs + ' lbs/cs');
+      if (prod && prod.weightPerPack) _packParts.push(prod.weightPerPack + ' lbs/pc');
+    }
     const packSizeInfo = _packParts.join(' · ');
     const packLine = packSizeInfo ? ' <span style="font-weight:400;color:#9ca3af;font-size:9px;">· ' + packSizeInfo + '</span>' : '';
     let html = "";
@@ -6581,7 +6584,7 @@ function PickSheetBlock({
           color: cc,
           borderBottom: "none"
         }
-      }, pName(prod, line), /*#__PURE__*/React.createElement("span", {
+      }, pName(prod, line), (prod === null || prod === void 0 ? void 0 : prod.packSize) ? /*#__PURE__*/React.createElement("span", { style: { fontSize: 9, fontWeight: 400, color: "#6b7280", marginLeft: 6 } }, prod.packSize) : null, /*#__PURE__*/React.createElement("span", {
         style: {
           display: "inline-block",
           marginLeft: 8,
@@ -6750,7 +6753,7 @@ function PickSheetBlock({
         fontWeight: 700,
         fontSize: 12
       }
-    }, pName(prod, line), isCW && /*#__PURE__*/React.createElement("span", {
+    }, pName(prod, line), (prod === null || prod === void 0 ? void 0 : prod.packSize) ? /*#__PURE__*/React.createElement("span", { style: { fontSize: 9, fontWeight: 400, color: "#6b7280", marginLeft: 5 } }, prod.packSize) : null, isCW && /*#__PURE__*/React.createElement("span", {
       style: {
         marginLeft: 6,
         fontSize: 8,
@@ -7166,7 +7169,7 @@ function PrintPreview({
           ...tdStyle,
           fontWeight: 600
         }
-      }, pName(prod, line)), /*#__PURE__*/React.createElement("td", {
+      }, pName(prod, line), (prod === null || prod === void 0 ? void 0 : prod.packSize) ? /*#__PURE__*/React.createElement("div", { style: { fontSize: 9, fontWeight: 400, color: "#6b7280" } }, prod.packSize) : null), /*#__PURE__*/React.createElement("td", {
         style: tdStyle
       }, prod === null || prod === void 0 ? void 0 : prod.category), /*#__PURE__*/React.createElement("td", {
         style: tdStyle
@@ -16564,6 +16567,7 @@ function Purchasing({
   const [showNewProduct, setShowNewProduct] = useState(false);
   const [newProdForm, setNewProdForm] = useState({
     name: "",
+    packSize: "",
     category: "Seafood",
     piecesPerBox: 1,
     catchWeight: false,
@@ -16707,6 +16711,7 @@ function Purchasing({
     const prod = {
       id: genId("P"),
       name: newProdForm.name.trim(),
+      packSize: newProdForm.packSize || "",
       category: newProdForm.category,
       piecesPerBox: Number(newProdForm.piecesPerBox) || 1,
       catchWeight: !!newProdForm.catchWeight,
@@ -16756,6 +16761,7 @@ function Purchasing({
     setShowNewProduct(false);
     setNewProdForm({
       name: "",
+      packSize: "",
       category: "Seafood",
       piecesPerBox: 1,
       catchWeight: false,
@@ -18012,6 +18018,14 @@ function Purchasing({
       name: e.target.value
     })),
     placeholder: "e.g. Boneless Chicken Breast"
+  }), /*#__PURE__*/React.createElement(Input, {
+    label: "Pack/Size",
+    value: newProdForm.packSize || "",
+    onChange: e => setNewProdForm(f => ({
+      ...f,
+      packSize: e.target.value
+    })),
+    placeholder: "e.g. 4/5lb, 10lb box"
   }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     style: {
       display: "block",
@@ -19597,6 +19611,7 @@ function Inventory({
     subCategory: "",
     countryOfOrigin: "",
     countryOfOriginOther: "",
+    packSize: "",
     piecesPerBox: 1,
     soldByPiece: true,
     catchWeight: false,
@@ -19935,6 +19950,7 @@ function Inventory({
       ...prod,
       avgWeightPerCase: prod.avgWeightPerCase || "",
       avgWeightPerPiece: prod.avgWeightPerPiece || "",
+      packSize: prod.packSize || "",
       subCategory: prod.subCategory || "",
       countryOfOrigin: prod.countryOfOrigin || "",
       countryOfOriginOther: prod.countryOfOriginOther || "",
@@ -21931,7 +21947,7 @@ function Inventory({
   }, t.label))), activeTab === "details" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
-      gridTemplateColumns: "2fr 1fr",
+      gridTemplateColumns: "2fr 1fr 1fr",
       gap: 12,
       marginBottom: 14
     }
@@ -21943,6 +21959,15 @@ function Inventory({
       name: e.target.value
     })),
     placeholder: "e.g. Atlantic Cod Fillet"
+  }), /*#__PURE__*/React.createElement(Input, {
+    label: "Pack/Size",
+    "data-testid": "input-pack-size",
+    value: form.packSize || "",
+    onChange: e => setForm(f => ({
+      ...f,
+      packSize: e.target.value
+    })),
+    placeholder: "e.g. 4/5lb, 10lb box, 12ct"
   }), /*#__PURE__*/React.createElement(Select, {
     label: "Category",
     value: form.category,
