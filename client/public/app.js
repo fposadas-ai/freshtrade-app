@@ -31290,15 +31290,19 @@ function ProofOfDelivery({
       return;
     }
     if (matched.podScanned) {
+      setSelectedInv(matched);
+      setRightTab("invoice");
       setLastScan({ code, matched: true, invId: matched.id, time: Date.now(), duplicate: true });
-      showToast(`${matched.id} already scanned — skipping duplicate`, "info");
+      showToast(`${matched.id} already scanned — showing invoice`, "info");
       return;
     }
     const now = new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     setInvoices(prev => prev.map(x => x.id === matched.id ? { ...x, podScanned: true, podScannedAt: now } : x));
+    setSelectedInv({ ...matched, podScanned: true, podScannedAt: now });
+    setRightTab("invoice");
     setLastScan({ code, matched: true, invId: matched.id, time: Date.now() });
     const remaining = allDayInvs.filter(inv => !inv.podScanned && inv.id !== matched.id).length;
-    showToast(`✓ ${matched.id} scanned — ${remaining} remaining`, "success");
+    showToast(`✓ ${matched.id} found — ${remaining} remaining`, "success");
   };
 
   useEffect(() => {
@@ -31460,12 +31464,22 @@ function ProofOfDelivery({
       variant: "secondary",
       icon: "clipboard",
       onClick: () => {
+        if (!scannerActive) setScannerActive(true);
+        showToast("Scanner active — scan any invoice barcode to jump to it", "success");
+        setTimeout(() => {
+          const inp = document.querySelector('[data-testid="input-barcode-manual"]');
+          if (inp) inp.focus();
+        }, 100);
+      }
+    }, "\uD83D\uDCF7 Scan Invoices"), /*#__PURE__*/React.createElement(Btn, {
+      variant: "secondary",
+      onClick: () => {
         setOcrScans([]);
         setOcrMode("sequential");
         setSeqIdx(0);
         setShowBatchScan(true);
       }
-    }, "\uD83D\uDCF7 Scan Invoices"), /*#__PURE__*/React.createElement(Btn, {
+    }, "\uD83D\uDCE4 Upload Signed Copies"), /*#__PURE__*/React.createElement(Btn, {
       variant: "secondary",
       icon: "print",
       onClick: () => showToast("Print all route documents", "info")
