@@ -3462,7 +3462,8 @@ function App() {
     priceLevels: priceLevels,
     salesOrders: salesOrders,
     setSalesOrders: setSalesOrders,
-    customers: customers
+    customers: customers,
+    settings: settings
   }), activeModule === "inventory" && /*#__PURE__*/React.createElement(Inventory, {
     products: products,
     setProducts: setProducts,
@@ -16527,7 +16528,8 @@ function Purchasing({
   priceLevels,
   salesOrders,
   setSalesOrders,
-  customers
+  customers,
+  settings
 }) {
   var _suppliers$find2, _priceLevels$find;
   const [activeTab, setActiveTab] = useState("orders"); // orders, receive, pricing, suppliers
