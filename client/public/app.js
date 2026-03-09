@@ -32510,8 +32510,13 @@ function ProofOfDelivery({
     }
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => {
+      const isPdf = sel.signedCopy.startsWith("data:application/pdf");
       const w = window.open("", "_blank");
-      w.document.write(`<html><head><title>Scan ${sel.id}</title></head><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh;"><img src="${sel.signedCopy}" style="max-width:100%;max-height:100vh;"/></body></html>`);
+      if (isPdf) {
+        w.document.write(`<html><head><title>Scan ${sel.id}</title></head><body style="margin:0;"><iframe src="${sel.signedCopy}" style="width:100%;height:100vh;border:none;"></iframe></body></html>`);
+      } else {
+        w.document.write(`<html><head><title>Scan ${sel.id}</title></head><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh;"><img src="${sel.signedCopy}" style="max-width:100%;max-height:100vh;"/></body></html>`);
+      }
     },
     style: {
       padding: "4px 10px",
@@ -32564,7 +32569,17 @@ function ProofOfDelivery({
       textAlign: "center",
       border: "1px solid #2d3748"
     }
-  }, /*#__PURE__*/React.createElement("img", {
+  }, sel.signedCopy.startsWith("data:application/pdf") ? /*#__PURE__*/React.createElement("iframe", {
+    src: sel.signedCopy,
+    style: {
+      width: "100%",
+      height: 500,
+      border: "none",
+      borderRadius: 6,
+      background: "#fff"
+    },
+    title: "Signed invoice PDF"
+  }) : /*#__PURE__*/React.createElement("img", {
     src: sel.signedCopy,
     alt: "Signed invoice",
     style: {
