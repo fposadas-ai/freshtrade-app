@@ -31333,20 +31333,17 @@ function ProofOfDelivery({
       }
     }, /*#__PURE__*/React.createElement(Btn, {
       variant: scannerActive ? "primary" : "secondary",
-      onClick: () => { setScannerActive(!scannerActive); if (!scannerActive) showToast("Barcode scanner active — scan any label barcode", "success"); },
-      style: scannerActive ? { background: "#22c55e", color: "#000", borderColor: "#22c55e" } : {}
-    }, scannerActive ? "📡 Scanner ON" : "📡 Scanner"), /*#__PURE__*/React.createElement(Btn, {
-      variant: "secondary",
-      icon: "clipboard",
+      "data-testid": "button-toggle-scanner",
       onClick: () => {
-        if (!scannerActive) setScannerActive(true);
-        showToast("Scanner active — scan any invoice barcode to jump to it", "success");
-        setTimeout(() => {
-          const inp = document.querySelector('[data-testid="input-barcode-manual"]');
-          if (inp) inp.focus();
-        }, 100);
-      }
-    }, "\uD83D\uDCF7 Scan Invoices"), /*#__PURE__*/React.createElement(Btn, {
+        const next = !scannerActive;
+        setScannerActive(next);
+        if (next) {
+          showToast("Scanner active — scan any invoice barcode", "success");
+          setTimeout(() => { const inp = document.querySelector('[data-testid="input-barcode-manual"]'); if (inp) inp.focus(); }, 100);
+        }
+      },
+      style: scannerActive ? { background: "#22c55e", color: "#000", borderColor: "#22c55e" } : {}
+    }, scannerActive ? "📡 Scanner ON" : "📡 Scan Barcodes"), /*#__PURE__*/React.createElement(Btn, {
       variant: "secondary",
       onClick: () => {
         setBatchFiles([]);
