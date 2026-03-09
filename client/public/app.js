@@ -6029,7 +6029,7 @@ const COMPANY_ADDR = "1200 Port Blvd, Miami FL 33132  ·  (305) 555-0100";
 function buildLabels(so, products, customers, routes, invoices) {
   const cust = customers.find(c => c.id === so.customerId);
   const route = routes.find(r => r.id === so.routeId);
-  const inv = invoices ? invoices.find(inv => inv.soId === so.id || inv.salesOrderId === so.id) : null;
+  const inv = invoices ? invoices.find(inv => inv.soId === so.id || inv.salesOrderId === so.id || inv.fromSO === so.id) : null;
   const labels = [];
   so.lines.forEach(line => {
     const prod = products.find(p => p.id === line.productId);
