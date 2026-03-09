@@ -10374,6 +10374,7 @@ function Invoices({
   const [filterStatus, setFilterStatus] = useState("all");
   const [openInvs, setOpenInvs] = useState([]); // multi-modal like SO
   const [editingInv, setEditingInv] = useState(null);
+  const [editOrigLineCount, setEditOrigLineCount] = useState(0);
   const [invPriceLookup, setInvPriceLookup] = useState(null); // { lineIdx, productId }
 
   const openInvModal = inv => setOpenInvs(prev => prev.some(i => i.id === inv.id) ? prev : [...prev, inv]);
@@ -12356,6 +12357,7 @@ function Invoices({
     const isEditing = isThisEditing;
     const startInvEdit = () => tryEdit("INV", viewInv.id, "User", () => {
       const invData = invoices.find(i => i.id === viewInv.id) || viewInv;
+      setEditOrigLineCount((invData.lines || []).length);
       setEditingInv(JSON.parse(JSON.stringify(invData)));
     }, showToast);
     const voidedBanner = inv.status === "voided" ? /*#__PURE__*/React.createElement("div", {
@@ -12722,19 +12724,20 @@ function Invoices({
     }, "Amount"))), /*#__PURE__*/React.createElement("tbody", null, inv.lines.map((line, i) => {
       const prod = products.find(p => p.id === line.productId);
       const isCW = (prod === null || prod === void 0 ? void 0 : prod.catchWeight) || (prod === null || prod === void 0 ? void 0 : prod.fixedWeight);
+      const isAddition = isEditing && i >= editOrigLineCount;
       return /*#__PURE__*/React.createElement("tr", {
         key: i,
         style: {
-          background: i % 2 === 0 ? "#fff" : "#f3f2ee"
+          background: isAddition ? "#ecfdf5" : i % 2 === 0 ? "#fff" : "#f3f2ee"
         }
       }, /*#__PURE__*/React.createElement("td", {
         style: {
           ...F.td,
           textAlign: "center",
           fontSize: 10,
-          color: "#94a3b8"
+          color: isAddition ? "#059669" : "#94a3b8"
         }
-      }, i + 1), /*#__PURE__*/React.createElement("td", {
+      }, isAddition ? /*#__PURE__*/React.createElement("span", { style: { fontSize: 8, fontWeight: 700, background: "#059669", color: "#fff", padding: "1px 4px", borderRadius: 3 } }, "NEW") : (i + 1)), /*#__PURE__*/React.createElement("td", {
         style: F.td
       }, /*#__PURE__*/React.createElement("div", {
         style: {
@@ -13672,7 +13675,64 @@ function Invoices({
         setEditingInv(null);
         setInvPriceLookup(null);
       }
-    }, "Cancel Edit"), /*#__PURE__*/React.createElement(Btn, {
+    }, "Cancel Edit"), ((inv.lines || []).length > editOrigLineCount) && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Btn, {
+      variant: "secondary",
+      icon: "print",
+      "data-testid": "button-print-additions-pick",
+      onClick: () => {
+        const addLines = inv.lines.slice(editOrigLineCount);
+        const addCount = addLines.length;
+        const cust = customers.find(c => c.id === inv.customerId);
+        const route = routes.find(r => (r.stops || []).some(s => s.customerId === inv.customerId));
+        const fakeSO = { id: inv.id + "-ADD", customerId: inv.customerId, customerName: (cust === null || cust === void 0 ? void 0 : cust.name) || "", deliveryDate: inv.date || "", routeId: (route === null || route === void 0 ? void 0 : route.id) || "", notes: "ADDITIONS ONLY (" + addCount + " items added to " + inv.id + ")", lines: addLines };
+        const w = window.open("", "_blank", "width=800,height=1000");
+        if (!w) return;
+        const el = document.createElement("div");
+        const root = ReactDOM.createRoot(el);
+        root.render(React.createElement(PickSheetBlock, { so: fakeSO, customer: cust, route: route, products: products, categoryOrder: settings.preferences.categoryOrder }));
+        setTimeout(() => {
+          w.document.write("<html><head><title>Additions Pick Sheet — " + inv.id + "</title><style>*{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif;}body{padding:20px;}@media print{body{padding:10px;}}</style></head><body>" + el.innerHTML + "</body></html>");
+          w.document.close();
+          setTimeout(() => w.print(), 300);
+        }, 200);
+      }
+    }, "Print Additions Pick Sheet"), /*#__PURE__*/React.createElement(Btn, {
+      variant: "secondary",
+      icon: "print",
+      "data-testid": "button-print-additions-labels",
+      onClick: () => {
+        const addLines = inv.lines.slice(editOrigLineCount);
+        const cust = customers.find(c => c.id === inv.customerId);
+        const route = routes.find(r => (r.stops || []).some(s => s.customerId === inv.customerId));
+        const labelItems = addLines.map(l => {
+          const prod = products.find(p => p.id === l.productId);
+          return { product: (prod === null || prod === void 0 ? void 0 : prod.name) || l.description || "Item", category: (prod === null || prod === void 0 ? void 0 : prod.category) || "", qty: l.qty || 1, weight: l.actualWeight || l.estWeight || l.nominalWeight || "", customer: (cust === null || cust === void 0 ? void 0 : cust.name) || "", address: (cust === null || cust === void 0 ? void 0 : cust.address) || "", route: (route === null || route === void 0 ? void 0 : route.name) || "", invoiceId: inv.id, deliveryDate: inv.date || "", packSize: (prod === null || prod === void 0 ? void 0 : prod.packSize) || "" };
+        });
+        const labelsHtml = labelItems.map(it => {
+          const cc = ({ Seafood: "#0284c7", Beef: "#b91c1c", Pork: "#c2410c", Poultry: "#b45309", Deli: "#7c3aed" })[it.category] || "#374151";
+          let boxes = "";
+          for (let b = 0; b < (it.qty || 1); b++) {
+            boxes += '<div style="border:1px solid #ccc;border-radius:6px;padding:10px 14px;margin-bottom:8px;page-break-inside:avoid;">' +
+              '<div style="background:' + cc + ';color:#fff;padding:3px 8px;border-radius:4px;font-size:9px;font-weight:700;text-transform:uppercase;display:inline-block;margin-bottom:6px;">' + it.category + '</div>' +
+              '<div style="font-size:14px;font-weight:800;margin-bottom:4px;">' + it.product + '</div>' +
+              (it.packSize ? '<div style="font-size:9px;color:#6b7280;margin-bottom:4px;">' + it.packSize + '</div>' : '') +
+              '<div style="font-size:11px;color:#374151;margin-bottom:3px;"><b>Ship To:</b> ' + it.customer + '</div>' +
+              '<div style="font-size:10px;color:#6b7280;">' + it.address + '</div>' +
+              '<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:10px;color:#374151;">' +
+              '<span><b>Route:</b> ' + it.route + '</span>' +
+              '<span><b>Invoice:</b> ' + it.invoiceId + '</span>' +
+              '<span><b>Box ' + (b + 1) + '/' + it.qty + '</b></span>' +
+              '</div></div>';
+          }
+          return boxes;
+        }).join("");
+        const w = window.open("", "_blank", "width=800,height=1000");
+        if (!w) return;
+        w.document.write("<html><head><title>Additions Labels — " + inv.id + "</title><style>*{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif;}body{padding:20px;}@media print{body{padding:10px;}}</style></head><body><div style='font-size:16px;font-weight:800;margin-bottom:12px;color:#1e3a5f;'>ADDITION LABELS — " + inv.id + "</div>" + labelsHtml + "</body></html>");
+        w.document.close();
+        setTimeout(() => w.print(), 300);
+      }
+    }, "Print Additions Labels")), /*#__PURE__*/React.createElement(Btn, {
       onClick: saveInvEdit,
       icon: "save",
       style: {
