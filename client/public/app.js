@@ -7563,7 +7563,7 @@ function buildSOConfirmationText(so, customer, products, settings) {
   const company = (settings && settings.company) || {};
   const coName = company.name || "FreshTrade Distribution";
   const cust = customer || {};
-  const soLines = so.lines || [];
+  const soLines = (so.lines || []).filter(l => Number(l.qty) > 0);
   const lines = soLines.map(l => {
     const p = products.find(pp => pp.id === l.productId);
     const name = l.customName || (p ? p.name : l.productId);
@@ -8418,9 +8418,12 @@ function SalesOrders({
           const isWB = (p && (p.catchWeight || p.fixedWeight));
           const wt = Number(l.estWeight || l.nominalWeight || l.weight) || 0;
           const unit = l.unit || "CS";
+          const price = Number(isWB ? l.pricePerLb : l.priceEach) || 0;
+          const priceLabel = isWB ? "/lb" : "/" + unit;
+          const lineTotal = Number(l.estTotal || l.total) || 0;
           return React.createElement("div", { key: i, style: { padding: "5px 0", borderBottom: i < activeLines.length - 1 ? "1px solid #bbf7d0" : "none", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 14, color: "#1a2844" } },
-            React.createElement("span", { style: { fontWeight: 700 } }, (l.qty || 0) + " " + unit + "  " + name),
-            isWB && wt > 0 ? React.createElement("span", { style: { fontSize: 12, color: "#15803d", fontFamily: "'DM Mono',monospace" } }, wt.toFixed(2) + " lb") : null);
+            React.createElement("span", { style: { fontWeight: 700 } }, (l.qty || 0) + " " + unit + "  " + name, isWB && wt > 0 ? React.createElement("span", { style: { fontSize: 12, color: "#15803d", fontWeight: 400, marginLeft: 6 } }, wt.toFixed(2) + " lb") : null),
+            React.createElement("span", { style: { fontSize: 12, fontFamily: "'DM Mono',monospace", color: "#1a2844", whiteSpace: "nowrap" } }, "$" + price.toFixed(2) + priceLabel + "  =  $" + lineTotal.toFixed(2)));
         }));
     })())), openSOs.map(viewSO => /*#__PURE__*/React.createElement(Modal, {
     key: viewSO.id,
@@ -9647,12 +9650,15 @@ function SalesOrders({
       so.lines.filter(l => Number(l.qty) > 0).map((l, i, arr) => {
         const p = products.find(pp => pp.id === l.productId);
         const name = l.customName || (p ? p.name : l.productId);
-        const isWB = (p && (p.catchWeight || p.fixedWeight));
+        const isWB = l.pricePerLb !== undefined && l.pricePerLb !== null;
         const wt = Number(l.actualWeight || l.nominalWeight || l.estWeight || l.weight) || 0;
         const unit = l.unit || "CS";
+        const price = Number(isWB ? l.pricePerLb : l.priceEach) || 0;
+        const priceLabel = isWB ? "/lb" : "/" + unit;
+        const lineTotal = Number(l.estTotal || l.total) || 0;
         return React.createElement("div", { key: i, style: { padding: "5px 0", borderBottom: i < arr.length - 1 ? "1px solid #bbf7d0" : "none", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 14, color: "#1a2844" } },
-          React.createElement("span", { style: { fontWeight: 700 } }, (l.qty || 0) + " " + unit + "  " + name),
-          isWB && wt > 0 ? React.createElement("span", { style: { fontSize: 12, color: "#15803d", fontFamily: "'DM Mono',monospace" } }, wt.toFixed(2) + " lb") : null);
+          React.createElement("span", { style: { fontWeight: 700 } }, (l.qty || 0) + " " + unit + "  " + name, isWB && wt > 0 ? React.createElement("span", { style: { fontSize: 12, color: "#15803d", fontWeight: 400, marginLeft: 6 } }, wt.toFixed(2) + " lb") : null),
+          React.createElement("span", { style: { fontSize: 12, fontFamily: "'DM Mono',monospace", color: "#1a2844", whiteSpace: "nowrap" } }, "$" + price.toFixed(2) + priceLabel + "  =  $" + lineTotal.toFixed(2)));
       })),
     /*#__PURE__*/React.createElement("div", {
       style: {
