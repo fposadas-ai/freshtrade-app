@@ -7619,6 +7619,7 @@ function SalesOrders({
   const [shortageAdj, setShortageAdj] = useState({}); // { productId: { soId: newQty } }
   const [priceLookup, setPriceLookup] = useState(null); // { lineIdx, productId }
   const [showReadback, setShowReadback] = useState(false);
+  const [soReadbackId, setSoReadbackId] = useState(null);
 
   // Helper functions for multi-window SO management
   const openSOModal = so => setOpenSOs(prev => prev.some(s => s.id === so.id) ? prev : [...prev, so]);
@@ -9630,7 +9631,30 @@ function SalesOrders({
         borderColor: "#8b5cf644",
         background: "linear-gradient(135deg,#f59e0b11,#3b82f611)"
       }
-    }, "\uD83C\uDFF7\uFE0F Print Labels"), /*#__PURE__*/React.createElement(SOShareButton, { so: so, customer: cust, products: products, settings: settings, showToast: showToast }))), /*#__PURE__*/React.createElement("div", {
+    }, "\uD83C\uDFF7\uFE0F Print Labels"), React.createElement(Btn, {
+      variant: "secondary", size: "sm",
+      "data-testid": "btn-so-readback",
+      onClick: () => setSoReadbackId(soReadbackId === so.id ? null : so.id),
+      style: { borderColor: soReadbackId === so.id ? "#22c55e" : "#3b82f644", background: soReadbackId === so.id ? "#22c55e22" : "transparent", color: soReadbackId === so.id ? "#22c55e" : undefined }
+    }, soReadbackId === so.id ? "\u2715 Close List" : "\uD83D\uDCCB Read Back"), /*#__PURE__*/React.createElement(SOShareButton, { so: so, customer: cust, products: products, settings: settings, showToast: showToast }))),
+    soReadbackId === so.id && so.lines && so.lines.length > 0 && React.createElement("div", {
+      "data-testid": "so-readback-panel",
+      style: { background: "#f0fdf4", border: "2px solid #22c55e", borderRadius: 6, padding: "12px 16px", marginTop: 8, marginBottom: 8 }
+    },
+      React.createElement("div", { style: { fontSize: 13, fontWeight: 800, color: "#166534", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" } },
+        React.createElement("span", null, "\uD83D\uDCCB Order Summary \u2014 " + so.lines.filter(l => Number(l.qty) > 0).length + " item" + (so.lines.filter(l => Number(l.qty) > 0).length !== 1 ? "s" : "")),
+        React.createElement("span", { style: { fontSize: 12, fontWeight: 600, color: "#15803d" } }, "Est. Total: $" + (Number(so.estTotal) || so.lines.reduce((s, l) => s + (Number(l.estTotal || l.total) || 0), 0)).toFixed(2))),
+      so.lines.filter(l => Number(l.qty) > 0).map((l, i, arr) => {
+        const p = products.find(pp => pp.id === l.productId);
+        const name = l.customName || (p ? p.name : l.productId);
+        const isWB = (p && (p.catchWeight || p.fixedWeight));
+        const wt = Number(l.actualWeight || l.nominalWeight || l.estWeight || l.weight) || 0;
+        const unit = l.unit || "CS";
+        return React.createElement("div", { key: i, style: { padding: "5px 0", borderBottom: i < arr.length - 1 ? "1px solid #bbf7d0" : "none", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 14, color: "#1a2844" } },
+          React.createElement("span", { style: { fontWeight: 700 } }, (l.qty || 0) + " " + unit + "  " + name),
+          isWB && wt > 0 ? React.createElement("span", { style: { fontSize: 12, color: "#15803d", fontFamily: "'DM Mono',monospace" } }, wt.toFixed(2) + " lb") : null);
+      })),
+    /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
         gap: 8
