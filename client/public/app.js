@@ -7505,6 +7505,92 @@ function PrintPreview({
         * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       }`));
 }
+function SOShareButton({ so, customer, products, settings, showToast }) {
+  const [showMenu, setShowMenu] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setShowMenu(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+  const text = useMemo(() => buildSOConfirmationText(so, customer, products, settings), [so, customer, products, settings]);
+  const encoded = encodeURIComponent(text);
+  const custPhone = customer && customer.phone ? customer.phone.replace(/[^0-9]/g, "") : "";
+  const custEmail = customer && customer.email ? customer.email : "";
+  const coName = (settings && settings.company && settings.company.name) || "FreshTrade Distribution";
+  const subject = encodeURIComponent(`Order Confirmation ${so.id} — ${coName}`);
+  const share = type => {
+    if (type === "copy") {
+      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(() => showToast("Order confirmation copied to clipboard")).catch(() => showToast("Could not copy — try manually")); } else { const ta = document.createElement("textarea"); ta.value = text; ta.style.cssText = "position:fixed;left:-9999px"; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta); showToast("Order confirmation copied to clipboard"); }
+    } else if (type === "sms") {
+      window.open(`sms:${custPhone}?body=${encoded}`, "_blank");
+    } else if (type === "whatsapp") {
+      window.open(`https://wa.me/${custPhone}?text=${encoded}`, "_blank");
+    } else if (type === "email") {
+      window.open(`mailto:${custEmail}?subject=${subject}&body=${encoded}`, "_blank");
+    }
+    setShowMenu(false);
+  };
+  const menuBtnStyle = { width: "100%", padding: "10px 14px", background: "transparent", border: "none", borderBottom: "1px solid #1e2535", color: "#e2e8f0", fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 10 };
+  return React.createElement("div", { ref: ref, style: { position: "relative", display: "inline-block" } },
+    React.createElement(Btn, {
+      variant: "secondary", size: "sm",
+      "data-testid": "btn-share-order",
+      onClick: () => setShowMenu(!showMenu),
+      style: { borderColor: "#22c55e44", background: "linear-gradient(135deg,#22c55e11,#3b82f611)" }
+    }, "\uD83D\uDCE4 Share"),
+    showMenu && React.createElement("div", {
+      style: { position: "absolute", bottom: "100%", right: 0, marginBottom: 6, background: "#0f1117", border: "1px solid #2d3748", borderRadius: 8, minWidth: 220, boxShadow: "0 8px 24px rgba(0,0,0,0.5)", zIndex: 200, overflow: "hidden" }
+    },
+      React.createElement("div", { style: { padding: "8px 14px", fontSize: 10, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #1e2535" } }, "Send Confirmation"),
+      React.createElement("button", { "data-testid": "share-preview", onClick: () => { setShowPreview(true); setShowMenu(false); }, style: menuBtnStyle, onMouseOver: e => e.currentTarget.style.background = "#1e2535", onMouseOut: e => e.currentTarget.style.background = "transparent" }, "\uD83D\uDC41\uFE0F", " Preview"),
+      React.createElement("button", { "data-testid": "share-copy", onClick: () => share("copy"), style: menuBtnStyle, onMouseOver: e => e.currentTarget.style.background = "#1e2535", onMouseOut: e => e.currentTarget.style.background = "transparent" }, "\uD83D\uDCCB", " Copy to Clipboard"),
+      React.createElement("button", { "data-testid": "share-sms", onClick: () => share("sms"), style: { ...menuBtnStyle, opacity: custPhone ? 1 : 0.4 }, disabled: !custPhone, onMouseOver: e => { if (custPhone) e.currentTarget.style.background = "#1e2535"; }, onMouseOut: e => e.currentTarget.style.background = "transparent" }, "\uD83D\uDCF1", " Text / SMS", !custPhone && React.createElement("span", { style: { fontSize: 10, color: "#64748b", marginLeft: "auto" } }, "No phone")),
+      React.createElement("button", { "data-testid": "share-whatsapp", onClick: () => share("whatsapp"), style: { ...menuBtnStyle, opacity: custPhone ? 1 : 0.4 }, disabled: !custPhone, onMouseOver: e => { if (custPhone) e.currentTarget.style.background = "#1e2535"; }, onMouseOut: e => e.currentTarget.style.background = "transparent" }, "\uD83D\uDFE2", " WhatsApp", !custPhone && React.createElement("span", { style: { fontSize: 10, color: "#64748b", marginLeft: "auto" } }, "No phone")),
+      React.createElement("button", { "data-testid": "share-email", onClick: () => share("email"), style: { ...menuBtnStyle, borderBottom: "none", opacity: custEmail ? 1 : 0.4 }, disabled: !custEmail, onMouseOver: e => { if (custEmail) e.currentTarget.style.background = "#1e2535"; }, onMouseOut: e => e.currentTarget.style.background = "transparent" }, "\u2709\uFE0F", " Email", !custEmail && React.createElement("span", { style: { fontSize: 10, color: "#64748b", marginLeft: "auto" } }, "No email"))),
+    showPreview && React.createElement(Modal, { title: "Order Confirmation Preview", onClose: () => setShowPreview(false) },
+      React.createElement("pre", { "data-testid": "share-preview-text", style: { whiteSpace: "pre-wrap", fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#e2e8f0", background: "#0a0e17", padding: 16, borderRadius: 8, border: "1px solid #1e2535", maxHeight: 400, overflowY: "auto", lineHeight: 1.6 } }, text),
+      React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 12, justifyContent: "flex-end", flexWrap: "wrap" } },
+        React.createElement(Btn, { variant: "secondary", size: "sm", onClick: () => share("copy") }, "\uD83D\uDCCB Copy"),
+        custPhone && React.createElement(Btn, { variant: "secondary", size: "sm", onClick: () => share("sms") }, "\uD83D\uDCF1 Text"),
+        custPhone && React.createElement(Btn, { variant: "secondary", size: "sm", onClick: () => share("whatsapp") }, "\uD83D\uDFE2 WhatsApp"),
+        custEmail && React.createElement(Btn, { variant: "secondary", size: "sm", onClick: () => share("email") }, "\u2709\uFE0F Email"),
+        React.createElement(Btn, { variant: "secondary", size: "sm", onClick: () => setShowPreview(false) }, "Close"))));
+}
+
+function buildSOConfirmationText(so, customer, products, settings) {
+  const company = (settings && settings.company) || {};
+  const coName = company.name || "FreshTrade Distribution";
+  const cust = customer || {};
+  const soLines = so.lines || [];
+  const lines = soLines.map(l => {
+    const p = products.find(pp => pp.id === l.productId);
+    const name = l.customName || (p ? p.name : l.productId);
+    const isWB = l.pricePerLb !== undefined && l.pricePerLb !== null;
+    const price = Number(isWB ? l.pricePerLb : l.priceEach) || 0;
+    const unit = (l.unit || "CS");
+    const unitLabel = isWB ? "/lb" : ("/" + unit);
+    const qty = Number(l.qty) || 0;
+    const wt = Number(l.actualWeight || l.nominalWeight || l.estWeight || l.weight) || 0;
+    const wtStr = wt > 0 ? ` (${wt.toFixed(2)} lb)` : "";
+    return `  ${qty} ${unit} ${name}${wtStr} @ $${price.toFixed(2)}${unitLabel}`;
+  });
+  const total = Number(so.estTotal) || soLines.reduce((s, l) => s + (Number(l.estTotal || l.total) || 0), 0);
+  let text = `ORDER CONFIRMATION\n`;
+  text += `From: ${coName}\n`;
+  text += `Order #: ${so.id}\n`;
+  text += `Date: ${so.date || ""}\n`;
+  if (so.deliveryDate) text += `Delivery: ${so.deliveryDate}\n`;
+  text += `Customer: ${cust.name || so.customerId}\n`;
+  if (cust.address) text += `Address: ${cust.address}\n`;
+  text += `\nItems:\n${lines.join("\n")}\n`;
+  text += `\nEst. Total: $${total.toFixed(2)}`;
+  if (so.notes) text += `\nNotes: ${so.notes}`;
+  text += `\n\nThank you for your order!`;
+  return text;
+}
+
 function SalesOrders({
   salesOrders,
   setSalesOrders,
@@ -9549,7 +9635,7 @@ function SalesOrders({
         borderColor: "#8b5cf644",
         background: "linear-gradient(135deg,#f59e0b11,#3b82f611)"
       }
-    }, "\uD83C\uDFF7\uFE0F Print Labels"))), /*#__PURE__*/React.createElement("div", {
+    }, "\uD83C\uDFF7\uFE0F Print Labels"), /*#__PURE__*/React.createElement(SOShareButton, { so: so, customer: cust, products: products, settings: settings, showToast: showToast }))), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
         gap: 8
