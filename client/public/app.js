@@ -8381,74 +8381,47 @@ function SalesOrders({
     invoices: invoices,
     salesOrders: salesOrders,
     settings: settings
-  }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 10,
-      marginTop: 10
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 11,
-      fontWeight: 700,
-      color: "#506888"
-    }
-  }, "P.O. / Notes:"), /*#__PURE__*/React.createElement("input", {
-    value: form.notes,
-    onChange: e => setForm(f => ({
-      ...f,
-      notes: e.target.value
-    })),
-    placeholder: "Optional...",
-    style: {
-      flex: 1,
-      background: "#fff",
-      border: "1px solid #a0b4cc",
-      borderRadius: 2,
-      padding: "6px 10px",
-      color: "#1a2844",
-      fontSize: 13,
-      boxSizing: "border-box"
-    }
-  }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      flex: 1
-    }
-  }), form.lines.length > 0 && React.createElement(Btn, {
-    variant: "secondary",
-    "data-testid": "btn-readback",
-    onClick: () => setShowReadback(!showReadback),
-    style: { borderColor: showReadback ? "#22c55e" : "#3b82f644", background: showReadback ? "#22c55e22" : "transparent", color: showReadback ? "#22c55e" : undefined }
-  }, showReadback ? "\u2715 Close List" : "\uD83D\uDCCB Read Back"), /*#__PURE__*/React.createElement(Btn, {
-    variant: "secondary",
-    onClick: () => setShowNew(false)
-  }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
-    variant: "secondary",
-    onClick: () => saveSO("draft"),
-    disabled: !form.customerId || form.lines.length === 0,
-    icon: "salesorder"
-  }, "Save Draft"), /*#__PURE__*/React.createElement(Btn, {
-    onClick: () => saveSO("confirmed"),
-    disabled: !form.customerId || form.lines.length === 0,
-    icon: "check"
-  }, "Confirm Order")), showReadback && form.lines.length > 0 && React.createElement("div", {
-    "data-testid": "readback-panel",
-    style: { background: "#f0fdf4", border: "2px solid #22c55e", borderRadius: 6, padding: "12px 16px", marginTop: 8 }
-  },
-    React.createElement("div", { style: { fontSize: 13, fontWeight: 800, color: "#166534", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" } },
-      React.createElement("span", null, "\uD83D\uDCCB Order Summary — " + form.lines.length + " item" + (form.lines.length !== 1 ? "s" : "")),
-      React.createElement("span", { style: { fontSize: 12, fontWeight: 600, color: "#15803d" } }, "Est. Total: $" + form.lines.reduce((s, l) => s + (Number(l.estTotal || l.total) || 0), 0).toFixed(2))),
-    form.lines.map((l, i) => {
-      const p = products.find(pp => pp.id === l.productId);
-      const name = l.customName || (p ? p.name : l.productId);
-      const isWB = (p && (p.catchWeight || p.fixedWeight));
-      const wt = Number(l.estWeight || l.nominalWeight || l.weight) || 0;
-      const unit = l.unit || "CS";
-      return React.createElement("div", { key: i, style: { padding: "5px 0", borderBottom: i < form.lines.length - 1 ? "1px solid #bbf7d0" : "none", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 14, color: "#1a2844" } },
-        React.createElement("span", { style: { fontWeight: 700 } }, (l.qty || 0) + " " + unit + "  " + name),
-        isWB && wt > 0 ? React.createElement("span", { style: { fontSize: 12, color: "#15803d", fontFamily: "'DM Mono',monospace" } }, wt.toFixed(2) + " lb") : null);
-    }))), openSOs.map(viewSO => /*#__PURE__*/React.createElement(Modal, {
+  }), /*#__PURE__*/React.createElement("div", { style: { marginTop: 10 } },
+    React.createElement("div", {
+      style: { display: "flex", alignItems: "center", gap: 10 }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: { fontSize: 11, fontWeight: 700, color: "#506888" }
+    }, "P.O. / Notes:"), /*#__PURE__*/React.createElement("input", {
+      value: form.notes,
+      onChange: e => setForm(f => ({ ...f, notes: e.target.value })),
+      placeholder: "Optional...",
+      style: { flex: 1, background: "#fff", border: "1px solid #a0b4cc", borderRadius: 2, padding: "6px 10px", color: "#1a2844", fontSize: 13, boxSizing: "border-box" }
+    }), /*#__PURE__*/React.createElement("div", { style: { flex: 1 } }),
+    form.lines.filter(l => Number(l.qty) > 0).length > 0 && React.createElement(Btn, {
+      variant: "secondary",
+      "data-testid": "btn-readback",
+      onClick: () => setShowReadback(!showReadback),
+      style: { borderColor: showReadback ? "#22c55e" : "#3b82f644", background: showReadback ? "#22c55e22" : "transparent", color: showReadback ? "#22c55e" : undefined }
+    }, showReadback ? "\u2715 Close List" : "\uD83D\uDCCB Read Back"),
+    /*#__PURE__*/React.createElement(Btn, { variant: "secondary", onClick: () => setShowNew(false) }, "Cancel"),
+    /*#__PURE__*/React.createElement(Btn, { variant: "secondary", onClick: () => saveSO("draft"), disabled: !form.customerId || form.lines.length === 0, icon: "salesorder" }, "Save Draft"),
+    /*#__PURE__*/React.createElement(Btn, { onClick: () => saveSO("confirmed"), disabled: !form.customerId || form.lines.length === 0, icon: "check" }, "Confirm Order")),
+    showReadback && (() => {
+      const activeLines = form.lines.filter(l => Number(l.qty) > 0);
+      if (activeLines.length === 0) return null;
+      return React.createElement("div", {
+        "data-testid": "readback-panel",
+        style: { background: "#f0fdf4", border: "2px solid #22c55e", borderRadius: 6, padding: "12px 16px", marginTop: 8 }
+      },
+        React.createElement("div", { style: { fontSize: 13, fontWeight: 800, color: "#166534", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" } },
+          React.createElement("span", null, "\uD83D\uDCCB Order Summary \u2014 " + activeLines.length + " item" + (activeLines.length !== 1 ? "s" : "")),
+          React.createElement("span", { style: { fontSize: 12, fontWeight: 600, color: "#15803d" } }, "Est. Total: $" + activeLines.reduce((s, l) => s + (Number(l.estTotal || l.total) || 0), 0).toFixed(2))),
+        activeLines.map((l, i) => {
+          const p = products.find(pp => pp.id === l.productId);
+          const name = l.customName || (p ? p.name : l.productId);
+          const isWB = (p && (p.catchWeight || p.fixedWeight));
+          const wt = Number(l.estWeight || l.nominalWeight || l.weight) || 0;
+          const unit = l.unit || "CS";
+          return React.createElement("div", { key: i, style: { padding: "5px 0", borderBottom: i < activeLines.length - 1 ? "1px solid #bbf7d0" : "none", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 14, color: "#1a2844" } },
+            React.createElement("span", { style: { fontWeight: 700 } }, (l.qty || 0) + " " + unit + "  " + name),
+            isWB && wt > 0 ? React.createElement("span", { style: { fontSize: 12, color: "#15803d", fontFamily: "'DM Mono',monospace" } }, wt.toFixed(2) + " lb") : null);
+        }));
+    })())), openSOs.map(viewSO => /*#__PURE__*/React.createElement(Modal, {
     key: viewSO.id,
     title: `Sales Order ${viewSO.id}${(editingSO === null || editingSO === void 0 ? void 0 : editingSO.id) === viewSO.id ? " — Editing" : ""}`,
     onClose: () => closeSOModal(viewSO.id),
