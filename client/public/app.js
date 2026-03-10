@@ -977,30 +977,7 @@ function printLetterDocument(htmlContent, title = "FreshTrade") {
     };
   }
   function printPDF() {
-    var btn = document.getElementById('printBtn');
-    btn.disabled = true;
-    btn.textContent = 'Generating...';
-    showStatus('Generating PDF for print...');
-    var el = document.getElementById('printPage');
-    html2pdf().set(getPdfOpts()).from(el).outputPdf('blob').then(function(blob) {
-      var url = URL.createObjectURL(blob);
-      var iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      iframe.src = url;
-      document.body.appendChild(iframe);
-      iframe.onload = function() {
-        setTimeout(function() {
-          iframe.contentWindow.print();
-          btn.disabled = false;
-          btn.innerHTML = '🖨️ Print';
-          showStatus('');
-        }, 300);
-      };
-    }).catch(function(err) {
-      btn.disabled = false;
-      btn.innerHTML = '🖨️ Print';
-      showStatus('Error: ' + err.message);
-    });
+    window.print();
   }
   function downloadPDF() {
     var btn = document.getElementById('pdfBtn');
@@ -2218,7 +2195,7 @@ function printInventoryCountSheet(products, filterCat, filterVendor, suppliers) 
         </td>
       </tr>
     </table>
-    <div style="height:1px;background:linear-gradient(90deg,#059669,#10b981,transparent);margin:8px 0 6px;"></div>
+    <div style="height:1px;background:linear-gradient(90deg,#059669,#10b981,rgba(16,185,129,0));margin:8px 0 6px;"></div>
 
     <!-- Title Bar -->
     <table style="width:100%;border-collapse:collapse;margin:4px 0 10px;">
@@ -2369,7 +2346,7 @@ function renderReceiptPrintHTML(rcpt, products) {
         </td>
       </tr>
     </table>
-    <div style="height:1px;background:linear-gradient(90deg,#059669,#10b981,transparent);margin:8px 0 6px;"></div>
+    <div style="height:1px;background:linear-gradient(90deg,#059669,#10b981,rgba(16,185,129,0));margin:8px 0 6px;"></div>
 
     <!-- Title -->
     <table style="width:100%;border-collapse:collapse;margin:4px 0 12px;">
