@@ -4347,12 +4347,11 @@ const SpreadsheetGrid = ({
   const isPO = mode === "po";
 
   // Quick-add autocomplete matches
-  const addIsCatSearch = addSearch && getCategories(settings).some(c => c.toLowerCase() === addSearch.toLowerCase());
   const addMatches = addSearch.length >= 1 ? products.filter(p => {
     if (getLineIdx(p.id) >= 0) return false;
     const s = addSearch.toLowerCase();
     return p.name.toLowerCase().includes(s) || p.category.toLowerCase().includes(s) || (p.id || "").toLowerCase().includes(s);
-  }).slice(0, addIsCatSearch ? 50 : 8) : [];
+  }).slice(0, 8) : [];
 
   // Quick-add: commit the selected product
   const commitAdd = prod => {
@@ -4667,30 +4666,6 @@ const SpreadsheetGrid = ({
       borderTop: "1px solid #d0dce8"
     }
   }, "\u2191\u2193 Navigate \xB7 Tab \u2192 Qty \xB7 Enter Add \xB7 Esc Cancel"))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 4,
-      flexWrap: "wrap"
-    }
-  }, getCategories(settings).map(cat => React.createElement("button", {
-    key: cat,
-    "data-testid": "btn-cat-" + cat.toLowerCase().replace(/\s+/g, "-"),
-    onClick: () => { setAddSearch(addSearch === cat ? "" : cat); setAddIdx(0); setAddOpen(addSearch !== cat); if (addSearchRef.current) addSearchRef.current.focus(); },
-    style: {
-      padding: "2px 8px",
-      fontSize: 10,
-      fontWeight: 700,
-      border: "1px solid " + (addSearch.toLowerCase() === cat.toLowerCase() ? "#4aa04a" : "rgba(255,255,255,0.25)"),
-      borderRadius: 10,
-      background: addSearch.toLowerCase() === cat.toLowerCase() ? "#4aa04a" : "rgba(255,255,255,0.1)",
-      color: addSearch.toLowerCase() === cat.toLowerCase() ? "#fff" : "#c0e8c0",
-      cursor: "pointer",
-      whiteSpace: "nowrap",
-      lineHeight: "18px",
-      transition: "all 0.15s"
-    }
-  }, cat))), /*#__PURE__*/React.createElement("div", {
     style: {
       flex: "0 0 auto",
       display: "flex",
