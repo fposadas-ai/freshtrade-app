@@ -7618,6 +7618,7 @@ function SalesOrders({
   const [showShortage, setShowShortage] = useState(false);
   const [shortageAdj, setShortageAdj] = useState({}); // { productId: { soId: newQty } }
   const [priceLookup, setPriceLookup] = useState(null); // { lineIdx, productId }
+  const [showReadback, setShowReadback] = useState(false);
 
   // Helper functions for multi-window SO management
   const openSOModal = so => setOpenSOs(prev => prev.some(s => s.id === so.id) ? prev : [...prev, so]);
@@ -8414,7 +8415,12 @@ function SalesOrders({
     style: {
       flex: 1
     }
-  }), /*#__PURE__*/React.createElement(Btn, {
+  }), form.lines.length > 0 && React.createElement(Btn, {
+    variant: "secondary",
+    "data-testid": "btn-readback",
+    onClick: () => setShowReadback(!showReadback),
+    style: { borderColor: showReadback ? "#22c55e" : "#3b82f644", background: showReadback ? "#22c55e22" : "transparent", color: showReadback ? "#22c55e" : undefined }
+  }, showReadback ? "\u2715 Close List" : "\uD83D\uDCCB Read Back"), /*#__PURE__*/React.createElement(Btn, {
     variant: "secondary",
     onClick: () => setShowNew(false)
   }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
@@ -8426,7 +8432,23 @@ function SalesOrders({
     onClick: () => saveSO("confirmed"),
     disabled: !form.customerId || form.lines.length === 0,
     icon: "check"
-  }, "Confirm Order"))), openSOs.map(viewSO => /*#__PURE__*/React.createElement(Modal, {
+  }, "Confirm Order")), showReadback && form.lines.length > 0 && React.createElement("div", {
+    "data-testid": "readback-panel",
+    style: { background: "#f0fdf4", border: "2px solid #22c55e", borderRadius: 6, padding: "12px 16px", marginTop: 8 }
+  },
+    React.createElement("div", { style: { fontSize: 13, fontWeight: 800, color: "#166534", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" } },
+      React.createElement("span", null, "\uD83D\uDCCB Order Summary — " + form.lines.length + " item" + (form.lines.length !== 1 ? "s" : "")),
+      React.createElement("span", { style: { fontSize: 12, fontWeight: 600, color: "#15803d" } }, "Est. Total: $" + form.lines.reduce((s, l) => s + (Number(l.estTotal || l.total) || 0), 0).toFixed(2))),
+    form.lines.map((l, i) => {
+      const p = products.find(pp => pp.id === l.productId);
+      const name = l.customName || (p ? p.name : l.productId);
+      const isWB = (p && (p.catchWeight || p.fixedWeight));
+      const wt = Number(l.estWeight || l.nominalWeight || l.weight) || 0;
+      const unit = l.unit || "CS";
+      return React.createElement("div", { key: i, style: { padding: "5px 0", borderBottom: i < form.lines.length - 1 ? "1px solid #bbf7d0" : "none", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 14, color: "#1a2844" } },
+        React.createElement("span", { style: { fontWeight: 700 } }, (l.qty || 0) + " " + unit + "  " + name),
+        isWB && wt > 0 ? React.createElement("span", { style: { fontSize: 12, color: "#15803d", fontFamily: "'DM Mono',monospace" } }, wt.toFixed(2) + " lb") : null);
+    }))), openSOs.map(viewSO => /*#__PURE__*/React.createElement(Modal, {
     key: viewSO.id,
     title: `Sales Order ${viewSO.id}${(editingSO === null || editingSO === void 0 ? void 0 : editingSO.id) === viewSO.id ? " — Editing" : ""}`,
     onClose: () => closeSOModal(viewSO.id),
