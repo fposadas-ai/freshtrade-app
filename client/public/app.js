@@ -2174,13 +2174,13 @@ function printInventoryCountSheet(products, filterCat, filterVendor, suppliers) 
         <td style="padding:8px 6px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:11px;font-family:'DM Mono',monospace;color:#6b7280;">${systemCases}</td>
         <td style="padding:8px 6px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:11px;font-family:'DM Mono',monospace;color:#6b7280;">${p.soldByPiece ? systemPcs : ""}</td>
         <td style="padding:8px 6px;border-bottom:1px solid #e2e5e9;text-align:center;font-size:11px;font-family:'DM Mono',monospace;color:#6b7280;">${systemWt}</td>
-        <td style="padding:8px 6px;border-bottom:1px solid #e2e5e9;border-left:2px solid #059669;background:#f0fdf420;">
+        <td style="padding:8px 6px;border-bottom:1px solid #e2e5e9;border-left:2px solid #059669;background:rgba(240,253,244,0.13);">
           <div style="border-bottom:1px solid #bbb;height:20px;"></div>
         </td>
-        <td style="padding:8px 6px;border-bottom:1px solid #e2e5e9;background:#f0fdf420;">
+        <td style="padding:8px 6px;border-bottom:1px solid #e2e5e9;background:rgba(240,253,244,0.13);">
           ${p.soldByPiece ? '<div style="border-bottom:1px solid #bbb;height:20px;"></div>' : ''}
         </td>
-        <td style="padding:8px 6px;border-bottom:1px solid #e2e5e9;background:#f0fdf420;">
+        <td style="padding:8px 6px;border-bottom:1px solid #e2e5e9;background:rgba(240,253,244,0.13);">
           <div style="border-bottom:1px solid #bbb;height:20px;"></div>
         </td>
         <td style="padding:8px 10px;border-bottom:1px solid #e2e5e9;">
