@@ -16790,6 +16790,7 @@ function Purchasing({
   const [showNewPO, setShowNewPO] = useState(false);
   const [showReceive, setShowReceive] = useState(null);
   const [showVendorForm, setShowVendorForm] = useState(false);
+  const [editVendorId, setEditVendorId] = useState(null);
   const [editPO, setEditPO] = useState(null);
   const [viewPO, setViewPO] = useState(null);
   const [filterStatus, setFilterStatus] = useState("all");
@@ -17275,13 +17276,16 @@ function Purchasing({
     setShowReceive(null);
   };
   const saveVendor = () => {
-    const vendor = {
-      ...vendorForm,
-      id: genId("S")
-    };
-    setSuppliers(prev => [...prev, vendor]);
-    showToast(`Vendor "${vendorForm.name}" added`);
+    if (editVendorId) {
+      setSuppliers(prev => prev.map(s => s.id === editVendorId ? { ...s, ...vendorForm } : s));
+      showToast(`Vendor "${vendorForm.name}" updated`);
+    } else {
+      const vendor = { ...vendorForm, id: genId("S") };
+      setSuppliers(prev => [...prev, vendor]);
+      showToast(`Vendor "${vendorForm.name}" added`);
+    }
     setShowVendorForm(false);
+    setEditVendorId(null);
     setVendorForm({
       name: "",
       contact: "",
@@ -19673,7 +19677,7 @@ function Purchasing({
     }
   }, /*#__PURE__*/React.createElement(Btn, {
     icon: "plus",
-    onClick: () => setShowVendorForm(true)
+    onClick: () => { setEditVendorId(null); setVendorForm({ name: "", contact: "", phone: "", email: "", address: "", terms: "1 Week", categories: [], notes: "" }); setShowVendorForm(true); }
   }, "Add Vendor")), /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement(Table, {
     headers: ["ID", "Vendor", "Contact", "Phone", "Email", "Terms", "Categories", "Actions"],
     rows: suppliers.map(s => [/*#__PURE__*/React.createElement("span", {
@@ -19708,11 +19712,16 @@ function Purchasing({
     }))), /*#__PURE__*/React.createElement(Btn, {
       variant: "secondary",
       size: "sm",
-      icon: "edit"
+      icon: "edit",
+      onClick: () => {
+        setEditVendorId(s.id);
+        setVendorForm({ name: s.name || "", contact: s.contact || "", phone: s.phone || "", email: s.email || "", address: s.address || "", terms: s.terms || "1 Week", categories: s.categories || [], notes: s.notes || "" });
+        setShowVendorForm(true);
+      }
     }, "Edit")])
   })), showVendorForm && /*#__PURE__*/React.createElement(Modal, {
-    title: "Add New Vendor",
-    onClose: () => setShowVendorForm(false),
+    title: editVendorId ? "Edit Vendor" : "Add New Vendor",
+    onClose: () => { setShowVendorForm(false); setEditVendorId(null); },
     width: 600
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -19825,8 +19834,8 @@ function Purchasing({
   }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
     onClick: saveVendor,
     disabled: !vendorForm.name,
-    icon: "plus"
-  }, "Add Vendor")))));
+    icon: editVendorId ? "check" : "plus"
+  }, editVendorId ? "Save Changes" : "Add Vendor")))));
 }
 
 // ============================================================
