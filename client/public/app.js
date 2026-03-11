@@ -13776,8 +13776,8 @@ function Invoices({
       text: r.paymentMethod,
       color: r.paymentMethod === "cash" ? "#22c55e" : r.paymentMethod === "card" ? "#3b82f6" : r.paymentMethod === "credit" ? "#ef4444" : "#f59e0b"
     }), /*#__PURE__*/React.createElement(Badge, {
-      text: r.status || "completed",
-      color: r.status === "voided" ? "#dc2626" : "#22c55e"
+      text: r.status === "voided" ? "voided" : r.paymentMethod === "credit" ? (r.paymentStatus === "paid" ? "paid" : r.paymentStatus === "partial" ? "partial" : "unpaid") : "completed",
+      color: r.status === "voided" ? "#dc2626" : r.paymentMethod === "credit" ? (r.paymentStatus === "paid" ? "#22c55e" : r.paymentStatus === "partial" ? "#f59e0b" : "#ef4444") : "#22c55e"
     }), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
@@ -14652,7 +14652,62 @@ function Invoices({
         fontFamily: "'DM Mono',monospace",
         color: "#22c55e"
       }
-    }, "Total: ", fmt(rcpt.total))), isEditing ? /*#__PURE__*/React.createElement("input", {
+    }, "Total: ", fmt(rcpt.total)),
+    rcpt.paymentMethod === "credit" && !isEditing && !isVoided && (() => {
+      const paid = Number(rcpt.amountPaid) || 0;
+      const bal = Math.round((rcpt.total - paid) * 100) / 100;
+      const pStatus = bal <= 0 ? "paid" : paid > 0 ? "partial" : "unpaid";
+      const pColor = pStatus === "paid" ? "#22c55e" : pStatus === "partial" ? "#f59e0b" : "#ef4444";
+      return React.createElement("div", {
+        "data-testid": "credit-payment-section",
+        style: { background: "#1e293b", border: "2px solid " + pColor + "44", borderRadius: 8, padding: "12px 16px", marginTop: 10 }
+      },
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 } },
+          React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: pColor, textTransform: "uppercase", letterSpacing: 1 } },
+            pStatus === "paid" ? "\u2705 Paid in Full" : pStatus === "partial" ? "\u26A0 Partially Paid" : "\u23F3 Unpaid \u2014 Credit"),
+          React.createElement("span", { style: { fontSize: 11, color: "#94a3b8" } }, "Paid: " + fmt(paid) + " / " + fmt(rcpt.total))),
+        bal > 0 && React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", marginTop: 4 } },
+          React.createElement("span", { style: { fontSize: 11, fontWeight: 600, color: "#94a3b8" } }, "Record payment:"),
+          React.createElement("input", {
+            id: "rcptPayAmt",
+            type: "number",
+            step: "0.01",
+            min: "0",
+            max: bal,
+            defaultValue: bal.toFixed(2),
+            "data-testid": "input-payment-amount",
+            style: { width: 90, padding: "5px 8px", background: "#0f1117", border: "1px solid #334155", borderRadius: 4, color: "#f1f5f9", fontSize: 13, fontFamily: "'DM Mono',monospace", textAlign: "right" }
+          }),
+          React.createElement(Btn, {
+            size: "sm",
+            "data-testid": "btn-partial-pay",
+            onClick: () => {
+              const inp = document.getElementById("rcptPayAmt");
+              const payAmt = Math.min(Number(inp.value) || 0, bal);
+              if (payAmt <= 0) return;
+              const newPaid = Math.round((paid + payAmt) * 100) / 100;
+              const newBal = Math.round((rcpt.total - newPaid) * 100) / 100;
+              setReceipts(prev => prev.map(r => r.id === rcpt.id ? { ...r, amountPaid: newPaid, paymentStatus: newBal <= 0 ? "paid" : "partial" } : r));
+              setViewReceipt(prev => prev ? { ...prev, amountPaid: newPaid, paymentStatus: newBal <= 0 ? "paid" : "partial" } : prev);
+              showToast(newBal <= 0 ? "Marked as fully paid!" : "Payment of " + fmt(payAmt) + " recorded. Balance: " + fmt(newBal));
+            },
+            style: { background: "#22c55e" }
+          }, "Apply"),
+          React.createElement(Btn, {
+            size: "sm",
+            variant: "secondary",
+            "data-testid": "btn-pay-full",
+            onClick: () => {
+              setReceipts(prev => prev.map(r => r.id === rcpt.id ? { ...r, amountPaid: r.total, paymentStatus: "paid" } : r));
+              setViewReceipt(prev => prev ? { ...prev, amountPaid: prev.total, paymentStatus: "paid" } : prev);
+              showToast("Marked as fully paid!");
+            },
+            style: { borderColor: "#22c55e44", color: "#22c55e" }
+          }, "Pay Full")),
+        paid > 0 && React.createElement("div", { style: { marginTop: 6, fontSize: 10, color: "#64748b" } },
+          "Balance due: ", React.createElement("span", { style: { color: bal > 0 ? "#f59e0b" : "#22c55e", fontWeight: 700, fontFamily: "'DM Mono',monospace" } }, fmt(bal)))
+      );
+    })()), isEditing ? /*#__PURE__*/React.createElement("input", {
       value: editingReceipt.notes || "",
       onChange: e => setEditingReceipt(prev => ({
         ...prev,
