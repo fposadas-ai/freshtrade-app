@@ -6383,7 +6383,7 @@ function PickSheetBlock({
 
   // Sort lines by category order
   const catOrd = categoryOrder || CATEGORIES;
-  const sortedLines = [...so.lines].sort((a, b) => {
+  const sortedLines = (so.lines || []).filter(l => Number(l.qty) > 0).sort((a, b) => {
     const prodA = products.find(p => p.id === a.productId);
     const prodB = products.find(p => p.id === b.productId);
     const idxA = catOrd.indexOf(prodA === null || prodA === void 0 ? void 0 : prodA.category);
@@ -7825,8 +7825,9 @@ function SalesOrders({
     setLineEstWeight("");
   };
   const saveSO = (status = "draft") => {
-    if (!form.customerId || form.lines.length === 0) return;
-    const estTotal = form.lines.reduce((s, l) => s + l.estTotal, 0);
+    const activeLines = form.lines.filter(l => Number(l.qty) > 0 || (l._misc && Number(l.qty) > 0));
+    if (!form.customerId || activeLines.length === 0) return;
+    const estTotal = activeLines.reduce((s, l) => s + (Number(l.estTotal) || 0), 0);
     const newSO = {
       id: genId("SO"),
       customerId: form.customerId,
@@ -7835,7 +7836,7 @@ function SalesOrders({
       status,
       routeId: form.routeId,
       notes: form.notes,
-      lines: form.lines,
+      lines: activeLines,
       estTotal
     };
     setSalesOrders(prev => [newSO, ...prev]);
@@ -10583,8 +10584,9 @@ function Invoices({
   };
   const saveInvoice = () => {
     var _customers$find3;
-    if (!form.customerId || form.lines.length === 0) return;
-    const subtotal = form.lines.reduce((s, l) => s + l.total, 0);
+    const activeLines = form.lines.filter(l => Number(l.qty) > 0);
+    if (!form.customerId || activeLines.length === 0) return;
+    const subtotal = activeLines.reduce((s, l) => s + (Number(l.total) || 0), 0);
     const invCustTerms = (_customers$find3 = customers.find(c => c.id === form.customerId)) === null || _customers$find3 === void 0 ? void 0 : _customers$find3.terms;
     const newInv = {
       id: genId("INV"),
@@ -10592,7 +10594,7 @@ function Invoices({
       date: today(),
       dueDate: dueDateFromTerms(invCustTerms),
       status: "open",
-      lines: form.lines,
+      lines: activeLines,
       subtotal,
       tax: 0,
       total: subtotal,
@@ -17154,8 +17156,10 @@ function Purchasing({
     return linesTotal + shipping + tax;
   };
   const savePO = (status = "draft") => {
-    if (!poForm.supplierId || poForm.lines.length === 0) return;
-    const subtotal = poForm.lines.reduce((s, l) => {
+    const poActiveLines = poForm.lines.filter(l => Number(l.qtyOrdered) > 0);
+    if (!poForm.supplierId || poActiveLines.length === 0) return;
+    poForm.lines = poActiveLines;
+    const subtotal = poActiveLines.reduce((s, l) => {
       if (!l.priceSet) return s;
       if (l.estWeight && l.estWeight > 0) return s + l.estWeight * l.costPerUnit;
       return s + l.qtyOrdered * l.costPerUnit;
