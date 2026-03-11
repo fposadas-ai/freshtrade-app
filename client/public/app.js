@@ -4082,6 +4082,8 @@ const SpreadsheetGrid = ({
   const [addIdx, setAddIdx] = useState(0);
   const [addOpen, setAddOpen] = useState(false);
   const [focusedPid, setFocusedPid] = useState(null);
+  const [showMiscItem, setShowMiscItem] = useState(false);
+  const [miscForm, setMiscForm] = useState({ name: "", qty: 1, unit: "EA", weightBased: false, weight: "", price: "" });
   const addSearchRef = useRef(null);
   const addQtyRef = useRef(null);
   const tableRef = useRef(null);
@@ -4394,6 +4396,27 @@ const SpreadsheetGrid = ({
     }, 50);
   };
 
+  const commitMiscItem = () => {
+    if (!miscForm.name.trim()) return;
+    const qty = Number(miscForm.qty) || 1;
+    const price = Number(miscForm.price) || 0;
+    const isWB = miscForm.weightBased;
+    const wt = isWB ? Number(miscForm.weight) || 0 : null;
+    let newLine;
+    if (mode === "po") {
+      newLine = { productId: null, customName: miscForm.name.trim(), qtyOrdered: qty, qtyReceived: 0, costPerUnit: price, priceSet: true, total: isWB ? wt * price : qty * price, unit: miscForm.unit, estWeight: wt, _misc: true };
+    } else if (mode === "invoice") {
+      newLine = { productId: null, customName: miscForm.name.trim(), qty, nominalWeight: wt, actualWeight: wt, pricePerLb: isWB ? price : undefined, priceEach: !isWB ? price : undefined, total: isWB ? wt * price : qty * price, unit: miscForm.unit, _misc: true };
+    } else {
+      newLine = { productId: null, customName: miscForm.name.trim(), qty, estWeight: wt, pricePerLb: isWB ? price : undefined, priceEach: !isWB ? price : undefined, shipped: 0, estTotal: isWB ? wt * price : qty * price, unit: miscForm.unit, _misc: true };
+    }
+    newLine.total = Math.round((newLine.total || newLine.estTotal || 0) * 100) / 100;
+    if (newLine.estTotal) newLine.estTotal = Math.round(newLine.estTotal * 100) / 100;
+    setLines([...lines, newLine]);
+    setMiscForm({ name: "", qty: 1, unit: "EA", weightBased: false, weight: "", price: "" });
+    setShowMiscItem(false);
+  };
+
   // Quick-add keyboard handler
   const handleAddSearchKey = e => {
     if (e.key === "ArrowDown") {
@@ -4542,7 +4565,22 @@ const SpreadsheetGrid = ({
       background: showAll ? "#2c4a7c" : "#fff",
       color: showAll ? "#fff" : "#2c4a7c"
     }
-  }, showAll ? "Guide Only" : "+ Add Items"), /*#__PURE__*/React.createElement("div", {
+  }, showAll ? "Guide Only" : "+ Add Items"),
+  (mode === "sales" || mode === "invoice") && React.createElement("button", {
+    onClick: () => setShowMiscItem(!showMiscItem),
+    "data-testid": "btn-misc-item",
+    style: {
+      padding: "4px 10px",
+      borderRadius: 3,
+      border: "1px solid #d97706",
+      cursor: "pointer",
+      fontSize: 12,
+      fontWeight: 700,
+      background: showMiscItem ? "#d97706" : "#fff",
+      color: showMiscItem ? "#fff" : "#d97706"
+    }
+  }, showMiscItem ? "\u2715 Cancel" : "+ Non-Inventory"),
+  /*#__PURE__*/React.createElement("div", {
     style: {
       flex: 1
     }
@@ -4615,7 +4653,71 @@ const SpreadsheetGrid = ({
       fontWeight: 800,
       fontFamily: "'DM Mono',monospace"
     }
-  }, fmt(grandTotal)))), /*#__PURE__*/React.createElement("div", {
+  }, fmt(grandTotal)))),
+  showMiscItem && React.createElement("div", {
+    style: { display: "flex", gap: 8, alignItems: "end", padding: "8px 10px", background: "linear-gradient(135deg, #fef3c7, #fde68a)", borderBottom: "2px solid #d97706", flexWrap: "wrap" }
+  },
+    React.createElement("div", { style: { flex: "1 1 180px" } },
+      React.createElement("div", { style: { fontSize: 9, fontWeight: 700, color: "#92400e", marginBottom: 2 } }, "ITEM NAME"),
+      React.createElement("input", {
+        value: miscForm.name, onChange: e => setMiscForm(f => ({ ...f, name: e.target.value })),
+        placeholder: "e.g. Box of Gloves, Veal Top Round...", autoFocus: true,
+        "data-testid": "input-misc-name",
+        style: { width: "100%", padding: "5px 8px", border: "1px solid #d97706", borderRadius: 3, fontSize: 13, fontWeight: 600, color: "#1a2844", background: "#fff" }
+      })),
+    React.createElement("div", { style: { flex: "0 0 55px" } },
+      React.createElement("div", { style: { fontSize: 9, fontWeight: 700, color: "#92400e", marginBottom: 2 } }, "QTY"),
+      React.createElement("input", {
+        type: "number", min: "1", value: miscForm.qty,
+        onChange: e => setMiscForm(f => ({ ...f, qty: e.target.value })),
+        "data-testid": "input-misc-qty",
+        style: { width: "100%", padding: "5px 6px", border: "1px solid #d97706", borderRadius: 3, fontSize: 13, fontWeight: 600, color: "#1a2844", background: "#fff", textAlign: "center" }
+      })),
+    React.createElement("div", { style: { flex: "0 0 70px" } },
+      React.createElement("div", { style: { fontSize: 9, fontWeight: 700, color: "#92400e", marginBottom: 2 } }, "UNIT"),
+      React.createElement("select", {
+        value: miscForm.unit, onChange: e => setMiscForm(f => ({ ...f, unit: e.target.value })),
+        "data-testid": "select-misc-unit",
+        style: { width: "100%", padding: "5px 4px", border: "1px solid #d97706", borderRadius: 3, fontSize: 12, fontWeight: 600, color: "#1a2844", background: "#fff" }
+      }, React.createElement("option", { value: "EA" }, "EA"),
+         React.createElement("option", { value: "CS" }, "CS"),
+         React.createElement("option", { value: "BX" }, "BOX"),
+         React.createElement("option", { value: "PCS" }, "PCS"),
+         React.createElement("option", { value: "LB" }, "LB"),
+         React.createElement("option", { value: "BG" }, "BAG"),
+         React.createElement("option", { value: "PK" }, "PACK"))),
+    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 4, paddingBottom: 1 } },
+      React.createElement("input", {
+        type: "checkbox", id: "miscWB", checked: miscForm.weightBased,
+        onChange: e => setMiscForm(f => ({ ...f, weightBased: e.target.checked })),
+        style: { accentColor: "#d97706" }
+      }),
+      React.createElement("label", { htmlFor: "miscWB", style: { fontSize: 11, fontWeight: 700, color: "#92400e", cursor: "pointer", whiteSpace: "nowrap" } }, "\u2696 Sold by Weight")),
+    miscForm.weightBased && React.createElement("div", { style: { flex: "0 0 75px" } },
+      React.createElement("div", { style: { fontSize: 9, fontWeight: 700, color: "#92400e", marginBottom: 2 } }, "WEIGHT (lb)"),
+      React.createElement("input", {
+        type: "number", step: "0.01", value: miscForm.weight,
+        onChange: e => setMiscForm(f => ({ ...f, weight: e.target.value })),
+        placeholder: "lbs",
+        "data-testid": "input-misc-weight",
+        style: { width: "100%", padding: "5px 6px", border: "1px solid #d97706", borderRadius: 3, fontSize: 13, fontWeight: 600, color: "#1a2844", background: "#fff", textAlign: "right" }
+      })),
+    React.createElement("div", { style: { flex: "0 0 80px" } },
+      React.createElement("div", { style: { fontSize: 9, fontWeight: 700, color: "#92400e", marginBottom: 2 } }, miscForm.weightBased ? "PRICE/LB" : "PRICE/EA"),
+      React.createElement("input", {
+        type: "number", step: "0.01", value: miscForm.price,
+        onChange: e => setMiscForm(f => ({ ...f, price: e.target.value })),
+        placeholder: "$0.00",
+        "data-testid": "input-misc-price",
+        style: { width: "100%", padding: "5px 6px", border: "1px solid #d97706", borderRadius: 3, fontSize: 13, fontWeight: 600, color: "#1a2844", background: "#fff", textAlign: "right" }
+      })),
+    React.createElement("button", {
+      onClick: commitMiscItem,
+      disabled: !miscForm.name.trim(),
+      "data-testid": "btn-add-misc",
+      style: { padding: "5px 14px", borderRadius: 3, border: "none", cursor: miscForm.name.trim() ? "pointer" : "not-allowed", fontSize: 13, fontWeight: 800, background: miscForm.name.trim() ? "#d97706" : "#d1d5db", color: "#fff" }
+    }, "\u2795 Add")),
+  /*#__PURE__*/React.createElement("div", {
     style: {
       maxHeight: 560,
       overflowY: "auto",
@@ -5377,7 +5479,61 @@ const SpreadsheetGrid = ({
         }
       }, "Click any price level to apply"))));
     })());
-  })))), /*#__PURE__*/React.createElement("div", {
+  }),
+  lines.filter(l => !l.productId && l._misc).map((l, mi) => {
+    const lineIdx = lines.indexOf(l);
+    const isWB = !!(l.pricePerLb);
+    const lineTotal = Number(l.total || l.estTotal) || 0;
+    return React.createElement("tr", { key: "misc-" + mi, style: { background: mi % 2 === 0 ? "#fef9c7" : "#fef3c7", borderBottom: "1px solid #d9970644" } },
+      React.createElement("td", { style: { padding: "6px 12px", borderRight: C.bdr } },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6 } },
+          React.createElement("span", { style: { fontSize: 9, fontWeight: 800, background: "#d97706", color: "#fff", padding: "1px 5px", borderRadius: 3 } }, "MISC"),
+          React.createElement("span", { style: { fontWeight: 700, fontSize: 14, color: "#92400e" } }, l.customName || "Non-Inventory Item"),
+          isWB && React.createElement("span", { style: { fontSize: 9, color: "#d97706" } }, "\u2696 WB"))),
+      React.createElement("td", { className: "sg-qty", style: { padding: "2px 3px", borderRight: C.bdr, textAlign: "center" } },
+        React.createElement("input", {
+          type: "number", min: "0", value: l[qtyField] || "",
+          onChange: e => {
+            const nq = Number(e.target.value) || 0;
+            const updated = [...lines];
+            updated[lineIdx] = { ...updated[lineIdx], [qtyField]: nq };
+            if (isWB) { updated[lineIdx][totalField] = Math.round((Number(updated[lineIdx].estWeight || updated[lineIdx].nominalWeight) || 0) * (l.pricePerLb || 0) * 100) / 100; }
+            else { updated[lineIdx][totalField] = Math.round(nq * (l.priceEach || 0) * 100) / 100; }
+            if (updated[lineIdx].total !== undefined) updated[lineIdx].total = updated[lineIdx][totalField];
+            setLines(updated);
+          },
+          style: { width: 60, textAlign: "center", padding: "4px 6px", border: "1px solid #d97706", borderRadius: 3, fontSize: 14, fontWeight: 800, color: "#1a2844", background: "#fff", fontFamily: "'DM Mono',monospace" }
+        })),
+      React.createElement("td", { style: { textAlign: "center", borderRight: C.bdr, fontSize: 12, fontWeight: 600, color: "#506888", padding: "4px" } }, l.unit || "EA"),
+      !isPO && React.createElement("td", { style: { borderRight: C.bdr, padding: 4 } }),
+      React.createElement("td", { style: { textAlign: "center", borderRight: C.bdr, fontSize: 11, color: "#94a3b8", padding: 4 } }, "\u2014"),
+      (isSO || isInv) && React.createElement("td", { style: { textAlign: "center", borderRight: C.bdr, padding: 4, fontFamily: "'DM Mono',monospace", fontSize: 12, color: "#506888" } },
+        isWB ? "$" + (l.pricePerLb || 0).toFixed(2) + "/lb" : "$" + (l.priceEach || 0).toFixed(2)),
+      isSO && React.createElement("td", { style: { textAlign: "center", borderRight: C.bdr, padding: 4, fontFamily: "'DM Mono',monospace", fontSize: 12, color: "#506888" } },
+        isWB && l.estWeight ? l.estWeight.toFixed(1) + " lb" : "\u2014"),
+      isInv && React.createElement("td", { style: { textAlign: "center", borderRight: C.bdr, padding: 4 } }, isWB && l.nominalWeight ? l.nominalWeight.toFixed(1) : "\u2014"),
+      isInv && React.createElement("td", { style: { textAlign: "center", borderRight: C.bdr, padding: 4 } },
+        isWB ? React.createElement("input", {
+          type: "number", step: "0.01", value: l.actualWeight || "",
+          onChange: e => {
+            const nw = Number(e.target.value) || 0;
+            const updated = [...lines];
+            updated[lineIdx] = { ...updated[lineIdx], actualWeight: nw, total: Math.round(nw * (l.pricePerLb || 0) * 100) / 100 };
+            setLines(updated);
+          },
+          style: { width: 70, textAlign: "center", padding: "3px 5px", border: "1px solid #d97706", borderRadius: 3, fontSize: 12, fontWeight: 600, background: "#fff", fontFamily: "'DM Mono',monospace" }
+        }) : "\u2014"),
+      isPO && React.createElement("td", { style: { textAlign: "center", borderRight: C.bdr, padding: 4, fontFamily: "'DM Mono',monospace", fontSize: 12 } }, "$" + (l.costPerUnit || 0).toFixed(2)),
+      React.createElement("td", { style: { textAlign: "right", paddingRight: 12, borderRight: C.bdr, fontFamily: "'DM Mono',monospace", fontWeight: 700, fontSize: 14, color: "#1a5c2a", padding: "4px 12px 4px 4px" } }, fmt(lineTotal)),
+      React.createElement("td", { style: { textAlign: "center", padding: 2 } },
+        React.createElement("button", {
+          onClick: () => setLines(lines.filter((_, j) => j !== lineIdx)),
+          style: { background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 14 }
+        }, "\xD7")),
+      (isSO || isInv) && React.createElement("td", { style: { padding: 2 } })
+    );
+  })
+  ))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       alignItems: "center",
