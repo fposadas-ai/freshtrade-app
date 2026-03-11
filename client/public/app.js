@@ -4315,9 +4315,9 @@ const SpreadsheetGrid = ({
   const display = search ? filtered : showAll ? products : withLines.length > 0 ? withLines : products;
   const qtyField = mode === "po" ? "qtyOrdered" : "qty";
   const totalField = mode === "po" ? "total" : mode === "invoice" ? "total" : "estTotal";
-  const grandTotal = lines.reduce((s, l) => s + (Number(l[totalField]) || 0), 0);
+  const grandTotal = lines.reduce((s, l) => Number(l[qtyField]) > 0 ? s + (Number(l[totalField]) || 0) : s, 0);
   const lineCount = lines.filter(l => Number(l[qtyField]) > 0).length;
-  const totalWt = lines.reduce((s, l) => s + (Number(l.estWeight || l.nominalWeight || l.actualWeight) || 0), 0);
+  const totalWt = lines.reduce((s, l) => Number(l[qtyField]) > 0 ? s + (Number(l.estWeight || l.nominalWeight || l.actualWeight) || 0) : s, 0);
   const totalCases = lines.reduce((s, l) => s + (Number(l[qtyField]) || 0), 0);
   const isSO = mode === "sales";
   const isInv = mode === "invoice";
@@ -9676,7 +9676,7 @@ function SalesOrders({
       variant: "secondary",
       size: "sm",
       onClick: () => {
-        if (confirm(`Cancel Sales Order ${so.id}? This cannot be undone.`)) cancelSO(so.id);
+        if (confirm(`Cancel Sales Order ${so.id}? This cannot be undone.`)) { cancelSO(so.id); closeSOModal(so.id); }
       },
       style: {
         borderColor: "#ef444466",
