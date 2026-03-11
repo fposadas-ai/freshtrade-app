@@ -10508,16 +10508,15 @@ function Invoices({
     if (!prod) return;
     const isCW = prod.catchWeight;
     const qty = Number(rcptQty) || 1;
-    const weight = isCW ? Number(rcptWeight) || (prod.avgWeightPerPiece || 1) * qty : 0;
     const price = isCW ? ((_prod$pricing9 = prod.pricing) === null || _prod$pricing9 === void 0 ? void 0 : _prod$pricing9.level1) || 0 : ((_prod$pricing0 = prod.pricing) === null || _prod$pricing0 === void 0 ? void 0 : _prod$pricing0.level1) || 0;
-    const total = isCW ? Math.round(weight * price * 100) / 100 : Math.round(qty * price * 100) / 100;
     const line = {
       productId: prod.id,
       qty,
-      weight: isCW ? weight : null,
+      weight: null,
+      pieceWeights: isCW ? Array.from({ length: qty }, () => "") : null,
       pricePerLb: isCW ? price : null,
       priceEach: isCW ? null : price,
-      total
+      total: isCW ? 0 : Math.round(qty * price * 100) / 100
     };
     setReceiptForm(prev => ({
       ...prev,
@@ -10526,6 +10525,41 @@ function Invoices({
     setRcptProduct("");
     setRcptQty(1);
     setRcptWeight("");
+  };
+  const setRcptPieceWeight = (lineIdx, pieceIdx, value) => {
+    setReceiptForm(prev => {
+      const newLines = prev.lines.map((l, i) => {
+        if (i !== lineIdx) return l;
+        const pw = [...(l.pieceWeights || [])];
+        pw[pieceIdx] = value;
+        const totalWt = pw.reduce((s, w) => s + (Number(w) || 0), 0);
+        const total = Math.round(totalWt * (l.pricePerLb || 0) * 100) / 100;
+        return { ...l, pieceWeights: pw, weight: Math.round(totalWt * 100) / 100, total };
+      });
+      return { ...prev, lines: newLines };
+    });
+  };
+  const addRcptPieceSlot = lineIdx => {
+    setReceiptForm(prev => {
+      const newLines = prev.lines.map((l, i) => {
+        if (i !== lineIdx) return l;
+        return { ...l, qty: (l.qty || 1) + 1, pieceWeights: [...(l.pieceWeights || []), ""] };
+      });
+      return { ...prev, lines: newLines };
+    });
+  };
+  const removeRcptPieceSlot = (lineIdx, pieceIdx) => {
+    setReceiptForm(prev => {
+      const newLines = prev.lines.map((l, i) => {
+        if (i !== lineIdx) return l;
+        const pw = (l.pieceWeights || []).filter((_, j) => j !== pieceIdx);
+        const newQty = Math.max(1, pw.length);
+        const totalWt = pw.reduce((s, w) => s + (Number(w) || 0), 0);
+        const total = Math.round(totalWt * (l.pricePerLb || 0) * 100) / 100;
+        return { ...l, qty: newQty, pieceWeights: pw, weight: Math.round(totalWt * 100) / 100, total };
+      });
+      return { ...prev, lines: newLines };
+    });
   };
   const saveReceipt = () => {
     if (receiptForm.lines.length === 0) return;
@@ -13899,17 +13933,11 @@ function Invoices({
     min: "1",
     value: rcptQty,
     onChange: e => setRcptQty(e.target.value)
-  }), (() => {
-    const p = products.find(x => x.id === rcptProduct);
-    return p !== null && p !== void 0 && p.catchWeight ? /*#__PURE__*/React.createElement(Input, {
-      label: "Weight (lb)",
-      type: "number",
-      step: "0.01",
-      value: rcptWeight,
-      onChange: e => setRcptWeight(e.target.value),
-      placeholder: "lbs"
-    }) : /*#__PURE__*/React.createElement("div", null);
-  })(), /*#__PURE__*/React.createElement(Btn, {
+  }), React.createElement("div", null,
+    (() => {
+      const p = products.find(x => x.id === rcptProduct);
+      return p && p.catchWeight ? React.createElement("div", { style: { fontSize: 10, color: "#f59e0b", fontWeight: 600, paddingTop: 20 } }, "\u2696 Enter weights after adding") : null;
+    })()), /*#__PURE__*/React.createElement(Btn, {
     onClick: addReceiptLine,
     disabled: !rcptProduct,
     icon: "plus",
@@ -13979,58 +14007,51 @@ function Invoices({
     }
   }))), /*#__PURE__*/React.createElement("tbody", null, receiptForm.lines.map((l, i) => {
     const prod = products.find(p => p.id === l.productId);
-    return /*#__PURE__*/React.createElement("tr", {
-      key: i,
-      style: {
-        borderBottom: "1px solid #1a2030"
-      }
-    }, /*#__PURE__*/React.createElement("td", {
-      style: {
-        padding: "6px 8px",
-        color: "#e2e8f0"
-      }
-    }, pName(prod, l) || l.productId), /*#__PURE__*/React.createElement("td", {
-      style: {
-        padding: "6px 8px",
-        textAlign: "center",
-        color: "#94a3b8",
-        fontFamily: "'DM Mono',monospace"
-      }
-    }, l.qty), /*#__PURE__*/React.createElement("td", {
-      style: {
-        padding: "6px 8px",
-        textAlign: "center",
-        color: "#94a3b8",
-        fontFamily: "'DM Mono',monospace"
-      }
-    }, l.weight ? l.weight.toFixed(2) + " lb" : "—"), /*#__PURE__*/React.createElement("td", {
-      style: {
-        padding: "6px 8px",
-        textAlign: "right",
-        color: "#94a3b8"
-      }
-    }, l.pricePerLb ? `$${l.pricePerLb.toFixed(2)}/lb` : `$${(l.priceEach || 0).toFixed(2)} ea`), /*#__PURE__*/React.createElement("td", {
-      style: {
-        padding: "6px 8px",
-        textAlign: "right",
-        color: "#f1f5f9",
-        fontWeight: 600,
-        fontFamily: "'DM Mono',monospace"
-      }
-    }, fmt(l.total)), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("button", {
-      onClick: () => setReceiptForm(f => ({
-        ...f,
-        lines: f.lines.filter((_, j) => j !== i)
-      })),
-      style: {
-        background: "none",
-        border: "none",
-        color: "#ef4444",
-        cursor: "pointer",
-        fontSize: 14
-      }
-    }, "\xD7")));
-  }))), /*#__PURE__*/React.createElement("div", {
+    const isCW = prod && prod.catchWeight;
+    const hasPW = isCW && l.pieceWeights && l.pieceWeights.length > 0;
+    return React.createElement(React.Fragment, { key: i },
+      React.createElement("tr", {
+        style: { borderBottom: hasPW ? "none" : "1px solid #1a2030" }
+      },
+        React.createElement("td", { style: { padding: "6px 8px", color: "#e2e8f0" } },
+          pName(prod, l) || l.productId,
+          isCW && React.createElement("span", { style: { fontSize: 9, color: "#f59e0b", marginLeft: 6 } }, "\u2696 CW")),
+        React.createElement("td", { style: { padding: "6px 8px", textAlign: "center", color: "#94a3b8", fontFamily: "'DM Mono',monospace" } }, l.qty),
+        React.createElement("td", { style: { padding: "6px 8px", textAlign: "center", color: "#94a3b8", fontFamily: "'DM Mono',monospace" } },
+          l.weight ? l.weight.toFixed(2) + " lb" : "\u2014"),
+        React.createElement("td", { style: { padding: "6px 8px", textAlign: "right", color: "#94a3b8" } },
+          l.pricePerLb ? "$" + l.pricePerLb.toFixed(2) + "/lb" : "$" + (l.priceEach || 0).toFixed(2) + " ea"),
+        React.createElement("td", { style: { padding: "6px 8px", textAlign: "right", color: "#f1f5f9", fontWeight: 600, fontFamily: "'DM Mono',monospace" } }, fmt(l.total)),
+        React.createElement("td", null, React.createElement("button", {
+          onClick: () => setReceiptForm(f => ({ ...f, lines: f.lines.filter((_, j) => j !== i) })),
+          style: { background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 14 }
+        }, "\xD7"))),
+      hasPW && React.createElement("tr", null,
+        React.createElement("td", { colSpan: 6, style: { padding: "4px 8px 10px 24px", borderBottom: "1px solid #1a2030" } },
+          React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" } },
+            React.createElement("span", { style: { fontSize: 10, color: "#64748b", fontWeight: 600, marginRight: 4 } }, "Piece weights:"),
+            l.pieceWeights.map((pw, pi) =>
+              React.createElement("div", { key: pi, style: { display: "flex", alignItems: "center", gap: 2 } },
+                React.createElement("span", { style: { fontSize: 9, color: "#475569", fontWeight: 600, minWidth: 14 } }, (pi + 1) + "."),
+                React.createElement("input", {
+                  type: "number",
+                  step: "0.01",
+                  value: pw,
+                  onChange: e => setRcptPieceWeight(i, pi, e.target.value),
+                  placeholder: "lb",
+                  "data-testid": "input-piece-weight-" + i + "-" + pi,
+                  style: { width: 68, padding: "4px 6px", background: "#1e293b", border: "1px solid #334155", borderRadius: 4, color: "#f1f5f9", fontSize: 12, fontFamily: "'DM Mono',monospace", textAlign: "right" }
+                }),
+                l.pieceWeights.length > 1 && React.createElement("button", {
+                  onClick: () => removeRcptPieceSlot(i, pi),
+                  style: { background: "none", border: "none", color: "#ef444488", cursor: "pointer", fontSize: 11, padding: "0 2px" }
+                }, "\xD7"))),
+            React.createElement("button", {
+              onClick: () => addRcptPieceSlot(i),
+              "data-testid": "btn-add-piece-" + i,
+              style: { background: "#334155", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: 14, fontWeight: 700, borderRadius: 4, width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center" }
+            }, "+"))))
+  ) }))), /*#__PURE__*/React.createElement("div", {
     style: {
       borderTop: "2px solid #334155",
       paddingTop: 10,
