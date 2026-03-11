@@ -10600,22 +10600,25 @@ function Invoices({
   };
   const printReceiptStatement = () => {
     if (!rcptStmtName) { showToast("Select a customer"); return; }
-    const custReceipts = receipts.filter(r => r.customerName === rcptStmtName && r.status !== "voided" && (!rcptStmtFrom || r.date >= rcptStmtFrom) && (!rcptStmtTo || r.date <= rcptStmtTo)).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
-    if (custReceipts.length === 0) { showToast("No receipts found for this customer in the selected date range"); return; }
-    const grandTotal = custReceipts.reduce((s, r) => s + (r.total || 0), 0);
+    const custReceipts = receipts.filter(r => r.customerName === rcptStmtName && r.status !== "voided" && !(r.paymentMethod === "credit" && r.paymentStatus === "paid") && (!rcptStmtFrom || r.date >= rcptStmtFrom) && (!rcptStmtTo || r.date <= rcptStmtTo)).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+    if (custReceipts.length === 0) { showToast("No outstanding receipts found for this customer in the selected date range"); return; }
+    const grandTotal = custReceipts.reduce((s, r) => { const bal = r.paymentMethod === "credit" ? Math.max(0, (r.total || 0) - (Number(r.amountPaid) || 0)) : (r.total || 0); return s + bal; }, 0);
     const co = settings.company || {};
     let rowsHtml = "";
     custReceipts.forEach((r, idx) => {
       const bg = idx % 2 === 0 ? "#ffffff" : "#f8faf9";
       const payLabel = r.paymentMethod === "cash" ? "Cash" : r.paymentMethod === "card" ? "Card" : r.paymentMethod === "credit" ? "Credit" : "Check";
       const itemsSummary = r.lines.map(l => { const p = products.find(pp => pp.id === l.productId); return (p ? p.name : l.productId) + " x" + l.qty; }).join(", ");
+      const rPaid = r.paymentMethod === "credit" ? (Number(r.amountPaid) || 0) : 0;
+      const rBal = r.paymentMethod === "credit" ? Math.max(0, (r.total || 0) - rPaid) : (r.total || 0);
+      const partialNote = r.paymentMethod === "credit" && rPaid > 0 ? `<div style="font-size:9px;color:#f59e0b;">Paid: $${rPaid.toFixed(2)}</div>` : "";
       rowsHtml += `<tr style="background:${bg};">
         <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;color:#374151;">${r.date}</td>
         <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;font-family:'DM Mono',monospace;color:#f59e0b;">${r.id}</td>
         <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;color:#374151;">${r.lines.length} items</td>
         <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;color:#6b7280;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${itemsSummary}</td>
-        <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;color:#374151;">${payLabel}</td>
-        <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;font-weight:700;text-align:right;font-family:'DM Mono',monospace;color:#111827;">$${Number(r.total).toFixed(2)}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;color:#374151;">${payLabel}${partialNote}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;font-weight:700;text-align:right;font-family:'DM Mono',monospace;color:#111827;">$${rBal.toFixed(2)}</td>
       </tr>`;
     });
     const dateRange = rcptStmtFrom ? `${rcptStmtFrom} to ${rcptStmtTo}` : `Through ${rcptStmtTo}`;
@@ -10635,7 +10638,7 @@ function Invoices({
       <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:14px 18px;margin-bottom:20px;">
         <div style="font-size:8px;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:2px;margin-bottom:4px;">Customer</div>
         <div style="font-size:16px;font-weight:700;color:#111827;">${rcptStmtName}</div>
-        <div style="font-size:11px;color:#6b7280;margin-top:2px;">${custReceipts.length} receipt${custReceipts.length !== 1 ? "s" : ""} · Total: $${grandTotal.toFixed(2)}</div>
+        <div style="font-size:11px;color:#6b7280;margin-top:2px;">${custReceipts.length} outstanding receipt${custReceipts.length !== 1 ? "s" : ""} · Balance Due: $${grandTotal.toFixed(2)}</div>
       </div>
       <table>
         <thead><tr>
@@ -10648,7 +10651,7 @@ function Invoices({
         </tr></thead>
         <tbody>${rowsHtml}</tbody>
         <tfoot><tr>
-          <td colspan="5" style="padding:12px 10px;font-size:13px;font-weight:800;color:#111827;text-align:right;border-top:2px solid #f59e0b;">TOTAL</td>
+          <td colspan="5" style="padding:12px 10px;font-size:13px;font-weight:800;color:#111827;text-align:right;border-top:2px solid #f59e0b;">BALANCE DUE</td>
           <td style="padding:12px 10px;font-size:15px;font-weight:800;color:#111827;text-align:right;border-top:2px solid #f59e0b;font-family:'DM Mono',monospace;">$${grandTotal.toFixed(2)}</td>
         </tr></tfoot>
       </table>
@@ -14300,9 +14303,9 @@ function Invoices({
   }))), rcptStmtName && /*#__PURE__*/React.createElement("div", {
     style: { background: "#1a2030", borderRadius: 8, padding: 14 }
   }, (() => {
-    const matched = receipts.filter(r => r.customerName === rcptStmtName && r.status !== "voided" && (!rcptStmtFrom || r.date >= rcptStmtFrom) && (!rcptStmtTo || r.date <= rcptStmtTo));
-    const total = matched.reduce((s, r) => s + (r.total || 0), 0);
-    return /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, color: "#e2e8f0" } }, /*#__PURE__*/React.createElement("span", { style: { fontWeight: 700 } }, matched.length), " receipts found \u2014 Total: ", /*#__PURE__*/React.createElement("span", { style: { fontWeight: 700, color: "#f59e0b", fontFamily: "'DM Mono',monospace" } }, fmt(total)));
+    const matched = receipts.filter(r => r.customerName === rcptStmtName && r.status !== "voided" && !(r.paymentMethod === "credit" && r.paymentStatus === "paid") && (!rcptStmtFrom || r.date >= rcptStmtFrom) && (!rcptStmtTo || r.date <= rcptStmtTo));
+    const total = matched.reduce((s, r) => { const bal = r.paymentMethod === "credit" ? Math.max(0, (r.total || 0) - (Number(r.amountPaid) || 0)) : (r.total || 0); return s + bal; }, 0);
+    return /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, color: "#e2e8f0" } }, /*#__PURE__*/React.createElement("span", { style: { fontWeight: 700 } }, matched.length), " outstanding receipts \u2014 Balance: ", /*#__PURE__*/React.createElement("span", { style: { fontWeight: 700, color: "#f59e0b", fontFamily: "'DM Mono',monospace" } }, fmt(total)));
   })()), /*#__PURE__*/React.createElement("div", {
     style: { display: "flex", gap: 10, justifyContent: "flex-end" }
   }, /*#__PURE__*/React.createElement(Btn, {
