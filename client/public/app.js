@@ -27535,6 +27535,9 @@ function PriceList({
   const [selectedCustomer, setSelectedCustomer] = useState("");
   const [excludedProducts, setExcludedProducts] = useState(new Set());
   const [copied, setCopied] = useState(false);
+  const [ogShowPrices, setOgShowPrices] = useState(true);
+  const [ogShowPackSize, setOgShowPackSize] = useState(true);
+  const [ogDeliveryDate, setOgDeliveryDate] = useState("");
   const toggleCat = cat => setSelectedCats(prev => {
     const n = new Set(prev);
     if (n.has(cat)) n.delete(cat);else n.add(cat);
@@ -27627,6 +27630,115 @@ function PriceList({
     });
     txt += `📞 ${companyPhone}\n📧 ${companyEmail}\nOrder by 2PM for next-day delivery!`;
     return txt;
+  };
+
+  // Build Fillable Order Guide
+  const generateOrderGuide = () => {
+    const co = settings.company || {};
+    const coName = co.name || companyName;
+    const coPhone = co.phone || companyPhone;
+    const coEmail = co.email || companyEmail;
+    const custName = cust ? cust.name : "Valued Customer";
+    const catOrder = (settings.preferences && settings.preferences.categoryOrder) || ["Seafood", "Beef", "Pork", "Poultry", "Deli"];
+    const sortedFiltered = [...filtered].sort((a, b) => {
+      const ia = catOrder.indexOf(a.category); const ib = catOrder.indexOf(b.category);
+      return ((ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib)) || a.name.localeCompare(b.name);
+    });
+    const grp = {};
+    sortedFiltered.forEach(p => { if (!grp[p.category]) grp[p.category] = []; grp[p.category].push(p); });
+
+    let html = `<html><head><title>Order Guide — ${custName}</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',Arial,sans-serif;background:#fff;color:#111;padding:0}
+@media print{body{padding:0;margin:0}.no-print{display:none!important}@page{margin:0.4in 0.5in;size:letter}}
+@media screen{body{padding:20px;background:#f1f5f9}}
+.page{max-width:800px;margin:0 auto;background:#fff;padding:0}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;padding:6px 8px}
+td{padding:7px 8px;border-bottom:1px solid #e5e7eb;font-size:12px;vertical-align:middle}
+tr:nth-child(even){background:#f8fafc}
+.qty-cell{width:65px;text-align:center}
+.qty-box{width:55px;height:28px;border:2px solid #94a3b8;border-radius:4px;text-align:center;font-size:14px;font-weight:700;font-family:'DM Mono',monospace}
+.notes-cell{width:120px}
+.notes-box{width:100%;height:28px;border:1px solid #cbd5e1;border-radius:3px;font-size:11px;padding:0 6px}
+.cat-row{background:linear-gradient(135deg,#1e3a5f,#2c5282);color:#fff;font-size:11px;font-weight:700;padding:8px 10px;letter-spacing:0.5px}
+.price{font-family:'DM Mono',monospace;font-weight:600;font-size:12px;color:#1e3a5f}
+.pack{font-size:10px;color:#64748b}
+.unit{font-size:9px;color:#94a3b8;font-weight:600}
+.cw{font-size:8px;color:#f59e0b;font-weight:700;background:#fef3c7;padding:1px 4px;border-radius:3px;margin-left:4px}
+</style></head><body>
+<div class="page">`;
+
+    html += `<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:20px 0 14px 0;border-bottom:3px solid #1e3a5f;margin-bottom:2px">
+<div>
+<div style="font-size:22px;font-weight:800;color:#1e3a5f;letter-spacing:-0.5px">${coName}</div>
+<div style="font-size:11px;color:#64748b;margin-top:2px">${[coPhone, coEmail].filter(Boolean).join(" · ")}</div>
+</div>
+<div style="text-align:right">
+<div style="font-size:16px;font-weight:800;color:#1e3a5f">ORDER GUIDE</div>
+<div style="font-size:11px;color:#64748b;margin-top:2px">${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>
+</div></div>`;
+
+    html += `<div style="display:flex;justify-content:space-between;padding:12px 0 10px 0;border-bottom:1px solid #e5e7eb;margin-bottom:4px">
+<div style="display:flex;gap:20px;align-items:center">
+<div><span style="font-size:9px;color:#94a3b8;font-weight:700;text-transform:uppercase">Customer</span><br><span style="font-size:14px;font-weight:700;color:#111">${custName}</span></div>
+${ogDeliveryDate ? `<div><span style="font-size:9px;color:#94a3b8;font-weight:700;text-transform:uppercase">Delivery Date</span><br><span style="font-size:14px;font-weight:700;color:#111">${ogDeliveryDate}</span></div>` : `<div><span style="font-size:9px;color:#94a3b8;font-weight:700;text-transform:uppercase">Delivery Date</span><br><span style="border-bottom:1px solid #94a3b8;display:inline-block;width:140px;height:18px"></span></div>`}
+</div>
+<div style="text-align:right">
+<span style="font-size:9px;color:#94a3b8;font-weight:700;text-transform:uppercase">PO / Reference #</span><br>
+<span style="border-bottom:1px solid #94a3b8;display:inline-block;width:140px;height:18px"></span>
+</div></div>`;
+
+    html += `<table>`;
+    let hdrCols = `<th style="width:30px">#</th><th>Product</th>`;
+    if (ogShowPackSize) hdrCols += `<th style="width:80px">Pack Size</th>`;
+    if (ogShowPrices) hdrCols += `<th style="width:75px;text-align:right">Price</th>`;
+    hdrCols += `<th class="qty-cell">Qty</th><th class="notes-cell">Notes / Weight</th>`;
+
+    let rowNum = 0;
+    catOrder.filter(c => grp[c]).forEach(cat => {
+      html += `<tr><td colspan="${ogShowPrices && ogShowPackSize ? 6 : ogShowPrices || ogShowPackSize ? 5 : 4}" class="cat-row">${(catEmoji[cat] || "") + " " + cat.toUpperCase()}</td></tr>`;
+      html += `<tr style="background:#f1f5f9">${hdrCols}</tr>`;
+      grp[cat].forEach(p => {
+        rowNum++;
+        const { price } = getPrice(p);
+        const isWB = p.catchWeight || p.fixedWeight;
+        const unit = p.billedBy === "LBS" ? "/lb" : p.billedBy === "PIECE" ? "/pc" : "/cs";
+        let row = `<tr>`;
+        row += `<td style="color:#94a3b8;font-size:10px;text-align:center;font-weight:600">${rowNum}</td>`;
+        row += `<td><span style="font-weight:600;font-size:13px">${pName(p)}</span>${isWB ? '<span class="cw">CW</span>' : ''}</td>`;
+        if (ogShowPackSize) row += `<td class="pack">${p.packSize || (p.piecesPerBox ? p.piecesPerBox + " pc/cs" : "—")}</td>`;
+        if (ogShowPrices) row += `<td style="text-align:right" class="price">$${price.toFixed(2)}<span class="unit">${unit}</span></td>`;
+        row += `<td class="qty-cell"><input type="text" class="qty-box" /></td>`;
+        row += `<td class="notes-cell"><input type="text" class="notes-box" placeholder="${isWB ? "Est. weight..." : ""}" /></td>`;
+        row += `</tr>`;
+        html += row;
+      });
+    });
+    html += `</table>`;
+
+    html += `<div style="margin-top:16px;padding:14px 0;border-top:2px solid #1e3a5f;display:flex;justify-content:space-between;align-items:flex-start">
+<div style="font-size:10px;color:#64748b;line-height:1.7">
+<b>How to order:</b> Fill in quantities, then email, text a photo, or call us.<br>
+${coPhone ? "📞 " + coPhone + " " : ""}${coEmail ? "📧 " + coEmail : ""}<br>
+Order by 2PM for next-day delivery.
+</div>
+<div style="text-align:right">
+<div style="font-size:9px;color:#94a3b8;font-weight:700;text-transform:uppercase;margin-bottom:4px">Authorized By</div>
+<div style="border-bottom:1px solid #94a3b8;width:160px;height:24px;margin-bottom:4px"></div>
+<div style="font-size:9px;color:#94a3b8">Signature / Date</div>
+</div></div>`;
+
+    html += `</div>
+<div class="no-print" style="text-align:center;padding:20px">
+<button onclick="window.print()" style="padding:12px 32px;background:#1e3a5f;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">🖨️ Print Order Guide</button>
+</div></body></html>`;
+
+    const w = window.open("", "_blank", "width=850,height=1000");
+    w.document.write(html);
+    w.document.close();
   };
 
   // Build Email HTML
@@ -28050,7 +28162,32 @@ function PriceList({
       color: excludedProducts.has(p.id) ? "#475569" : "#e2e8f0",
       textDecoration: excludedProducts.has(p.id) ? "line-through" : "none"
     }
-  }, p.name)))))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, p.name))))),
+
+  React.createElement(Card, { style: { marginTop: 14 } },
+    React.createElement("div", { style: { fontSize: 12, color: "#94a3b8", fontWeight: 700, marginBottom: 10 } }, "📋 FILLABLE ORDER GUIDE"),
+    React.createElement("div", { style: { fontSize: 11, color: "#64748b", marginBottom: 12, lineHeight: 1.5 } }, "Generate a printable order form customers can fill out by hand, text a photo back, or email."),
+    React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } },
+      React.createElement("div", { style: { display: "flex", gap: 8 } },
+        React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#e2e8f0", cursor: "pointer" } },
+          React.createElement("input", { type: "checkbox", checked: ogShowPrices, onChange: () => setOgShowPrices(!ogShowPrices), style: { accentColor: "#22c55e" } }),
+          "Show Prices"),
+        React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#e2e8f0", cursor: "pointer" } },
+          React.createElement("input", { type: "checkbox", checked: ogShowPackSize, onChange: () => setOgShowPackSize(!ogShowPackSize), style: { accentColor: "#22c55e" } }),
+          "Pack Size")),
+      React.createElement("div", null,
+        React.createElement("label", { style: { fontSize: 10, color: "#64748b", fontWeight: 600, display: "block", marginBottom: 3 } }, "Delivery Date (optional)"),
+        React.createElement("input", { type: "date", value: ogDeliveryDate, onChange: e => setOgDeliveryDate(e.target.value),
+          "data-testid": "input-og-delivery-date",
+          style: { width: "100%", background: "#0f1117", border: "1px solid #2d3748", borderRadius: 6, padding: "6px 8px", color: "#e2e8f0", fontSize: 12 } })),
+      React.createElement(Btn, {
+        onClick: generateOrderGuide,
+        disabled: filtered.length === 0,
+        "data-testid": "btn-generate-order-guide",
+        style: { width: "100%" }
+      }, ogShowPrices ? "📋 Generate with Prices" : "📋 Generate (No Prices)")))),
+
+  /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       justifyContent: "space-between",
