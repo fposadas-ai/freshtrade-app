@@ -11217,7 +11217,7 @@ function Invoices({
         color: "#64748b",
         marginTop: 2
       }
-    }, "Products already consumed, damaged, or written off. Inventory stays as-is.")))), voidReturnStock && /*#__PURE__*/React.createElement("div", {
+    }, "Goods went bad in truck, stolen, consumed, or otherwise lost. Inventory stays as-is.")))), voidReturnStock && /*#__PURE__*/React.createElement("div", {
       style: {
         background: "#0f1117",
         borderRadius: 8,
