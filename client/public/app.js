@@ -27632,6 +27632,8 @@ function PriceList({
     return txt;
   };
 
+  const ogHasGuide = cust && (cust.standardOrder || []).length > 0;
+
   // Build Fillable Order Guide
   const generateOrderGuide = () => {
     const co = settings.company || {};
@@ -27640,12 +27642,20 @@ function PriceList({
     const coEmail = co.email || companyEmail;
     const custName = cust ? cust.name : "Valued Customer";
     const catOrder = (settings.preferences && settings.preferences.categoryOrder) || ["Seafood", "Beef", "Pork", "Poultry", "Deli"];
-    const sortedFiltered = [...filtered].sort((a, b) => {
+
+    let guideProducts;
+    if (ogHasGuide) {
+      const stdIds = cust.standardOrder || [];
+      guideProducts = stdIds.map(pid => products.find(p => p.id === pid)).filter(Boolean);
+    } else {
+      guideProducts = [...filtered];
+    }
+    guideProducts.sort((a, b) => {
       const ia = catOrder.indexOf(a.category); const ib = catOrder.indexOf(b.category);
       return ((ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib)) || a.name.localeCompare(b.name);
     });
     const grp = {};
-    sortedFiltered.forEach(p => { if (!grp[p.category]) grp[p.category] = []; grp[p.category].push(p); });
+    guideProducts.forEach(p => { if (!grp[p.category]) grp[p.category] = []; grp[p.category].push(p); });
 
     let html = `<html><head><title>Order Guide — ${custName}</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -27677,7 +27687,7 @@ tr:nth-child(even){background:#f8fafc}
 <div style="font-size:11px;color:#64748b;margin-top:2px">${[coPhone, coEmail].filter(Boolean).join(" · ")}</div>
 </div>
 <div style="text-align:right">
-<div style="font-size:16px;font-weight:800;color:#1e3a5f">ORDER GUIDE</div>
+<div style="font-size:16px;font-weight:800;color:#1e3a5f">${ogHasGuide ? "YOUR ORDER GUIDE" : "ORDER GUIDE"}</div>
 <div style="font-size:11px;color:#64748b;margin-top:2px">${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>
 </div></div>`;
 
@@ -28166,7 +28176,9 @@ Order by 2PM for next-day delivery.
 
   React.createElement(Card, { style: { marginTop: 14 } },
     React.createElement("div", { style: { fontSize: 12, color: "#94a3b8", fontWeight: 700, marginBottom: 10 } }, "📋 FILLABLE ORDER GUIDE"),
-    React.createElement("div", { style: { fontSize: 11, color: "#64748b", marginBottom: 12, lineHeight: 1.5 } }, "Generate a printable order form customers can fill out by hand, text a photo back, or email."),
+    React.createElement("div", { style: { fontSize: 11, color: "#64748b", marginBottom: 8, lineHeight: 1.5 } }, "Generate a printable order form customers can fill out by hand, text a photo back, or email."),
+    ogHasGuide ? React.createElement("div", { style: { fontSize: 11, color: "#22c55e", background: "#052e16", borderRadius: 6, padding: "6px 10px", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 } },
+      "✅ ", React.createElement("span", null, React.createElement("b", null, cust.name), " has ", (cust.standardOrder || []).length, " products in their order guide")) : null,
     React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } },
       React.createElement("div", { style: { display: "flex", gap: 8 } },
         React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#e2e8f0", cursor: "pointer" } },
@@ -28182,10 +28194,12 @@ Order by 2PM for next-day delivery.
           style: { width: "100%", background: "#0f1117", border: "1px solid #2d3748", borderRadius: 6, padding: "6px 8px", color: "#e2e8f0", fontSize: 12 } })),
       React.createElement(Btn, {
         onClick: generateOrderGuide,
-        disabled: filtered.length === 0,
+        disabled: ogHasGuide ? (cust.standardOrder || []).length === 0 : filtered.length === 0,
         "data-testid": "btn-generate-order-guide",
         style: { width: "100%" }
-      }, ogShowPrices ? "📋 Generate with Prices" : "📋 Generate (No Prices)")))),
+      }, ogHasGuide
+          ? (ogShowPrices ? "📋 " + cust.name + "'s Guide (with Prices)" : "📋 " + cust.name + "'s Guide (No Prices)")
+          : (ogShowPrices ? "📋 Generate with Prices" : "📋 Generate (No Prices)"))))),
 
   /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
