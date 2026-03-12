@@ -11,7 +11,7 @@ const FRESHTRADE_HTML = isProduction
 const VALID_TABLES = [
   "products", "customers", "invoices", "routes", "salesOrders",
   "suppliers", "purchaseOrders", "salespeople", "creditMemos",
-  "deliveries", "productionRuns", "receipts", "arPayments", "arDeposits", "settings"
+  "deliveries", "productionRuns", "receipts", "arPayments", "arDeposits", "arWriteOffs", "settings"
 ];
 
 const ARRAY_TABLES = VALID_TABLES.filter(t => t !== "settings");

@@ -2766,7 +2766,7 @@ const defaultSettings = {
 // ============================================================
 const DB_KEY = "freshtrade_db";
 const DB_VERSION = "v4_6pin";
-const DB_TABLES = ["products", "customers", "invoices", "routes", "salesOrders", "suppliers", "purchaseOrders", "salespeople", "creditMemos", "deliveries", "productionRuns", "receipts", "arPayments", "arDeposits", "settings"];
+const DB_TABLES = ["products", "customers", "invoices", "routes", "salesOrders", "suppliers", "purchaseOrders", "salespeople", "creditMemos", "deliveries", "productionRuns", "receipts", "arPayments", "arDeposits", "arWriteOffs", "settings"];
 
 // Load data from server API
 const dbLoadAsync = async () => {
@@ -2861,6 +2861,7 @@ function App() {
   const [receipts, setReceipts] = useState(init("receipts", []));
   const [arPayments, setArPayments] = useState(init("arPayments", []));
   const [arDeposits, setArDeposits] = useState(init("arDeposits", []));
+  const [arWriteOffs, setArWriteOffs] = useState(init("arWriteOffs", []));
   const [settings, setSettings] = useState(() => {
     const s = init("settings", defaultSettings);
     if (s.labelsZebra) s.labelsZebra = { ...defaultSettings.labelsZebra, ...s.labelsZebra };
@@ -2927,6 +2928,7 @@ function App() {
         receipts,
         arPayments,
         arDeposits,
+        arWriteOffs,
         settings
       });
       setDbStatus("saved");
@@ -2934,7 +2936,7 @@ function App() {
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
-  }, [products, customers, invoices, routes, salesOrders, suppliers, purchaseOrders, salespeople, creditMemos, deliveries, productionRuns, receipts, arPayments, arDeposits, settings]);
+  }, [products, customers, invoices, routes, salesOrders, suppliers, purchaseOrders, salespeople, creditMemos, deliveries, productionRuns, receipts, arPayments, arDeposits, arWriteOffs, settings]);
 
   // ── DB MANAGEMENT FUNCTIONS ──
   const dbGetState = () => ({
@@ -2952,6 +2954,7 @@ function App() {
     receipts,
     arPayments,
     arDeposits,
+    arWriteOffs,
     settings
   });
   const handleExportDB = () => {
@@ -2980,6 +2983,7 @@ function App() {
         if (data.productionRuns) setProductionRuns(data.productionRuns);
         if (data.arPayments) setArPayments(data.arPayments);
         if (data.arDeposits) setArDeposits(data.arDeposits);
+        if (data.arWriteOffs) setArWriteOffs(data.arWriteOffs);
         if (data.settings) setSettings(data.settings);
         setDbStatus("imported");
         showToast(`Database restored from backup (${data._exported || data._saved || "unknown date"})`);
@@ -3004,6 +3008,7 @@ function App() {
     setProductionRuns([]);
     setArPayments([]);
     setArDeposits([]);
+    setArWriteOffs([]);
     setSettings(defaultSettings);
     setDbStatus("reset");
     showToast("Database reset to demo data");
@@ -3025,6 +3030,7 @@ function App() {
         receipts,
         arPayments,
         arDeposits,
+        arWriteOffs,
         settings
       };
       return (new Blob([JSON.stringify(state)]).size / 1024).toFixed(1);
@@ -3539,6 +3545,8 @@ function App() {
     setArPayments: setArPayments,
     arDeposits: arDeposits,
     setArDeposits: setArDeposits,
+    arWriteOffs: arWriteOffs,
+    setArWriteOffs: setArWriteOffs,
     invoices: invoices,
     setInvoices: setInvoices,
     customers: customers,
@@ -34241,6 +34249,8 @@ function AccountsReceivable({
   setArPayments,
   arDeposits,
   setArDeposits,
+  arWriteOffs,
+  setArWriteOffs,
   invoices,
   setInvoices,
   customers,
@@ -34289,6 +34299,11 @@ function AccountsReceivable({
     weekday: "long"
   }));
   const [selectedPmt, setSelectedPmt] = useState(null);
+  const writeOffs = arWriteOffs || [];
+  const setWriteOffs = setArWriteOffs;
+  const [showWriteOff, setShowWriteOff] = useState(null);
+  const [woReason, setWoReason] = useState("");
+  const [woAmount, setWoAmount] = useState("");
   const METHODS = [{
     id: "cash",
     label: "💵 Cash",
@@ -34318,7 +34333,8 @@ function AccountsReceivable({
   // ── Computed: invoice balances from payments ──
   const getInvPaid = invId => arPayments.filter(p => p.status !== "void" && p.status !== "returned").reduce((s, p) => s + (p.appliedTo || []).filter(a => a.invoiceId === invId).reduce((ss, a) => ss + a.amount, 0), 0);
   const getInvCredits = invId => (creditMemos || []).filter(cm => cm.invoiceId === invId && cm.status !== "void").reduce((s, cm) => s + (cm.total || 0), 0);
-  const getInvBalance = inv => Math.round(((inv.total || 0) - getInvPaid(inv.id) - getInvCredits(inv.id)) * 100) / 100;
+  const getInvWrittenOff = invId => writeOffs.filter(w => w.invoiceId === invId && w.status !== "void").reduce((s, w) => s + (w.amount || 0), 0);
+  const getInvBalance = inv => Math.round(((inv.total || 0) - getInvPaid(inv.id) - getInvCredits(inv.id) - getInvWrittenOff(inv.id)) * 100) / 100;
   const openInvoices = invoices.filter(i => i.status === "open" && getInvBalance(i) > 0.005);
   const getCustBalance = custId => invoices.filter(i => i.customerId === custId && i.status === "open").reduce((s, i) => s + Math.max(0, getInvBalance(i)), 0);
 
@@ -34414,6 +34430,46 @@ function AccountsReceivable({
     }
     setShowPayForm(false);
     showToast(`Payment ${pmt.id} recorded — ${fmt(totalAmt)} from ${(_customers$find0 = customers.find(c => c.id === payForm.customerId)) === null || _customers$find0 === void 0 ? void 0 : _customers$find0.name}`);
+  };
+
+  // ── Write-Offs ──
+  const commitWriteOff = () => {
+    if (!showWriteOff) return;
+    const inv = invoices.find(i => i.id === showWriteOff);
+    if (!inv) return;
+    const bal = getInvBalance(inv);
+    const amt = Number(woAmount) || bal;
+    if (amt <= 0) return;
+    const wo = {
+      id: genId("WO"),
+      invoiceId: showWriteOff,
+      customerId: inv.customerId,
+      amount: Math.min(amt, bal),
+      reason: woReason.trim() || "Write-off",
+      date: today(),
+      createdBy: "admin",
+      status: "active"
+    };
+    setWriteOffs(prev => [wo, ...prev]);
+    const newBal = Math.round((bal - wo.amount) * 100) / 100;
+    if (newBal < 0.01) {
+      setInvoices(prev => prev.map(i => i.id === showWriteOff ? { ...i, status: "written_off", writeOffDate: today() } : i));
+    }
+    setShowWriteOff(null);
+    setWoReason("");
+    setWoAmount("");
+    const cust = customers.find(c => c.id === inv.customerId);
+    showToast(`${fmt(wo.amount)} written off on ${showWriteOff}${cust ? " — " + cust.name : ""}`);
+  };
+  const voidWriteOff = woId => {
+    const wo = writeOffs.find(w => w.id === woId);
+    if (!wo) return;
+    setWriteOffs(prev => prev.map(w => w.id === woId ? { ...w, status: "void", voidDate: today() } : w));
+    const inv = invoices.find(i => i.id === wo.invoiceId);
+    if (inv && inv.status === "written_off") {
+      setInvoices(prev => prev.map(i => i.id === wo.invoiceId ? { ...i, status: "open", writeOffDate: undefined } : i));
+    }
+    showToast(`Write-off ${woId} voided — balance restored`);
   };
 
   // ── Deposits ──
@@ -34669,6 +34725,10 @@ function AccountsReceivable({
     id: "collections",
     label: "🔔 Collections",
     count: collectionCustomers.length
+  }, {
+    id: "writeoffs",
+    label: "✏️ Write-Offs",
+    count: writeOffs.filter(w => w.status === "active").length || undefined
   }];
   return /*#__PURE__*/React.createElement("div", {
     style: {
@@ -35517,7 +35577,124 @@ function AccountsReceivable({
         }
       }, "Not set")];
     })
-  }))), showPayForm && /*#__PURE__*/React.createElement(Modal, {
+  }))),
+
+  tab === "writeoffs" && React.createElement("div", null,
+    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 20 } },
+      React.createElement(StatCard, { label: "Total Written Off", value: fmt(writeOffs.filter(w => w.status === "active").reduce((s, w) => s + w.amount, 0)), icon: "dollar", color: "#ef4444" }),
+      React.createElement(StatCard, { label: "Active Write-Offs", value: writeOffs.filter(w => w.status === "active").length, icon: "alert", color: "#f59e0b" }),
+      React.createElement(StatCard, { label: "Voided", value: writeOffs.filter(w => w.status === "void").length, icon: "check", color: "#64748b" })),
+
+    React.createElement(Card, { title: "Open Invoices — Select to Write Off" },
+      React.createElement(DataTable, {
+        headers: ["Invoice", "Customer", "Date", "Due Date", "Total", "Paid", "Credits", "Written Off", "Balance", "Action"],
+        rows: invoices.filter(i => i.status === "open" && getInvBalance(i) > 0.005).sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || "")).map(i => {
+          const cust = customers.find(c => c.id === i.customerId);
+          const bal = getInvBalance(i);
+          const wo = getInvWrittenOff(i.id);
+          const isOverdue = i.dueDate && i.dueDate < today();
+          return [
+            React.createElement("span", { style: { fontFamily: "'DM Mono',monospace", fontSize: 11 } }, i.id),
+            React.createElement("span", { style: { fontWeight: 600 } }, (cust === null || cust === void 0 ? void 0 : cust.name) || i.customerId),
+            i.date || "—",
+            React.createElement("span", { style: { color: isOverdue ? "#ef4444" : "inherit", fontWeight: isOverdue ? 700 : 400 } }, i.dueDate || "—"),
+            React.createElement("span", { style: { fontFamily: "'DM Mono',monospace" } }, fmt(i.total)),
+            React.createElement("span", { style: { fontFamily: "'DM Mono',monospace", color: "#22c55e" } }, fmt(getInvPaid(i.id))),
+            React.createElement("span", { style: { fontFamily: "'DM Mono',monospace", color: "#a855f7" } }, fmt(getInvCredits(i.id))),
+            wo > 0 ? React.createElement("span", { style: { fontFamily: "'DM Mono',monospace", color: "#ef4444" } }, fmt(wo)) : "—",
+            React.createElement("span", { style: { fontFamily: "'DM Mono',monospace", fontWeight: 700, color: "#f59e0b" } }, fmt(bal)),
+            React.createElement(Btn, { size: "sm", variant: "secondary", onClick: () => { setShowWriteOff(i.id); setWoAmount(bal.toFixed(2)); setWoReason(""); }, "data-testid": "btn-writeoff-" + i.id }, "✏️ Write Off")
+          ];
+        })
+      }),
+      invoices.filter(i => i.status === "open" && getInvBalance(i) > 0.005).length === 0 && React.createElement("div", { style: { textAlign: "center", padding: 30, color: "#64748b" } }, "No open invoices with balances")),
+
+    writeOffs.length > 0 && React.createElement(Card, { title: "Write-Off History", style: { marginTop: 20 } },
+      React.createElement(DataTable, {
+        headers: ["ID", "Date", "Invoice", "Customer", "Amount", "Reason", "Status", "Action"],
+        rows: writeOffs.map(w => {
+          const cust = customers.find(c => c.id === w.customerId);
+          const isVoid = w.status === "void";
+          return [
+            React.createElement("span", { style: { fontFamily: "'DM Mono',monospace", fontSize: 11, color: isVoid ? "#94a3b8" : "inherit", textDecoration: isVoid ? "line-through" : "none" } }, w.id),
+            w.date,
+            React.createElement("span", { style: { fontFamily: "'DM Mono',monospace", fontSize: 11, textDecoration: isVoid ? "line-through" : "none" } }, w.invoiceId),
+            React.createElement("span", { style: { fontWeight: 600, color: isVoid ? "#94a3b8" : "inherit" } }, (cust === null || cust === void 0 ? void 0 : cust.name) || w.customerId),
+            React.createElement("span", { style: { fontFamily: "'DM Mono',monospace", fontWeight: 700, color: isVoid ? "#94a3b8" : "#ef4444", textDecoration: isVoid ? "line-through" : "none" } }, fmt(w.amount)),
+            React.createElement("span", { style: { fontSize: 12, color: isVoid ? "#94a3b8" : "#64748b" } }, w.reason),
+            React.createElement(Badge, { text: isVoid ? "VOID" : "Active", color: isVoid ? "#94a3b8" : "#22c55e" }),
+            !isVoid ? React.createElement(Btn, { size: "sm", variant: "secondary", onClick: () => voidWriteOff(w.id), "data-testid": "btn-void-wo-" + w.id }, "Void") : React.createElement("span", { style: { fontSize: 10, color: "#94a3b8" } }, w.voidDate || "")
+          ];
+        })
+      }))),
+
+  showWriteOff && React.createElement(Modal, {
+    title: "✏️ Write Off Balance — " + showWriteOff,
+    onClose: () => { setShowWriteOff(null); setWoReason(""); setWoAmount(""); },
+    width: 500
+  }, (() => {
+    const inv = invoices.find(i => i.id === showWriteOff);
+    if (!inv) return React.createElement("div", null, "Invoice not found");
+    const cust = customers.find(c => c.id === inv.customerId);
+    const bal = getInvBalance(inv);
+    return React.createElement(React.Fragment, null,
+      React.createElement("div", { style: { background: "#1a2030", borderRadius: 8, padding: 16, marginBottom: 16 } },
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
+          React.createElement("div", null,
+            React.createElement("div", { style: { fontSize: 10, color: "#94a3b8", textTransform: "uppercase", fontWeight: 700 } }, "Invoice"),
+            React.createElement("div", { style: { fontSize: 16, fontWeight: 700, color: "#e2e8f0", fontFamily: "'DM Mono',monospace" } }, inv.id)),
+          React.createElement("div", null,
+            React.createElement("div", { style: { fontSize: 10, color: "#94a3b8", textTransform: "uppercase", fontWeight: 700 } }, "Customer"),
+            React.createElement("div", { style: { fontSize: 14, fontWeight: 600, color: "#e2e8f0" } }, (cust === null || cust === void 0 ? void 0 : cust.name) || inv.customerId)),
+          React.createElement("div", null,
+            React.createElement("div", { style: { fontSize: 10, color: "#94a3b8", textTransform: "uppercase", fontWeight: 700 } }, "Invoice Total"),
+            React.createElement("div", { style: { fontSize: 14, fontWeight: 700, color: "#e2e8f0", fontFamily: "'DM Mono',monospace" } }, fmt(inv.total))),
+          React.createElement("div", null,
+            React.createElement("div", { style: { fontSize: 10, color: "#94a3b8", textTransform: "uppercase", fontWeight: 700 } }, "Remaining Balance"),
+            React.createElement("div", { style: { fontSize: 20, fontWeight: 800, color: "#f59e0b", fontFamily: "'DM Mono',monospace" } }, fmt(bal))))),
+      React.createElement("div", { style: { marginBottom: 14 } },
+        React.createElement("label", { style: { display: "block", fontSize: 11, color: "#94a3b8", fontWeight: 600, marginBottom: 4 } }, "Write-Off Amount"),
+        React.createElement("input", {
+          type: "number", step: "0.01", value: woAmount,
+          onChange: e => setWoAmount(e.target.value),
+          "data-testid": "input-wo-amount",
+          style: { width: "100%", background: "#0f1117", border: "1px solid #2d3748", borderRadius: 6, padding: "10px 12px", color: "#e2e8f0", fontSize: 16, fontWeight: 700, fontFamily: "'DM Mono',monospace" }
+        }),
+        Number(woAmount) > bal && React.createElement("div", { style: { fontSize: 11, color: "#ef4444", marginTop: 4 } }, "Amount exceeds remaining balance of " + fmt(bal))),
+      React.createElement("div", { style: { marginBottom: 14 } },
+        React.createElement("label", { style: { display: "block", fontSize: 11, color: "#94a3b8", fontWeight: 600, marginBottom: 4 } }, "Reason"),
+        React.createElement("select", {
+          value: woReason, onChange: e => setWoReason(e.target.value),
+          "data-testid": "select-wo-reason",
+          style: { width: "100%", background: "#0f1117", border: "1px solid #2d3748", borderRadius: 6, padding: "10px 12px", color: "#e2e8f0", fontSize: 13, marginBottom: 8 }
+        },
+          React.createElement("option", { value: "" }, "Select reason..."),
+          React.createElement("option", { value: "Uncollectable" }, "Uncollectable"),
+          React.createElement("option", { value: "Customer dispute" }, "Customer dispute"),
+          React.createElement("option", { value: "Damaged goods" }, "Damaged goods"),
+          React.createElement("option", { value: "Pricing error" }, "Pricing error"),
+          React.createElement("option", { value: "Small balance" }, "Small balance write-off"),
+          React.createElement("option", { value: "Goodwill adjustment" }, "Goodwill adjustment"),
+          React.createElement("option", { value: "Other" }, "Other")),
+        woReason === "Other" && React.createElement("input", {
+          placeholder: "Enter reason...",
+          onChange: e => setWoReason(e.target.value),
+          style: { width: "100%", background: "#0f1117", border: "1px solid #2d3748", borderRadius: 6, padding: "10px 12px", color: "#e2e8f0", fontSize: 13 }
+        })),
+      React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 } },
+        React.createElement("div", { style: { display: "flex", gap: 8 } },
+          React.createElement(Btn, { variant: "secondary", size: "sm", onClick: () => { setWoAmount(bal.toFixed(2)); } }, "Write Off Full Balance")),
+        React.createElement("div", { style: { display: "flex", gap: 8 } },
+          React.createElement(Btn, { variant: "secondary", onClick: () => { setShowWriteOff(null); setWoReason(""); setWoAmount(""); } }, "Cancel"),
+          React.createElement(Btn, {
+            onClick: commitWriteOff,
+            disabled: !woAmount || Number(woAmount) <= 0 || Number(woAmount) > bal,
+            "data-testid": "btn-confirm-writeoff",
+            style: { background: "#ef4444" }
+          }, "✏️ Confirm Write-Off"))));
+  })()),
+
+  showPayForm && /*#__PURE__*/React.createElement(Modal, {
     title: `💰 Receive Payment — ${((_customers$find1 = customers.find(c => c.id === payForm.customerId)) === null || _customers$find1 === void 0 ? void 0 : _customers$find1.name) || "Select Customer"}`,
     onClose: () => setShowPayForm(false),
     width: 800
