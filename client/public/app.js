@@ -2858,7 +2858,15 @@ function App() {
   const [creditMemos, setCreditMemos] = useState(init("creditMemos", initialCreditMemos));
   const [deliveries, setDeliveries] = useState(init("deliveries", initialDeliveries));
   const [productionRuns, setProductionRuns] = useState(init("productionRuns", []));
-  const [receipts, setReceipts] = useState(init("receipts", []));
+  const [receipts, setReceipts] = useState(() => {
+    const all = init("receipts", []);
+    const removeIds = ["RCT-107327", "RCT-413797"];
+    const cleaned = all.filter(r => !removeIds.includes(r.id));
+    if (cleaned.length < all.length) {
+      fetch("/api/data/receipts", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cleaned) });
+    }
+    return cleaned;
+  });
   const [arPayments, setArPayments] = useState(init("arPayments", []));
   const [arDeposits, setArDeposits] = useState(init("arDeposits", []));
   const [arWriteOffs, setArWriteOffs] = useState(init("arWriteOffs", []));

@@ -76,6 +76,24 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/data/:tableName/:recordId", async (req, res) => {
+    const { tableName, recordId } = req.params;
+    if (!VALID_TABLES.includes(tableName) || tableName === "settings") {
+      return res.status(400).json({ error: "Invalid table name" });
+    }
+    try {
+      const data = await storage.getTableData(tableName);
+      if (!Array.isArray(data)) return res.status(400).json({ error: "Not an array table" });
+      const filtered = data.filter((r: any) => r.id !== recordId);
+      if (filtered.length === data.length) return res.status(404).json({ error: "Record not found" });
+      await storage.setTableData(tableName, filtered);
+      res.json({ success: true, deleted: recordId, remaining: filtered.length });
+    } catch (e: any) {
+      console.error(`Error deleting from ${tableName}:`, e);
+      res.status(500).json({ error: `Failed to delete from ${tableName}` });
+    }
+  });
+
   app.put("/api/data", async (req, res) => {
     if (typeof req.body !== "object" || req.body === null || Array.isArray(req.body)) {
       return res.status(400).json({ error: "Request body must be an object" });
