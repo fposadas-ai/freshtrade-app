@@ -2949,13 +2949,15 @@ function App() {
     };
     const focusSearch = () => {
       const all = Array.from(document.querySelectorAll("[data-hotkey-search]"));
-      const el = all.length > 1 ? all.find(inp => {
+      const visible = all.filter(inp => {
         const r = inp.getBoundingClientRect();
         return r.width > 0 && r.height > 0 && r.top >= 0 && r.top < window.innerHeight;
-      }) || all[0] : all[0];
+      });
+      const inModal = visible.filter(inp => inp.closest("[style*='position: fixed'], [style*='position:fixed']"));
+      const el = inModal.length > 0 ? inModal[inModal.length - 1] : visible.length > 0 ? visible[visible.length - 1] : all[0];
       if (el) {
         el.focus();
-        el.setSelectionRange(0, el.value.length);
+        if (el.setSelectionRange) el.setSelectionRange(0, el.value.length);
       }
     };
     const handler = e => {
@@ -7816,6 +7818,56 @@ function buildSOConfirmationText(so, customer, products, settings) {
   return text;
 }
 
+function SOAddProductSearch({ products, existingIds, onAdd }) {
+  const [q, setQ] = useState("");
+  const [idx, setIdx] = useState(0);
+  const [open, setOpen] = useState(false);
+  const inputRef = useRef(null);
+  const available = products.filter(p => !existingIds.includes(p.id));
+  const matches = q.trim().length >= 1 ? available.filter(p => {
+    const s = q.toLowerCase();
+    return (p.name || "").toLowerCase().includes(s) || (p.id || "").toLowerCase().includes(s) || (p.category || "").toLowerCase().includes(s);
+  }).slice(0, 12) : [];
+  const handleKey = e => {
+    if (e.key === "ArrowDown") { e.preventDefault(); setIdx(i => Math.min(i + 1, matches.length - 1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setIdx(i => Math.max(i - 1, 0)); }
+    else if (e.key === "Enter" && matches.length > 0) {
+      e.preventDefault();
+      const sel = matches[idx];
+      if (sel) { onAdd(sel.id); setQ(""); setIdx(0); setOpen(false); }
+    }
+    else if (e.key === "Escape") { setQ(""); setOpen(false); inputRef.current && inputRef.current.blur(); }
+  };
+  return React.createElement("div", { style: { position: "relative", padding: "8px 0", borderBottom: "1px solid #151821", marginTop: 4 } },
+    React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center" } },
+      React.createElement("input", {
+        ref: inputRef,
+        value: q,
+        onChange: e => { setQ(e.target.value); setIdx(0); setOpen(true); },
+        onFocus: () => setOpen(true),
+        onBlur: () => setTimeout(() => setOpen(false), 200),
+        onKeyDown: handleKey,
+        placeholder: "Type to search & add product... (F2)",
+        "data-hotkey-search": true,
+        "data-testid": "input-so-add-search",
+        style: { flex: 1, background: "#0f1117", border: "1px dashed #22c55e44", borderRadius: 6, padding: "8px 12px", color: "#e2e8f0", fontSize: 13 }
+      }),
+      React.createElement("span", { style: { fontSize: 11, color: "#475569" } }, available.length, " available")),
+    open && matches.length > 0 && React.createElement("div", {
+      style: { position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50, background: "#1a2236", border: "1px solid #334155", borderRadius: 8, maxHeight: 280, overflowY: "auto", boxShadow: "0 8px 24px rgba(0,0,0,0.5)" }
+    }, matches.map((p, i) => React.createElement("div", {
+      key: p.id,
+      onMouseDown: () => { onAdd(p.id); setQ(""); setIdx(0); setOpen(false); },
+      style: { padding: "8px 12px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center",
+        background: i === idx ? "#22c55e22" : "transparent",
+        borderBottom: "1px solid #1e2535" }
+    },
+      React.createElement("span", { style: { fontWeight: 600, color: i === idx ? "#22c55e" : "#e2e8f0", fontSize: 13 } }, p.name),
+      React.createElement("span", { style: { fontSize: 11, color: "#64748b" } },
+        p.category, " · ", (p.catchWeight || p.fixedWeight) ? "⚖ CW" : p.billedBy === "PIECE" ? "pc" : "cs",
+        p.stockCases > 0 ? " · " + p.stockCases + " in stock" : "")))));
+}
+
 function SalesOrders({
   salesOrders,
   setSalesOrders,
@@ -9764,48 +9816,11 @@ function SalesOrders({
           fontWeight: eLine.customName ? 600 : 400
         }
       })), lookupPanel);
+    }), React.createElement(SOAddProductSearch, {
+      products: products,
+      existingIds: editingSO.lines.map(l => l.productId).filter(Boolean),
+      onAdd: pid => addSOLine(pid)
     }), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        gap: 6,
-        alignItems: "center",
-        padding: "8px 0",
-        borderBottom: "1px solid #151821",
-        marginTop: 4
-      }
-    }, /*#__PURE__*/React.createElement("select", {
-      id: "soAddProduct",
-      defaultValue: "",
-      style: {
-        flex: 1,
-        background: "#0f1117",
-        border: "1px dashed #22c55e44",
-        borderRadius: 6,
-        padding: "6px 8px",
-        color: "#e2e8f0",
-        fontSize: 13
-      }
-    }, /*#__PURE__*/React.createElement("option", {
-      value: "",
-      disabled: true
-    }, "+ Select product to add..."), products.filter(p => !editingSO.lines.find(l => l.productId === p.id)).map(p => /*#__PURE__*/React.createElement("option", {
-      key: p.id,
-      value: p.id
-    }, p.name, " (", p.category, ") ", p.catchWeight || p.fixedWeight ? "⚖" : ""))), /*#__PURE__*/React.createElement(Btn, {
-      size: "sm",
-      onClick: () => {
-        const sel = document.getElementById("soAddProduct");
-        if (sel.value) {
-          addSOLine(sel.value);
-          sel.value = "";
-        }
-      },
-      style: {
-        background: "#22c55e",
-        color: "#000",
-        flexShrink: 0
-      }
-    }, "+ Add Item")), /*#__PURE__*/React.createElement("div", {
       style: {
         borderTop: "2px solid #334155",
         paddingTop: 14,
@@ -13659,48 +13674,11 @@ function Invoices({
           fontStyle: eLine.description ? "normal" : "italic"
         }
       }));
+    }), React.createElement(SOAddProductSearch, {
+      products: products,
+      existingIds: editingInv.lines.map(l => l.productId).filter(Boolean),
+      onAdd: pid => addInvLine(pid)
     }), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        gap: 6,
-        alignItems: "center",
-        padding: "8px 0",
-        borderBottom: "1px solid #151821",
-        marginTop: 4
-      }
-    }, /*#__PURE__*/React.createElement("select", {
-      id: "invAddProduct",
-      defaultValue: "",
-      style: {
-        flex: 1,
-        background: "#0f1117",
-        border: "1px dashed #22c55e44",
-        borderRadius: 6,
-        padding: "6px 8px",
-        color: "#e2e8f0",
-        fontSize: 12
-      }
-    }, /*#__PURE__*/React.createElement("option", {
-      value: "",
-      disabled: true
-    }, "+ Select product to add..."), products.filter(p => !editingInv.lines.find(l => l.productId === p.id)).map(p => /*#__PURE__*/React.createElement("option", {
-      key: p.id,
-      value: p.id
-    }, p.name, " (", p.category, ") ", p.catchWeight ? "⚖" : ""))), /*#__PURE__*/React.createElement(Btn, {
-      size: "sm",
-      onClick: () => {
-        const sel = document.getElementById("invAddProduct");
-        if (sel.value) {
-          addInvLine(sel.value);
-          sel.value = "";
-        }
-      },
-      style: {
-        background: "#22c55e",
-        color: "#000",
-        flexShrink: 0
-      }
-    }, "+ Add Item")), /*#__PURE__*/React.createElement("div", {
       style: {
         borderTop: "2px solid #334155",
         paddingTop: 14,
