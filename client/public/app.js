@@ -14649,7 +14649,7 @@ function Invoices({
         setDeleteRcptTarget(null);
       }
     }, "Delete Receipt"))));
-  })()), showRcptStmt && /*#__PURE__*/React.createElement(Modal, {
+  })(), showRcptStmt && /*#__PURE__*/React.createElement(Modal, {
     title: "Receipt Statement",
     onClose: () => setShowRcptStmt(false),
     width: 500
@@ -15276,7 +15276,7 @@ function Invoices({
       setShowImportInv(false);
       showToast(newInvs.length + " invoice" + (newInvs.length !== 1 ? "s" : "") + " imported");
     }
-  }, "Import Invoices"))));
+  }, "Import Invoices")))));
 }
 
 // ============================================================
