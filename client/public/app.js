@@ -2941,23 +2941,30 @@ function App() {
   // ── GLOBAL KEYBOARD SHORTCUTS ──
   const [showHotkeys, setShowHotkeys] = useState(false);
   useEffect(() => {
+    const inInput = () => {
+      const ae = document.activeElement;
+      if (!ae) return false;
+      const tag = ae.tagName;
+      return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || ae.isContentEditable;
+    };
     const handler = e => {
-      if (e.key === "F5") {
+      if (e.key === "/" && !inInput()) {
         e.preventDefault();
         const el = document.querySelector("[data-hotkey-search]");
         if (el) { el.focus(); el.select && el.select(); }
       }
-      if (e.key === "F2") {
+      if ((e.key === "F2" || (e.key === "k" && (e.ctrlKey || e.metaKey))) && !e.shiftKey) {
         e.preventDefault();
-        const el = document.querySelector("[data-hotkey-add]");
+        const el = document.querySelector("[data-hotkey-search]");
         if (el) { el.focus(); el.select && el.select(); }
       }
-      if (e.key === "F1") {
+      if (e.key === "?" && !inInput()) {
         e.preventDefault();
         setShowHotkeys(v => !v);
       }
-      if (e.key === "Escape" && showHotkeys) {
-        setShowHotkeys(false);
+      if (e.key === "Escape") {
+        if (showHotkeys) { setShowHotkeys(false); return; }
+        if (inInput()) { document.activeElement.blur(); }
       }
     };
     window.addEventListener("keydown", handler);
@@ -3396,9 +3403,11 @@ function App() {
   React.createElement("div", {
     onClick: () => setShowHotkeys(true),
     style: { cursor: "pointer", display: "flex", alignItems: "center", gap: 6, marginBottom: 6, padding: "3px 6px", borderRadius: 4, background: "#0f1729", border: "1px solid #1e2d44" }
-  }, React.createElement("kbd", { style: { fontSize: 10, fontWeight: 700, color: "#22c55e", fontFamily: "'DM Mono',monospace" } }, "F1"),
-     React.createElement("span", { style: { fontSize: 10, color: "#64748b" } }, "Keyboard shortcuts"),
-     React.createElement("kbd", { style: { fontSize: 10, fontWeight: 700, color: "#22c55e", fontFamily: "'DM Mono',monospace", marginLeft: "auto" } }, "F5"),
+  }, React.createElement("kbd", { style: { fontSize: 10, fontWeight: 700, color: "#22c55e", fontFamily: "'DM Mono',monospace" } }, "?"),
+     React.createElement("span", { style: { fontSize: 10, color: "#64748b" } }, "Shortcuts"),
+     React.createElement("kbd", { style: { fontSize: 10, fontWeight: 700, color: "#22c55e", fontFamily: "'DM Mono',monospace", marginLeft: "auto" } }, "/"),
+     React.createElement("span", { style: { fontSize: 10, color: "#64748b" } }, "Search"),
+     React.createElement("kbd", { style: { fontSize: 10, fontWeight: 700, color: "#22c55e", fontFamily: "'DM Mono',monospace", marginLeft: 6 } }, "F2"),
      React.createElement("span", { style: { fontSize: 10, color: "#64748b" } }, "Search")),
   /*#__PURE__*/React.createElement("div", {
     style: {
@@ -3700,13 +3709,14 @@ function App() {
     React.createElement("div", { style: { fontSize: 18, fontWeight: 800, color: "#e2e8f0", marginBottom: 4 } }, "\u2328\uFE0F Keyboard Shortcuts"),
     React.createElement("div", { style: { fontSize: 11, color: "#64748b", marginBottom: 20 } }, "Speed up your workflow — no mouse needed"),
     [
-      { key: "F1", desc: "Toggle this help panel" },
-      { key: "F5", desc: "Jump to search / filter" },
-      { key: "F2", desc: "Jump to quick-add product" },
+      { key: "?", desc: "Toggle this help panel" },
+      { key: "/", desc: "Jump to search / filter" },
+      { key: "F2", desc: "Jump to search (works from anywhere)" },
+      { key: "Ctrl+K", desc: "Jump to search (alternate)" },
       { key: "Enter", desc: "Confirm / submit" },
       { key: "Tab", desc: "Move to quantity after selecting product" },
       { key: "\u2191 \u2193", desc: "Navigate product suggestions" },
-      { key: "Esc", desc: "Close panel / clear search" }
+      { key: "Esc", desc: "Close panel / deselect field" }
     ].map(s => React.createElement("div", { key: s.key, style: { display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: "1px solid #1e2d44" } },
       React.createElement("kbd", { style: { display: "inline-block", minWidth: 50, textAlign: "center", padding: "4px 10px", background: "#0f1729", border: "1px solid #334155", borderRadius: 6, color: "#22c55e", fontSize: 12, fontWeight: 700, fontFamily: "'DM Mono',monospace" } }, s.key),
       React.createElement("span", { style: { fontSize: 13, color: "#94a3b8" } }, s.desc))),
@@ -4605,7 +4615,7 @@ const SpreadsheetGrid = ({
       flex: "0 0 220px"
     }
   }, /*#__PURE__*/React.createElement("input", {
-    placeholder: "Filter items... (F5)",
+    placeholder: "Filter items... ( / or F2)",
     value: search,
     "data-hotkey-search": true,
     onChange: e => setSearch(e.target.value),
@@ -8288,7 +8298,7 @@ function SalesOrders({
     value: search,
     "data-hotkey-search": true,
     onChange: e => setSearch(e.target.value),
-    placeholder: "Search orders... (F5)",
+    placeholder: "Search orders... ( / or F2)",
     style: {
       width: "100%",
       background: "#1e2535",
@@ -11052,7 +11062,7 @@ function Invoices({
     value: search,
     "data-hotkey-search": true,
     onChange: e => setSearch(e.target.value),
-    placeholder: "Search invoices... (F5)",
+    placeholder: "Search invoices... ( / or F2)",
     style: {
       width: "100%",
       background: "#1e2535",
@@ -18024,7 +18034,7 @@ function Purchasing({
     name: "search",
     size: 14
   })), /*#__PURE__*/React.createElement("input", {
-    placeholder: "Search products... (F5)",
+    placeholder: "Search products... ( / or F2)",
     "data-hotkey-search": true,
     value: batchSearch,
     onChange: e => setBatchSearch(e.target.value),
@@ -20635,7 +20645,7 @@ function Inventory({
     value: search,
     "data-hotkey-search": true,
     onChange: e => setSearch(e.target.value),
-    placeholder: "Search products... (F5)",
+    placeholder: "Search products... ( / or F2)",
     style: {
       width: "100%",
       background: "#1e2535",
@@ -23516,7 +23526,7 @@ function Customers({
     value: search,
     "data-hotkey-search": true,
     onChange: e => setSearch(e.target.value),
-    placeholder: "Search customers... (F5)",
+    placeholder: "Search customers... ( / or F2)",
     style: {
       width: "100%",
       background: "#1e2535",
@@ -29373,7 +29383,7 @@ function PortalManager({
     value: search,
     "data-hotkey-search": true,
     onChange: e => setSearch(e.target.value),
-    placeholder: "Search customers... (F5)",
+    placeholder: "Search customers... ( / or F2)",
     style: {
       width: "100%",
       background: "#1e2535",
