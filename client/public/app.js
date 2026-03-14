@@ -4550,21 +4550,36 @@ const SpreadsheetGrid = ({
   };
 
   // Focus management: Enter on qty in grid moves to next row's qty
-  const handleGridQtyKey = (e, pid, ri) => {
-    if (e.key === "Enter") {
-      var _tableRef$current;
+  const handleGridCellKey = (e, pid, fieldName) => {
+    const tbl = tableRef.current;
+    if (!tbl) return;
+    const rows = Array.from(tbl.querySelectorAll("tr[data-pid]"));
+    const curIdx = rows.findIndex(r => r.dataset.pid === pid);
+    if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter" && fieldName === "qty") {
       e.preventDefault();
-      const nextRow = (_tableRef$current = tableRef.current) === null || _tableRef$current === void 0 ? void 0 : _tableRef$current.querySelectorAll("tr[data-pid]");
-      if (nextRow) {
-        for (let i = 0; i < nextRow.length; i++) {
-          if (nextRow[i].dataset.pid === pid && nextRow[i + 1]) {
-            const nxt = nextRow[i + 1].querySelector("input[data-field='qty']");
-            if (nxt) {
-              nxt.focus();
-              nxt.select();
-            }
-            break;
-          }
+      e.stopPropagation();
+      const nextIdx = (e.key === "ArrowUp") ? curIdx - 1 : curIdx + 1;
+      if (nextIdx >= 0 && nextIdx < rows.length) {
+        const targetField = fieldName || "qty";
+        let nxt = rows[nextIdx].querySelector(`input[data-field='${targetField}']`);
+        if (!nxt) nxt = rows[nextIdx].querySelector("input[type='number']");
+        if (nxt) { nxt.focus(); nxt.select(); }
+      }
+    } else if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+      const inp = e.target;
+      const val = String(inp.value);
+      const atEnd = inp.selectionStart >= val.length;
+      const atStart = inp.selectionStart === 0 && inp.selectionEnd === 0;
+      if (e.key === "ArrowRight" && atEnd || e.key === "ArrowLeft" && atStart) {
+        const row = inp.closest("tr[data-pid]");
+        if (!row) return;
+        const inputs = Array.from(row.querySelectorAll("input[type='number']"));
+        const ci = inputs.indexOf(inp);
+        const ni = e.key === "ArrowRight" ? ci + 1 : ci - 1;
+        if (ni >= 0 && ni < inputs.length) {
+          e.preventDefault();
+          inputs[ni].focus();
+          inputs[ni].select();
         }
       }
     } else if (e.key === "Escape") {
@@ -4572,6 +4587,7 @@ const SpreadsheetGrid = ({
       (_addSearchRef$current3 = addSearchRef.current) === null || _addSearchRef$current3 === void 0 || _addSearchRef$current3.focus();
     }
   };
+  const handleGridQtyKey = (e, pid, ri) => handleGridCellKey(e, pid, "qty");
   return /*#__PURE__*/React.createElement("div", {
     className: "sg-grid",
     style: {
@@ -5138,9 +5154,11 @@ const SpreadsheetGrid = ({
       return /*#__PURE__*/React.createElement("input", {
         type: "number",
         step: "0.01",
+        "data-field": "price",
         value: getLineVal(p.id, isWB ? "pricePerLb" : "priceEach") || (hasLine ? "" : ""),
         placeholder: basePrice.toFixed(2),
         onChange: e => updateLine(p.id, isWB ? "pricePerLb" : "priceEach", e.target.value ? Number(e.target.value) : basePrice),
+        onKeyDown: e => handleGridCellKey(e, p.id, "price"),
         style: {
           ...cellIn,
           fontWeight: 600,
@@ -5157,12 +5175,14 @@ const SpreadsheetGrid = ({
     }, p.catchWeight || p.fixedWeight ? /*#__PURE__*/React.createElement("input", {
       type: "number",
       step: "0.1",
+      "data-field": "estWeight",
       value: getLineVal(p.id, "estWeight") || "",
       placeholder: qty > 0 ? (() => {
         const u = getLineVal(p.id, "unit") || "CS";
         return (u === "CS" ? p.fixedWeight ? p.caseWeightLbs : p.avgWeightPerCase : p.fixedWeight ? p.weightPerPack || 0 : p.avgWeightPerPiece || 0) * qty;
       })().toFixed(1) : "—",
       onChange: e => updateLine(p.id, "estWeight", e.target.value ? Number(e.target.value) : null),
+      onKeyDown: e => handleGridCellKey(e, p.id, "estWeight"),
       style: {
         ...cellIn,
         fontWeight: 600,
@@ -5185,12 +5205,14 @@ const SpreadsheetGrid = ({
     }, p.catchWeight || p.fixedWeight ? /*#__PURE__*/React.createElement("input", {
       type: "number",
       step: "0.01",
+      "data-field": "nominalWeight",
       value: getLineVal(p.id, "nominalWeight") || "",
       placeholder: qty > 0 ? (() => {
         const u = getLineVal(p.id, "unit") || "CS";
         return (u === "CS" ? p.fixedWeight ? p.caseWeightLbs : p.avgWeightPerCase : p.fixedWeight ? p.weightPerPack || 0 : p.avgWeightPerPiece || 0) * qty;
       })().toFixed(1) : "—",
       onChange: e => updateLine(p.id, "nominalWeight", e.target.value ? Number(e.target.value) : null),
+      onKeyDown: e => handleGridCellKey(e, p.id, "nominalWeight"),
       style: {
         ...cellIn,
         fontWeight: 600,
@@ -5214,9 +5236,11 @@ const SpreadsheetGrid = ({
     }, p.catchWeight || p.fixedWeight ? /*#__PURE__*/React.createElement("input", {
       type: "number",
       step: "0.01",
+      "data-field": "actualWeight",
       value: getLineVal(p.id, "actualWeight") || "",
       placeholder: p.fixedWeight ? "fixed" : "weigh",
       onChange: e => updateLine(p.id, "actualWeight", e.target.value ? Number(e.target.value) : null),
+      onKeyDown: e => handleGridCellKey(e, p.id, "actualWeight"),
       style: {
         ...qtyIn,
         fontSize: 15,
@@ -5239,9 +5263,11 @@ const SpreadsheetGrid = ({
     }, /*#__PURE__*/React.createElement("input", {
       type: "number",
       step: "0.01",
+      "data-field": "costPerUnit",
       value: getLineVal(p.id, "costPerUnit") || "",
       placeholder: "TBD",
       onChange: e => updateLine(p.id, "costPerUnit", e.target.value ? Number(e.target.value) : null),
+      onKeyDown: e => handleGridCellKey(e, p.id, "costPerUnit"),
       style: {
         ...qtyIn,
         fontSize: 15,
