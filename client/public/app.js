@@ -7836,8 +7836,11 @@ function SOAddProductSearch({ products, existingIds, onAdd }) {
     }
   }, [idx]);
   const handleKey = e => {
-    if (e.key === "ArrowDown") { e.preventDefault(); e.stopPropagation(); setIdx(i => Math.min(i + 1, matches.length - 1)); }
-    else if (e.key === "ArrowUp") { e.preventDefault(); e.stopPropagation(); setIdx(i => Math.max(i - 1, 0)); }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault(); e.stopPropagation();
+      if (e.key === "ArrowDown") setIdx(i => { const n = Math.min(i + 1, matches.length - 1); console.log("Arrow DOWN idx:", i, "->", n, "matches:", matches.length); return n; });
+      else setIdx(i => { const n = Math.max(i - 1, 0); console.log("Arrow UP idx:", i, "->", n); return n; });
+    }
     else if (e.key === "Enter" && matches.length > 0) {
       e.preventDefault(); e.stopPropagation();
       const sel = matches[idx];
@@ -7867,12 +7870,12 @@ function SOAddProductSearch({ products, existingIds, onAdd }) {
       key: p.id,
       onMouseDown: () => { onAdd(p.id); setQ(""); setIdx(0); },
       style: { padding: "8px 12px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center",
-        background: i === idx ? "#22c55e33" : "transparent",
-        borderLeft: i === idx ? "3px solid #22c55e" : "3px solid transparent",
+        background: i === idx ? "#22c55e" : "transparent",
+        borderLeft: i === idx ? "4px solid #fff" : "4px solid transparent",
         borderBottom: "1px solid #1e2535",
         transition: "background 0.1s" }
     }, i === idx ? { "data-active-item": true } : {}),
-      React.createElement("span", { style: { fontWeight: 600, color: i === idx ? "#22c55e" : "#e2e8f0", fontSize: 13 } }, p.name),
+      React.createElement("span", { style: { fontWeight: 600, color: i === idx ? "#000" : "#e2e8f0", fontSize: 13 } }, p.name),
       React.createElement("span", { style: { fontSize: 11, color: "#64748b" } },
         p.category, " · ", (p.catchWeight || p.fixedWeight) ? "⚖ CW" : p.billedBy === "PIECE" ? "pc" : "cs",
         p.stockCases > 0 ? " · " + p.stockCases + " in stock" : "")))));
