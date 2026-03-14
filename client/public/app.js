@@ -7818,6 +7818,33 @@ function buildSOConfirmationText(so, customer, products, settings) {
   return text;
 }
 
+function soGridNav(e, lineIdx, colName) {
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    e.stopPropagation();
+    const nextRow = e.key === "ArrowDown" ? lineIdx + 1 : lineIdx - 1;
+    const next = document.querySelector(`[data-so-cell="${colName}-${nextRow}"]`);
+    if (next) { next.focus(); next.select && next.select(); }
+  }
+  if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+    const inp = e.target;
+    const atEnd = inp.selectionStart === inp.value.length;
+    const atStart = inp.selectionStart === 0 && inp.selectionEnd === 0;
+    const cols = ["qty", "weight", "price"];
+    const ci = cols.indexOf(colName);
+    if (e.key === "ArrowRight" && atEnd && ci < cols.length - 1) {
+      e.preventDefault();
+      const next = document.querySelector(`[data-so-cell="${cols[ci + 1]}-${lineIdx}"]`);
+      if (next) { next.focus(); next.select && next.select(); }
+    }
+    if (e.key === "ArrowLeft" && atStart && ci > 0) {
+      e.preventDefault();
+      const next = document.querySelector(`[data-so-cell="${cols[ci - 1]}-${lineIdx}"]`);
+      if (next) { next.focus(); next.select && next.select(); }
+    }
+  }
+}
+
 function SOAddProductSearch({ products, existingIds, onAdd }) {
   const [q, setQ] = useState("");
   const [idx, setIdx] = useState(0);
@@ -7838,8 +7865,8 @@ function SOAddProductSearch({ products, existingIds, onAdd }) {
   const handleKey = e => {
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault(); e.stopPropagation();
-      if (e.key === "ArrowDown") setIdx(i => { const n = Math.min(i + 1, matches.length - 1); console.log("Arrow DOWN idx:", i, "->", n, "matches:", matches.length); return n; });
-      else setIdx(i => { const n = Math.max(i - 1, 0); console.log("Arrow UP idx:", i, "->", n); return n; });
+      if (e.key === "ArrowDown") setIdx(i => Math.min(i + 1, matches.length - 1));
+      else setIdx(i => Math.max(i - 1, 0));
     }
     else if (e.key === "Enter" && matches.length > 0) {
       e.preventDefault(); e.stopPropagation();
@@ -9726,6 +9753,9 @@ function SalesOrders({
         min: "0",
         value: eLine.qty,
         onChange: e => updateLine(i, "qty", Number(e.target.value) || 0),
+        onKeyDown: e => soGridNav(e, i, "qty"),
+        "data-so-cell": `qty-${i}`,
+        "data-testid": `input-so-qty-${i}`,
         style: {
           background: "#0f1117",
           border: "2px solid #3b82f6",
@@ -9742,6 +9772,9 @@ function SalesOrders({
         step: "0.1",
         value: eLine.estWeight || "",
         onChange: e => updateLine(i, "estWeight", Number(e.target.value) || 0),
+        onKeyDown: e => soGridNav(e, i, "weight"),
+        "data-so-cell": `weight-${i}`,
+        "data-testid": `input-so-weight-${i}`,
         placeholder: "lbs",
         style: {
           background: "#0f1117",
@@ -9766,6 +9799,9 @@ function SalesOrders({
         onChange: e => {
           if (isCW) updateLine(i, "pricePerLb", Number(e.target.value) || 0);else updateLine(i, "priceEach", Number(e.target.value) || 0);
         },
+        onKeyDown: e => soGridNav(e, i, "price"),
+        "data-so-cell": `price-${i}`,
+        "data-testid": `input-so-price-${i}`,
         style: {
           background: "#0f1117",
           border: "1px solid #2d3748",
@@ -13587,6 +13623,8 @@ function Invoices({
         min: "0",
         value: eLine.qty,
         onChange: e => updateInvLine(i, "qty", Number(e.target.value) || 0),
+        onKeyDown: e => soGridNav(e, i, "qty"),
+        "data-so-cell": `qty-${i}`,
         style: {
           background: "#0f1117",
           border: "2px solid #3b82f6",
@@ -13603,6 +13641,8 @@ function Invoices({
         step: "0.01",
         value: eLine.actualWeight || "",
         onChange: e => updateInvLine(i, "actualWeight", Number(e.target.value) || 0),
+        onKeyDown: e => soGridNav(e, i, "weight"),
+        "data-so-cell": `weight-${i}`,
         style: {
           background: "#0f1117",
           border: "1px solid #f59e0b44",
@@ -13626,6 +13666,8 @@ function Invoices({
         onChange: e => {
           if (isCW) updateInvLine(i, "pricePerLb", Number(e.target.value) || 0);else updateInvLine(i, "priceEach", Number(e.target.value) || 0);
         },
+        onKeyDown: e => soGridNav(e, i, "price"),
+        "data-so-cell": `price-${i}`,
         style: {
           background: "#0f1117",
           border: "1px solid #2d3748",
