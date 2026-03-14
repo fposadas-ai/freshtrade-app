@@ -798,7 +798,7 @@ const getCustomerOrderHistory = (custId, salesOrders, invoices) => {
 // These are used across multiple modules for consistent balance calculation
 const arGetInvPaid = (invId, arPayments) => (arPayments || []).filter(p => p.status !== "void" && p.status !== "returned").reduce((s, p) => s + (p.appliedTo || []).filter(a => a.invoiceId === invId).reduce((ss, a) => ss + a.amount, 0), 0);
 const arGetInvCredits = (invId, creditMemos) => (creditMemos || []).filter(cm => cm.invoiceId === invId && cm.status !== "void").reduce((s, cm) => s + (cm.total || 0), 0);
-const arGetInvBalance = (inv, arPayments, creditMemos) => Math.round(((inv.total || 0) - arGetInvPaid(inv.id, arPayments) - arGetInvCredits(inv.id, creditMemos)) * 100) / 100;
+const arGetInvBalance = (inv, arPayments, creditMemos) => Math.round(((inv.total || 0) - arGetInvPaid(inv.id, arPayments) - arGetInvCredits(inv.id, creditMemos) - (Number(inv.importedPaid) || 0)) * 100) / 100;
 const arGetCustBalance = (custId, invoices, arPayments, creditMemos) => (invoices || []).filter(i => i.customerId === custId && i.status === "open").reduce((s, i) => s + Math.max(0, arGetInvBalance(i, arPayments, creditMemos)), 0);
 
 // ── DOCUMENT LOCK SYSTEM (cross-tab editing protection) ──
@@ -11094,7 +11094,7 @@ function Invoices({
       variant: "secondary",
       "data-testid": "button-import-invoices",
       onClick: () => {
-        setImportInvRows([{ customerId: "", invoiceNum: "", date: today(), dueDate: "", total: "", notes: "" }]);
+        setImportInvRows([{ customerId: "", invoiceNum: "", date: today(), dueDate: "", total: "", amountPaid: "", notes: "" }]);
         setShowImportInv(true);
       }
     }, "\u2B07 Import Open Invoices")), invTab === "receipts" && /*#__PURE__*/React.createElement(Btn, {
@@ -15207,6 +15207,7 @@ function Invoices({
         const dateCol = hdrs.findIndex(h => /^date$|inv.*date|invoice.*date/i.test(h));
         const dueCol = hdrs.findIndex(h => /due|due.*date/i.test(h));
         const totalCol = hdrs.findIndex(h => /total|amount|balance|amt|due.*amt/i.test(h));
+        const paidCol = hdrs.findIndex(h => /paid|payment|amount.*paid|amt.*paid|received/i.test(h));
         const notesCol = hdrs.findIndex(h => /note|memo|desc|comment/i.test(h));
         if (custCol === -1 && totalCol === -1) { showToast("Could not find Customer or Total columns. Check your column headers."); return; }
         const parseDate = s => {
@@ -15233,6 +15234,7 @@ function Invoices({
           const custName = custCol >= 0 ? vals[custCol] || "" : "";
           const matchedCust = customers.find(c => c.name.toLowerCase() === custName.toLowerCase() || (c.code && c.code.toLowerCase() === custName.toLowerCase()));
           const totalStr = totalCol >= 0 ? (vals[totalCol] || "").replace(/[$,\s"']/g, "") : "";
+          const paidStr = paidCol >= 0 ? (vals[paidCol] || "").replace(/[$,\s"']/g, "") : "";
           if (!custName && !totalStr) continue;
           rows.push({
             customerId: matchedCust ? matchedCust.id : "",
@@ -15241,6 +15243,7 @@ function Invoices({
             date: dateCol >= 0 ? parseDate(vals[dateCol]) : today(),
             dueDate: dueCol >= 0 ? parseDate(vals[dueCol]) : "",
             total: totalStr,
+            amountPaid: paidStr,
             notes: notesCol >= 0 ? (vals[notesCol] || "").replace(/^["']|["']$/g, "").trim() : ""
           });
         }
@@ -15254,13 +15257,13 @@ function Invoices({
     }
   }))), /*#__PURE__*/React.createElement("div", {
     style: { fontSize: 11, color: "#94a3b8", lineHeight: 1.5 }
-  }, /*#__PURE__*/React.createElement("strong", null, "Expected columns:"), " Customer, Invoice #, Date, Due Date, Total, Notes", /*#__PURE__*/React.createElement("br", null), "Column headers are matched flexibly — e.g. \"Cust Name\", \"Inv #\", \"Amount Due\" all work. Customers are matched by name or code. Unmatched customers can be selected manually in the table below.")), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("strong", null, "Expected columns:"), " Customer, Invoice #, Date, Due Date, Total, Amount Paid, Notes", /*#__PURE__*/React.createElement("br", null), "Column headers are matched flexibly — e.g. \"Cust Name\", \"Inv #\", \"Amount Due\", \"Amt Paid\" all work. Customers are matched by name or code. Unmatched customers can be selected manually in the table below.")), /*#__PURE__*/React.createElement("div", {
     style: { overflowX: "auto", maxHeight: 400, overflowY: "auto" }
   }, /*#__PURE__*/React.createElement("table", {
     style: { width: "100%", borderCollapse: "collapse", fontSize: 13 }
   }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
     style: { background: "#1e293b", color: "#fff" }
-  }, /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", fontSize: 11 } }, "Customer"), /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", fontSize: 11 } }, "Invoice #"), /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", fontSize: 11 } }, "Date"), /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", fontSize: 11 } }, "Due Date"), /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "right", fontSize: 11 } }, "Total"), /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", fontSize: 11 } }, "Notes"), /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", width: 40 } }))), /*#__PURE__*/React.createElement("tbody", null, importInvRows.map((row, idx) => /*#__PURE__*/React.createElement("tr", {
+  }, /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", fontSize: 11 } }, "Customer"), /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", fontSize: 11 } }, "Invoice #"), /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", fontSize: 11 } }, "Date"), /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", fontSize: 11 } }, "Due Date"), /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "right", fontSize: 11 } }, "Total"), /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "right", fontSize: 11 } }, "Amt Paid"), /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", fontSize: 11 } }, "Notes"), /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", width: 40 } }))), /*#__PURE__*/React.createElement("tbody", null, importInvRows.map((row, idx) => /*#__PURE__*/React.createElement("tr", {
     key: idx,
     style: { borderBottom: "1px solid #e2e8f0" }
   }, /*#__PURE__*/React.createElement("td", { style: { padding: 4 } }, /*#__PURE__*/React.createElement("select", {
@@ -15295,6 +15298,14 @@ function Invoices({
     step: "0.01",
     style: { width: 110, padding: "6px 8px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13, textAlign: "right", fontFamily: "'DM Mono',monospace" }
   })), /*#__PURE__*/React.createElement("td", { style: { padding: 4 } }, /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    "data-testid": "import-inv-paid-" + idx,
+    value: row.amountPaid || "",
+    onChange: e => setImportInvRows(prev => prev.map((r, i) => i === idx ? { ...r, amountPaid: e.target.value } : r)),
+    placeholder: "0.00",
+    step: "0.01",
+    style: { width: 100, padding: "6px 8px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13, textAlign: "right", fontFamily: "'DM Mono',monospace" }
+  })), /*#__PURE__*/React.createElement("td", { style: { padding: 4 } }, /*#__PURE__*/React.createElement("input", {
     "data-testid": "import-inv-notes-" + idx,
     value: row.notes,
     onChange: e => setImportInvRows(prev => prev.map((r, i) => i === idx ? { ...r, notes: e.target.value } : r)),
@@ -15308,7 +15319,7 @@ function Invoices({
   }, /*#__PURE__*/React.createElement(Btn, {
     variant: "secondary",
     "data-testid": "button-import-add-row",
-    onClick: () => setImportInvRows(prev => [...prev, { customerId: "", invoiceNum: "", date: today(), dueDate: "", total: "", notes: "" }])
+    onClick: () => setImportInvRows(prev => [...prev, { customerId: "", invoiceNum: "", date: today(), dueDate: "", total: "", amountPaid: "", notes: "" }])
   }, "+ Add Row"), /*#__PURE__*/React.createElement("div", {
     style: { fontSize: 13, color: "#64748b" }
   }, importInvRows.filter(r => r.customerId && r.total).length, " of ", importInvRows.length, " rows ready")), /*#__PURE__*/React.createElement("div", {
@@ -15326,16 +15337,18 @@ function Invoices({
         const cust = customers.find(c => c.id === r.customerId);
         const invNum = r.invoiceNum.trim() || genId("INV");
         const total = Math.abs(Number(r.total)) || 0;
+        const paid = Math.abs(Number(r.amountPaid)) || 0;
         return {
           id: invNum,
           customerId: r.customerId,
           customerName: cust ? cust.name : "",
           date: r.date || today(),
           dueDate: r.dueDate || "",
-          status: "open",
+          status: paid >= total ? "paid" : "open",
           lines: [{ productId: null, customName: "Imported balance", qty: 1, unit: "ea", weightBased: false, priceEach: total, total: total, _misc: true }],
           subtotal: total,
           total: total,
+          importedPaid: paid > 0 ? paid : undefined,
           deliveryCharge: 0,
           gasCharge: 0,
           notes: r.notes || "",
@@ -15347,7 +15360,8 @@ function Invoices({
       if (dupeIds.length > 0) { showToast("Duplicate invoice number(s): " + dupeIds.map(d => d.id).join(", ")); return; }
       setInvoices(prev => [...newInvs, ...prev]);
       setShowImportInv(false);
-      showToast(newInvs.length + " invoice" + (newInvs.length !== 1 ? "s" : "") + " imported");
+      const paidCount = newInvs.filter(n => n.importedPaid > 0).length;
+      showToast(newInvs.length + " invoice" + (newInvs.length !== 1 ? "s" : "") + " imported" + (paidCount > 0 ? " (" + paidCount + " with payments applied)" : ""));
     }
   }, "Import Invoices")))));
 }
@@ -24557,7 +24571,7 @@ function Customers({
       const days = daysDiff(inv.date);
       const isOverdue = inv.status === "open" && days > 0;
       const lineCount = ((_inv$lines = inv.lines) === null || _inv$lines === void 0 ? void 0 : _inv$lines.length) || 0;
-      const paidAmt = arGetInvPaid(inv.id, arPayments) + arGetInvCredits(inv.id, creditMemos);
+      const paidAmt = arGetInvPaid(inv.id, arPayments) + arGetInvCredits(inv.id, creditMemos) + (Number(inv.importedPaid) || 0);
       const balance = inv.status === "voided" ? 0 : Math.max(0, arGetInvBalance(inv, arPayments, creditMemos));
       return /*#__PURE__*/React.createElement("tr", {
         key: inv.id,
@@ -34932,7 +34946,7 @@ function AccountsReceivable({
   const getInvPaid = invId => arPayments.filter(p => p.status !== "void" && p.status !== "returned").reduce((s, p) => s + (p.appliedTo || []).filter(a => a.invoiceId === invId).reduce((ss, a) => ss + a.amount, 0), 0);
   const getInvCredits = invId => (creditMemos || []).filter(cm => cm.invoiceId === invId && cm.status !== "void").reduce((s, cm) => s + (cm.total || 0), 0);
   const getInvWrittenOff = invId => writeOffs.filter(w => w.invoiceId === invId && w.status !== "void").reduce((s, w) => s + (w.amount || 0), 0);
-  const getInvBalance = inv => Math.round(((inv.total || 0) - getInvPaid(inv.id) - getInvCredits(inv.id) - getInvWrittenOff(inv.id)) * 100) / 100;
+  const getInvBalance = inv => Math.round(((inv.total || 0) - getInvPaid(inv.id) - getInvCredits(inv.id) - getInvWrittenOff(inv.id) - (Number(inv.importedPaid) || 0)) * 100) / 100;
   const openInvoices = invoices.filter(i => i.status === "open" && getInvBalance(i) > 0.005);
   const getCustBalance = custId => invoices.filter(i => i.customerId === custId && i.status === "open").reduce((s, i) => s + Math.max(0, getInvBalance(i)), 0);
 
