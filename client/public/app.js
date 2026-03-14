@@ -2938,6 +2938,32 @@ function App() {
     };
   }, [products, customers, invoices, routes, salesOrders, suppliers, purchaseOrders, salespeople, creditMemos, deliveries, productionRuns, receipts, arPayments, arDeposits, arWriteOffs, settings]);
 
+  // ── GLOBAL KEYBOARD SHORTCUTS ──
+  const [showHotkeys, setShowHotkeys] = useState(false);
+  useEffect(() => {
+    const handler = e => {
+      if (e.key === "F5") {
+        e.preventDefault();
+        const el = document.querySelector("[data-hotkey-search]");
+        if (el) { el.focus(); el.select && el.select(); }
+      }
+      if (e.key === "F2") {
+        e.preventDefault();
+        const el = document.querySelector("[data-hotkey-add]");
+        if (el) { el.focus(); el.select && el.select(); }
+      }
+      if (e.key === "F1") {
+        e.preventDefault();
+        setShowHotkeys(v => !v);
+      }
+      if (e.key === "Escape" && showHotkeys) {
+        setShowHotkeys(false);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [showHotkeys]);
+
   // ── DB MANAGEMENT FUNCTIONS ──
   const dbGetState = () => ({
     products,
@@ -3366,7 +3392,15 @@ function App() {
     style: {
       marginBottom: 4
     }
-  }, "Version 2.2.0 \u2014 Entr\xE9e Edition"), /*#__PURE__*/React.createElement("div", {
+  }, "Version 2.2.0 \u2014 Entr\xE9e Edition"),
+  React.createElement("div", {
+    onClick: () => setShowHotkeys(true),
+    style: { cursor: "pointer", display: "flex", alignItems: "center", gap: 6, marginBottom: 6, padding: "3px 6px", borderRadius: 4, background: "#0f1729", border: "1px solid #1e2d44" }
+  }, React.createElement("kbd", { style: { fontSize: 10, fontWeight: 700, color: "#22c55e", fontFamily: "'DM Mono',monospace" } }, "F1"),
+     React.createElement("span", { style: { fontSize: 10, color: "#64748b" } }, "Keyboard shortcuts"),
+     React.createElement("kbd", { style: { fontSize: 10, fontWeight: 700, color: "#22c55e", fontFamily: "'DM Mono',monospace", marginLeft: "auto" } }, "F5"),
+     React.createElement("span", { style: { fontSize: 10, color: "#64748b" } }, "Search")),
+  /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       justifyContent: "space-between",
@@ -3655,7 +3689,30 @@ function App() {
   }, /*#__PURE__*/React.createElement(Icon, {
     name: toast.type === "success" ? "check" : "alert",
     size: 15
-  }), toast.msg), /*#__PURE__*/React.createElement("style", null, `
+  }), toast.msg),
+  showHotkeys && React.createElement("div", {
+    style: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center" },
+    onClick: () => setShowHotkeys(false)
+  }, React.createElement("div", {
+    onClick: e => e.stopPropagation(),
+    style: { background: "#1a2236", border: "1px solid #334155", borderRadius: 16, padding: "28px 36px", minWidth: 340, boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }
+  },
+    React.createElement("div", { style: { fontSize: 18, fontWeight: 800, color: "#e2e8f0", marginBottom: 4 } }, "\u2328\uFE0F Keyboard Shortcuts"),
+    React.createElement("div", { style: { fontSize: 11, color: "#64748b", marginBottom: 20 } }, "Speed up your workflow — no mouse needed"),
+    [
+      { key: "F1", desc: "Toggle this help panel" },
+      { key: "F5", desc: "Jump to search / filter" },
+      { key: "F2", desc: "Jump to quick-add product" },
+      { key: "Enter", desc: "Confirm / submit" },
+      { key: "Tab", desc: "Move to quantity after selecting product" },
+      { key: "\u2191 \u2193", desc: "Navigate product suggestions" },
+      { key: "Esc", desc: "Close panel / clear search" }
+    ].map(s => React.createElement("div", { key: s.key, style: { display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: "1px solid #1e2d44" } },
+      React.createElement("kbd", { style: { display: "inline-block", minWidth: 50, textAlign: "center", padding: "4px 10px", background: "#0f1729", border: "1px solid #334155", borderRadius: 6, color: "#22c55e", fontSize: 12, fontWeight: 700, fontFamily: "'DM Mono',monospace" } }, s.key),
+      React.createElement("span", { style: { fontSize: 13, color: "#94a3b8" } }, s.desc))),
+    React.createElement("div", { style: { textAlign: "center", marginTop: 20 } },
+      React.createElement("button", { onClick: () => setShowHotkeys(false), style: { padding: "8px 24px", background: "#334155", border: "none", borderRadius: 8, color: "#e2e8f0", fontSize: 13, fontWeight: 600, cursor: "pointer" } }, "Got it (Esc)")))),
+  /*#__PURE__*/React.createElement("style", null, `
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
         * { box-sizing:border-box; margin:0; padding:0; }
         ::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-track { background:#1e2535; } ::-webkit-scrollbar-thumb { background:#334155; border-radius:3px; }
@@ -4548,8 +4605,9 @@ const SpreadsheetGrid = ({
       flex: "0 0 220px"
     }
   }, /*#__PURE__*/React.createElement("input", {
-    placeholder: "Filter items...",
+    placeholder: "Filter items... (F5)",
     value: search,
+    "data-hotkey-search": true,
     onChange: e => setSearch(e.target.value),
     style: {
       width: "100%",
@@ -8228,8 +8286,9 @@ function SalesOrders({
     size: 14
   })), /*#__PURE__*/React.createElement("input", {
     value: search,
+    "data-hotkey-search": true,
     onChange: e => setSearch(e.target.value),
-    placeholder: "Search orders...",
+    placeholder: "Search orders... (F5)",
     style: {
       width: "100%",
       background: "#1e2535",
@@ -10991,8 +11050,9 @@ function Invoices({
     size: 14
   })), /*#__PURE__*/React.createElement("input", {
     value: search,
+    "data-hotkey-search": true,
     onChange: e => setSearch(e.target.value),
-    placeholder: "Search invoices...",
+    placeholder: "Search invoices... (F5)",
     style: {
       width: "100%",
       background: "#1e2535",
@@ -17964,7 +18024,8 @@ function Purchasing({
     name: "search",
     size: 14
   })), /*#__PURE__*/React.createElement("input", {
-    placeholder: "Search products...",
+    placeholder: "Search products... (F5)",
+    "data-hotkey-search": true,
     value: batchSearch,
     onChange: e => setBatchSearch(e.target.value),
     style: {
@@ -20572,8 +20633,9 @@ function Inventory({
     size: 14
   })), /*#__PURE__*/React.createElement("input", {
     value: search,
+    "data-hotkey-search": true,
     onChange: e => setSearch(e.target.value),
-    placeholder: "Search products...",
+    placeholder: "Search products... (F5)",
     style: {
       width: "100%",
       background: "#1e2535",
@@ -23452,8 +23514,9 @@ function Customers({
     size: 14
   })), /*#__PURE__*/React.createElement("input", {
     value: search,
+    "data-hotkey-search": true,
     onChange: e => setSearch(e.target.value),
-    placeholder: "Search customers...",
+    placeholder: "Search customers... (F5)",
     style: {
       width: "100%",
       background: "#1e2535",
@@ -29308,8 +29371,9 @@ function PortalManager({
     size: 14
   })), /*#__PURE__*/React.createElement("input", {
     value: search,
+    "data-hotkey-search": true,
     onChange: e => setSearch(e.target.value),
-    placeholder: "Search customers...",
+    placeholder: "Search customers... (F5)",
     style: {
       width: "100%",
       background: "#1e2535",
