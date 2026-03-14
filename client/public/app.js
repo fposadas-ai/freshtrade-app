@@ -1841,6 +1841,7 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
               <span style="font-size:18px;font-weight:800;color:#111;font-family:'DM Mono',monospace;letter-spacing:-0.3px;">${invNum}</span>
               ${paid ? '<span style="display:inline-block;margin-left:6px;padding:2px 8px;border:2px solid #2563eb;border-radius:3px;font-size:10px;font-weight:800;color:#2563eb;letter-spacing:1.5px;vertical-align:middle;">PAID</span>' : ''}
               ${voided ? '<span style="display:inline-block;margin-left:6px;padding:2px 8px;border:2px solid #dc2626;border-radius:3px;font-size:10px;font-weight:800;color:#dc2626;letter-spacing:1.5px;vertical-align:middle;">VOIDED</span>' : ''}
+              ${inv.correctedAt ? '<span style="display:inline-block;margin-left:6px;padding:2px 8px;border:2px solid #d97706;border-radius:3px;font-size:10px;font-weight:800;color:#d97706;letter-spacing:1.5px;vertical-align:middle;">CORRECTED</span>' : ''}
             </div>
             <div style="text-align:center;">
               ${generateCode128SVG(String(invNum), 28, 1.2)}
@@ -1944,7 +1945,7 @@ function renderInvoicePrintHTML(inv, customer, products, categoryOrder, coolStat
                   ${gasCharge > 0 ? '<tr style="background:#eff6ff;"><td style="padding:3px 14px;font-size:9px;color:#1e40af;font-weight:500;">⛽ Fuel / Gas</td><td style="padding:3px 14px;font-size:11px;color:#111;font-weight:600;text-align:right;font-family:\'DM Mono\',monospace;">$' + Number(gasCharge).toFixed(2) + '</td></tr>' : ''}
                   <tr style="background:#1e40af;">
                     <td style="padding:5px 14px;font-size:8px;font-weight:700;color:#ffffff;text-transform:uppercase;letter-spacing:2px;">Total Due</td>
-                    <td style="padding:5px 14px;font-size:17px;color:#ffffff;font-weight:800;text-align:right;font-family:'DM Mono',monospace;letter-spacing:-0.5px;">$${Number(total).toFixed(2)}</td>
+                    <td style="padding:5px 14px;font-size:17px;color:#ffffff;font-weight:800;text-align:right;font-family:'DM Mono',monospace;letter-spacing:-0.5px;">$${Number(total).toFixed(2)}${inv.correctedAt && inv.correctedFrom != null ? '<div style="font-size:8px;font-weight:600;color:#fde68a;margin-top:2px;font-family:DM Sans,sans-serif;letter-spacing:0;">Corrected — was $' + Number(inv.correctedFrom).toFixed(2) + '</div>' : ''}</td>
                   </tr>
                 </table>
               </td>
@@ -12811,13 +12812,17 @@ function Invoices({
       });
     };
     const saveInvEdit = () => {
-      setInvoices(prev => prev.map(inv => inv.id === editingInv.id ? {
-        ...editingInv
-      } : inv));
-      setOpenInvs(prev => prev.map(i => i.id === editingInv.id ? editingInv : i));
+      const origInv = invoices.find(i => i.id === editingInv.id);
+      const corrected = {
+        ...editingInv,
+        correctedAt: new Date().toISOString(),
+        correctedFrom: origInv ? origInv.total : editingInv.total
+      };
+      setInvoices(prev => prev.map(inv => inv.id === editingInv.id ? corrected : inv));
+      setOpenInvs(prev => prev.map(i => i.id === editingInv.id ? corrected : i));
       releaseLock("INV", editingInv.id);
       setEditingInv(null);
-      showToast(`Invoice ${editingInv.id} updated`);
+      showToast(`Invoice ${editingInv.id} updated (marked as corrected)`);
     };
 
     // Shared form styles
@@ -28640,7 +28645,9 @@ function CustomerPortal({
     const rows = openInvs.map(inv => {
       const due = new Date(inv.dueDate || inv.date);
       const days = Math.max(0, Math.floor((new Date() - due) / 86400000));
-      return `<tr><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${inv.id}</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${inv.date}</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${inv.dueDate || ""}</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center;">${days > 0 ? days + "d" : "Current"}</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:600;">${fmtP(inv.total)}</td></tr>`;
+      const corrTag = inv.correctedAt ? ' <span style="background:#fbbf24;color:#78350f;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:4px;">CORRECTED</span>' : '';
+      const corrNote = inv.correctedAt && inv.correctedFrom != null ? `<div style="font-size:10px;color:#92400e;margin-top:2px;">Was $${Number(inv.correctedFrom).toFixed(2)}</div>` : '';
+      return `<tr><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${inv.id}${corrTag}</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${inv.date}</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${inv.dueDate || ""}</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center;">${days > 0 ? days + "d" : "Current"}</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:600;">${fmtP(inv.total)}${corrNote}</td></tr>`;
     }).join("");
     const html = `<div style="font-family:'DM Sans',Arial,sans-serif;max-width:700px;margin:0 auto;padding:20px;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;"><div style="width:36px;height:36px;background:linear-gradient(135deg,#059669,#10b981);border-radius:8px;display:flex;align-items:center;justify-content:center;"><span style="font-size:18px;">🐟</span></div><div><div style="font-size:18px;font-weight:800;">FreshTrade Distribution</div><div style="font-size:7px;color:#059669;letter-spacing:2px;text-transform:uppercase;">STATEMENT OF ACCOUNT</div></div></div>
@@ -35002,11 +35009,13 @@ function AccountsReceivable({
     const entries = [];
     custInvs.filter(i => i.status === "open").forEach(i => {
       var _i$lines;
+      const isCorrected = !!i.correctedAt;
+      const corrNote = isCorrected ? " (CORRECTED" + (i.correctedFrom != null ? " — was $" + Number(i.correctedFrom).toFixed(2) : "") + ")" : "";
       return entries.push({
         date: i.date,
-        type: "Invoice",
+        type: isCorrected ? "Invoice ✎" : "Invoice",
         ref: i.id,
-        desc: ((_i$lines = i.lines) === null || _i$lines === void 0 ? void 0 : _i$lines.length) + " items",
+        desc: ((_i$lines = i.lines) === null || _i$lines === void 0 ? void 0 : _i$lines.length) + " items" + corrNote,
         charge: i.total,
         payment: 0,
         invId: i.id
