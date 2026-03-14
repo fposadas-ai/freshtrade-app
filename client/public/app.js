@@ -15182,7 +15182,80 @@ function Invoices({
   }, /*#__PURE__*/React.createElement("div", {
     style: { background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: 12, fontSize: 13, color: "#1e40af" }
   }, "Enter open invoices from your other system. These will be added as open invoices so they appear on customer statements and AR."), /*#__PURE__*/React.createElement("div", {
-    style: { overflowX: "auto" }
+    style: { background: "#0f172a", border: "1px solid #334155", borderRadius: 8, padding: 16 }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }
+  }, /*#__PURE__*/React.createElement("label", {
+    style: { display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 16px", background: "#2563eb", color: "#fff", borderRadius: 8, cursor: "pointer", fontWeight: 600, fontSize: 13 }
+  }, "\uD83D\uDCC2 Upload Spreadsheet (CSV / Excel)", /*#__PURE__*/React.createElement("input", {
+    type: "file",
+    accept: ".csv,.tsv,.xls,.xlsx,.txt",
+    "data-testid": "import-inv-file-upload",
+    style: { display: "none" },
+    onChange: e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const text = ev.target.result;
+        const sep = text.includes("\t") ? "\t" : ",";
+        const lines = text.split(/\r?\n/).filter(l => l.trim());
+        if (lines.length < 2) { showToast("File appears empty or has no data rows"); return; }
+        const hdrs = lines[0].split(sep).map(h => h.replace(/^["']|["']$/g, "").trim().toLowerCase());
+        const custCol = hdrs.findIndex(h => /customer|cust|name|account|acct/i.test(h));
+        const invCol = hdrs.findIndex(h => /invoice|inv|number|num|ref|#/i.test(h));
+        const dateCol = hdrs.findIndex(h => /^date$|inv.*date|invoice.*date/i.test(h));
+        const dueCol = hdrs.findIndex(h => /due|due.*date/i.test(h));
+        const totalCol = hdrs.findIndex(h => /total|amount|balance|amt|due.*amt/i.test(h));
+        const notesCol = hdrs.findIndex(h => /note|memo|desc|comment/i.test(h));
+        if (custCol === -1 && totalCol === -1) { showToast("Could not find Customer or Total columns. Check your column headers."); return; }
+        const parseDate = s => {
+          if (!s) return "";
+          s = s.replace(/^["']|["']$/g, "").trim();
+          const md = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+          if (md) { const yr = md[3].length === 2 ? "20" + md[3] : md[3]; return yr + "-" + md[1].padStart(2, "0") + "-" + md[2].padStart(2, "0"); }
+          const iso = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+          if (iso) return iso[1] + "-" + iso[2].padStart(2, "0") + "-" + iso[3].padStart(2, "0");
+          return s;
+        };
+        const rows = [];
+        for (let i = 1; i < lines.length; i++) {
+          const vals = [];
+          let cur = "", inQ = false;
+          for (let c = 0; c < lines[i].length; c++) {
+            const ch = lines[i][c];
+            if (ch === '"' && !inQ) { inQ = true; }
+            else if (ch === '"' && inQ) { if (lines[i][c+1] === '"') { cur += '"'; c++; } else inQ = false; }
+            else if (ch === sep && !inQ) { vals.push(cur.trim()); cur = ""; }
+            else cur += ch;
+          }
+          vals.push(cur.trim());
+          const custName = custCol >= 0 ? vals[custCol] || "" : "";
+          const matchedCust = customers.find(c => c.name.toLowerCase() === custName.toLowerCase() || (c.code && c.code.toLowerCase() === custName.toLowerCase()));
+          const totalStr = totalCol >= 0 ? (vals[totalCol] || "").replace(/[$,\s"']/g, "") : "";
+          if (!custName && !totalStr) continue;
+          rows.push({
+            customerId: matchedCust ? matchedCust.id : "",
+            _custName: custName,
+            invoiceNum: invCol >= 0 ? (vals[invCol] || "").replace(/^["']|["']$/g, "").trim() : "",
+            date: dateCol >= 0 ? parseDate(vals[dateCol]) : today(),
+            dueDate: dueCol >= 0 ? parseDate(vals[dueCol]) : "",
+            total: totalStr,
+            notes: notesCol >= 0 ? (vals[notesCol] || "").replace(/^["']|["']$/g, "").trim() : ""
+          });
+        }
+        if (rows.length === 0) { showToast("No valid data rows found in file"); return; }
+        setImportInvRows(rows);
+        const unmatched = rows.filter(r => !r.customerId && r._custName);
+        showToast(rows.length + " rows loaded" + (unmatched.length > 0 ? " — " + unmatched.length + " customer(s) not matched (select manually)" : ""));
+      };
+      reader.readAsText(file);
+      e.target.value = "";
+    }
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 11, color: "#94a3b8", lineHeight: 1.5 }
+  }, /*#__PURE__*/React.createElement("strong", null, "Expected columns:"), " Customer, Invoice #, Date, Due Date, Total, Notes", /*#__PURE__*/React.createElement("br", null), "Column headers are matched flexibly — e.g. \"Cust Name\", \"Inv #\", \"Amount Due\" all work. Customers are matched by name or code. Unmatched customers can be selected manually in the table below.")), /*#__PURE__*/React.createElement("div", {
+    style: { overflowX: "auto", maxHeight: 400, overflowY: "auto" }
   }, /*#__PURE__*/React.createElement("table", {
     style: { width: "100%", borderCollapse: "collapse", fontSize: 13 }
   }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
@@ -15195,7 +15268,7 @@ function Invoices({
     value: row.customerId,
     onChange: e => setImportInvRows(prev => prev.map((r, i) => i === idx ? { ...r, customerId: e.target.value } : r)),
     style: { width: "100%", padding: "6px 8px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13, background: "#fff" }
-  }, /*#__PURE__*/React.createElement("option", { value: "" }, "Select customer..."), customers.map(c => /*#__PURE__*/React.createElement("option", { key: c.id, value: c.id }, c.name)))), /*#__PURE__*/React.createElement("td", { style: { padding: 4 } }, /*#__PURE__*/React.createElement("input", {
+  }, /*#__PURE__*/React.createElement("option", { value: "" }, row._custName ? "\u26A0 " + row._custName + " (not matched)" : "Select customer..."), customers.map(c => /*#__PURE__*/React.createElement("option", { key: c.id, value: c.id }, c.name)))), /*#__PURE__*/React.createElement("td", { style: { padding: 4 } }, /*#__PURE__*/React.createElement("input", {
     "data-testid": "import-inv-number-" + idx,
     value: row.invoiceNum,
     onChange: e => setImportInvRows(prev => prev.map((r, i) => i === idx ? { ...r, invoiceNum: e.target.value } : r)),
