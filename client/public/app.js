@@ -10716,6 +10716,8 @@ function Invoices({
   const [voidRcptTarget, setVoidRcptTarget] = useState(null);
   const [voidRcptReturnStock, setVoidRcptReturnStock] = useState(true);
   const [deleteRcptTarget, setDeleteRcptTarget] = useState(null);
+  const [showImportInv, setShowImportInv] = useState(false);
+  const [importInvRows, setImportInvRows] = useState([]);
   const [showRcptStmt, setShowRcptStmt] = useState(false);
   const [rcptStmtName, setRcptStmtName] = useState("");
   const [rcptStmtFrom, setRcptStmtFrom] = useState("");
@@ -11088,7 +11090,14 @@ function Invoices({
     }, "\uD83D\uDDA8\uFE0F Document Scanner"), /*#__PURE__*/React.createElement(Btn, {
       icon: "plus",
       onClick: () => setShowNew(true)
-    }, "New Invoice")), invTab === "receipts" && /*#__PURE__*/React.createElement(Btn, {
+    }, "New Invoice"), /*#__PURE__*/React.createElement(Btn, {
+      variant: "secondary",
+      "data-testid": "button-import-invoices",
+      onClick: () => {
+        setImportInvRows([{ customerId: "", invoiceNum: "", date: today(), dueDate: "", total: "", notes: "" }]);
+        setShowImportInv(true);
+      }
+    }, "\u2B07 Import Open Invoices")), invTab === "receipts" && /*#__PURE__*/React.createElement(Btn, {
       icon: "plus",
       onClick: () => {
         setReceiptForm({
@@ -14640,7 +14649,110 @@ function Invoices({
         setDeleteRcptTarget(null);
       }
     }, "Delete Receipt"))));
-  })(), showRcptStmt && /*#__PURE__*/React.createElement(Modal, {
+  })(), showImportInv && /*#__PURE__*/React.createElement(Modal, {
+    title: "\u2B07 Import Open Invoices",
+    onClose: () => setShowImportInv(false),
+    width: 900
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { display: "flex", flexDirection: "column", gap: 12 }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: 12, fontSize: 13, color: "#1e40af" }
+  }, "Enter open invoices from your other system. These will be added as open invoices so they appear on customer statements and AR."), /*#__PURE__*/React.createElement("div", {
+    style: { overflowX: "auto" }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: { width: "100%", borderCollapse: "collapse", fontSize: 13 }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+    style: { background: "#1e293b", color: "#fff" }
+  }, /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", fontSize: 11 } }, "Customer"), /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", fontSize: 11 } }, "Invoice #"), /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", fontSize: 11 } }, "Date"), /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", fontSize: 11 } }, "Due Date"), /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "right", fontSize: 11 } }, "Total"), /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", fontSize: 11 } }, "Notes"), /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", width: 40 } }))), /*#__PURE__*/React.createElement("tbody", null, importInvRows.map((row, idx) => /*#__PURE__*/React.createElement("tr", {
+    key: idx,
+    style: { borderBottom: "1px solid #e2e8f0" }
+  }, /*#__PURE__*/React.createElement("td", { style: { padding: 4 } }, /*#__PURE__*/React.createElement("select", {
+    "data-testid": "import-inv-customer-" + idx,
+    value: row.customerId,
+    onChange: e => setImportInvRows(prev => prev.map((r, i) => i === idx ? { ...r, customerId: e.target.value } : r)),
+    style: { width: "100%", padding: "6px 8px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13, background: "#fff" }
+  }, /*#__PURE__*/React.createElement("option", { value: "" }, "Select customer..."), customers.map(c => /*#__PURE__*/React.createElement("option", { key: c.id, value: c.id }, c.name)))), /*#__PURE__*/React.createElement("td", { style: { padding: 4 } }, /*#__PURE__*/React.createElement("input", {
+    "data-testid": "import-inv-number-" + idx,
+    value: row.invoiceNum,
+    onChange: e => setImportInvRows(prev => prev.map((r, i) => i === idx ? { ...r, invoiceNum: e.target.value } : r)),
+    placeholder: "e.g. 12345",
+    style: { width: "100%", padding: "6px 8px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }
+  })), /*#__PURE__*/React.createElement("td", { style: { padding: 4 } }, /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    "data-testid": "import-inv-date-" + idx,
+    value: row.date,
+    onChange: e => setImportInvRows(prev => prev.map((r, i) => i === idx ? { ...r, date: e.target.value } : r)),
+    style: { width: 130, padding: "6px 8px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }
+  })), /*#__PURE__*/React.createElement("td", { style: { padding: 4 } }, /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    "data-testid": "import-inv-due-" + idx,
+    value: row.dueDate,
+    onChange: e => setImportInvRows(prev => prev.map((r, i) => i === idx ? { ...r, dueDate: e.target.value } : r)),
+    style: { width: 130, padding: "6px 8px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }
+  })), /*#__PURE__*/React.createElement("td", { style: { padding: 4 } }, /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    "data-testid": "import-inv-total-" + idx,
+    value: row.total,
+    onChange: e => setImportInvRows(prev => prev.map((r, i) => i === idx ? { ...r, total: e.target.value } : r)),
+    placeholder: "0.00",
+    step: "0.01",
+    style: { width: 110, padding: "6px 8px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13, textAlign: "right", fontFamily: "'DM Mono',monospace" }
+  })), /*#__PURE__*/React.createElement("td", { style: { padding: 4 } }, /*#__PURE__*/React.createElement("input", {
+    "data-testid": "import-inv-notes-" + idx,
+    value: row.notes,
+    onChange: e => setImportInvRows(prev => prev.map((r, i) => i === idx ? { ...r, notes: e.target.value } : r)),
+    placeholder: "Optional",
+    style: { width: "100%", padding: "6px 8px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }
+  })), /*#__PURE__*/React.createElement("td", { style: { padding: 4, textAlign: "center" } }, importInvRows.length > 1 && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setImportInvRows(prev => prev.filter((_, i) => i !== idx)),
+    style: { background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 18, fontWeight: 700 }
+  }, "\u00D7"))))))), /*#__PURE__*/React.createElement("div", {
+    style: { display: "flex", justifyContent: "space-between", alignItems: "center" }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "secondary",
+    "data-testid": "button-import-add-row",
+    onClick: () => setImportInvRows(prev => [...prev, { customerId: "", invoiceNum: "", date: today(), dueDate: "", total: "", notes: "" }])
+  }, "+ Add Row"), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 13, color: "#64748b" }
+  }, importInvRows.filter(r => r.customerId && r.total).length, " of ", importInvRows.length, " rows ready")), /*#__PURE__*/React.createElement("div", {
+    style: { display: "flex", gap: 8, justifyContent: "flex-end" }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "secondary",
+    onClick: () => setShowImportInv(false)
+  }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
+    "data-testid": "button-import-invoices-submit",
+    style: { background: "#2563eb" },
+    onClick: () => {
+      const valid = importInvRows.filter(r => r.customerId && Number(r.total) > 0);
+      if (valid.length === 0) { showToast("Fill in at least one row with a customer and total"); return; }
+      const newInvs = valid.map(r => {
+        const cust = customers.find(c => c.id === r.customerId);
+        const invNum = r.invoiceNum.trim() || genId("INV");
+        const total = Number(r.total) || 0;
+        return {
+          id: invNum,
+          customerId: r.customerId,
+          customerName: cust ? cust.name : "",
+          date: r.date || today(),
+          dueDate: r.dueDate || "",
+          status: "open",
+          lines: [{ productId: null, customName: "Imported balance", qty: 1, unit: "ea", weightBased: false, priceEach: total, total: total, _misc: true }],
+          subtotal: total,
+          total: total,
+          deliveryCharge: 0,
+          gasCharge: 0,
+          notes: r.notes || "",
+          imported: true,
+          importedAt: new Date().toISOString()
+        };
+      });
+      const dupeIds = newInvs.filter(ni => invoices.some(ei => ei.id === ni.id));
+      if (dupeIds.length > 0) { showToast("Duplicate invoice number(s): " + dupeIds.map(d => d.id).join(", ")); return; }
+      setInvoices(prev => [...newInvs, ...prev]);
+      setShowImportInv(false);
+      showToast(newInvs.length + " invoice" + (newInvs.length !== 1 ? "s" : "") + " imported");
+    }
+  }, "Import ", importInvRows.filter(r => r.customerId && r.total).length, " Invoice(s)")))), showRcptStmt && /*#__PURE__*/React.createElement(Modal, {
     title: "Receipt Statement",
     onClose: () => setShowRcptStmt(false),
     width: 500
