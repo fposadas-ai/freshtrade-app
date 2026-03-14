@@ -3668,6 +3668,8 @@ function App() {
     arPayments: arPayments,
     creditMemos: creditMemos,
     products: products,
+    salesOrders: salesOrders,
+    purchaseOrders: purchaseOrders,
     settings: settings,
     showToast: showToast
   }), activeModule === "settings" && /*#__PURE__*/React.createElement(SystemSettings, {
@@ -36497,9 +36499,10 @@ function AccountsReceivable({
 // ============================================================
 // REPORTS MODULE
 // ============================================================
-function ReportsModule({ customers, invoices, arPayments, creditMemos, products, settings, showToast }) {
+function ReportsModule({ customers, invoices, arPayments, creditMemos, products, salesOrders, purchaseOrders, settings, showToast }) {
   const [reportType, setReportType] = useState("ledger");
   const [custId, setCustId] = useState("");
+  const [productId, setProductId] = useState("");
   const [dateFrom, setDateFrom] = useState(() => { const d = new Date(); d.setMonth(d.getMonth() - 1); return d.toISOString().slice(0, 10); });
   const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [generated, setGenerated] = useState(null);
@@ -36511,6 +36514,7 @@ function ReportsModule({ customers, invoices, arPayments, creditMemos, products,
 
   const reports = [
     { id: "ledger", label: "Customer Ledger", desc: "All invoices, payments & credits for a customer", needsCust: true },
+    { id: "productLedger", label: "Product Ledger", desc: "Complete transaction history for an individual product", needsProduct: true },
     { id: "purchases", label: "Purchase History", desc: "Products purchased by a customer over a date range", needsCust: true },
     { id: "payments", label: "Payment History", desc: "All payments made by a customer", needsCust: true },
     { id: "openar", label: "Open Receivables", desc: "All unpaid invoices across all customers", needsCust: false },
@@ -36520,6 +36524,7 @@ function ReportsModule({ customers, invoices, arPayments, creditMemos, products,
   const generateReport = () => {
     const rpt = reports.find(r => r.id === reportType);
     if (rpt.needsCust && !custId) { showToast("Select a customer first", "warn"); return; }
+    if (rpt.needsProduct && !productId) { showToast("Select a product first", "warn"); return; }
     const cust = customers.find(c => c.id === custId);
 
     if (reportType === "ledger") {
@@ -36534,6 +36539,88 @@ function ReportsModule({ customers, invoices, arPayments, creditMemos, products,
       let running = 0;
       entries.forEach(e => { running += e.debit - e.credit; e.balance = running; });
       setGenerated({ type: "ledger", title: "Customer Ledger — " + ((cust && cust.name) || ""), customer: cust, entries, totalDebit: entries.reduce((s, e) => s + e.debit, 0), totalCredit: entries.reduce((s, e) => s + e.credit, 0), balance: running });
+    }
+
+    if (reportType === "productLedger") {
+      const prod = products.find(p => p.id === productId);
+      if (!prod) { showToast("Product not found", "warn"); return; }
+      const entries = [];
+      (salesOrders || []).forEach(so => {
+        if (so.status === "cancelled") return;
+        (so.lines || []).forEach(l => {
+          if (l.productId !== productId) return;
+          const soDate = so.date || so.createdAt || "";
+          if (!inRange(soDate)) return;
+          const custName = (customers.find(c => c.id === so.customerId) || {}).name || "—";
+          const qty = Number(l.qty) || 0;
+          const wt = Number(l.estWeight || l.actualWeight) || 0;
+          const price = Number(l.priceEach || l.pricePerLb) || 0;
+          const total = Number(l.estTotal || l.total) || (qty * price);
+          entries.push({ date: soDate, type: "Sales Order", ref: so.id, customer: custName, status: so.status || "draft", qty, weight: wt, price, total });
+        });
+      });
+      invoices.forEach(inv => {
+        if (inv.status === "voided") return;
+        (inv.lines || []).forEach(l => {
+          if (l.productId !== productId) return;
+          if (!inRange(inv.date)) return;
+          const custName = (customers.find(c => c.id === inv.customerId) || {}).name || "—";
+          const qty = Number(l.qty) || 0;
+          const wt = Number(l.actualWeight || l.nominalWeight || l.estWeight) || 0;
+          const price = Number(l.priceEach || l.pricePerLb) || 0;
+          const total = Number(l.total || l.estTotal) || (qty * price);
+          entries.push({ date: inv.date, type: "Invoice", ref: inv.id, customer: custName, status: inv.status || "draft", qty, weight: wt, price, total });
+        });
+      });
+      (purchaseOrders || []).forEach(po => {
+        if (po.status === "cancelled") return;
+        (po.lines || []).forEach(l => {
+          if (l.productId !== productId) return;
+          const poDate = po.date || po.createdAt || "";
+          if (!inRange(poDate)) return;
+          const supplierName = po.supplierName || po.supplier || "—";
+          const qty = Number(l.qty) || 0;
+          const wt = Number(l.weight) || 0;
+          const cost = Number(l.costPerUnit || l.cost) || 0;
+          const total = Number(l.total) || (qty * cost);
+          entries.push({ date: poDate, type: "Purchase Order", ref: po.id, customer: supplierName, status: po.status || "draft", qty, weight: wt, price: cost, total });
+        });
+      });
+      (creditMemos || []).forEach(cm => {
+        if (cm.status === "void") return;
+        (cm.lines || []).forEach(l => {
+          if (l.productId !== productId) return;
+          if (!inRange(cm.date)) return;
+          const custName = (customers.find(c => c.id === cm.customerId) || {}).name || "—";
+          const qty = Number(l.qty) || 0;
+          const wt = Number(l.actualWeight || l.weight) || 0;
+          const price = Number(l.priceEach || l.pricePerLb) || 0;
+          const total = Number(l.total) || (qty * price);
+          entries.push({ date: cm.date, type: "Credit Memo", ref: cm.id, customer: custName, status: cm.status || "", qty: -qty, weight: -wt, price, total: -total });
+        });
+      });
+      entries.sort((a, b) => (a.date || "").localeCompare(b.date || "") || a.type.localeCompare(b.type));
+      const totalQty = entries.reduce((s, e) => s + e.qty, 0);
+      const totalWt = entries.reduce((s, e) => s + e.weight, 0);
+      const totalAmt = entries.reduce((s, e) => s + e.total, 0);
+      const custBreak = {};
+      entries.filter(e => e.type === "Invoice" || e.type === "Sales Order").forEach(e => {
+        if (!custBreak[e.customer]) custBreak[e.customer] = { qty: 0, weight: 0, total: 0, count: 0 };
+        custBreak[e.customer].qty += e.qty;
+        custBreak[e.customer].weight += e.weight;
+        custBreak[e.customer].total += e.total;
+        custBreak[e.customer].count++;
+      });
+      const avgPrice = totalQty !== 0 ? totalAmt / totalQty : 0;
+      setGenerated({
+        type: "productLedger", title: "Product Ledger — " + prod.name,
+        product: prod, entries, totalQty, totalWt, totalAmt, avgPrice,
+        customerBreakdown: Object.entries(custBreak).map(([name, d]) => ({ name, ...d })).sort((a, b) => b.total - a.total),
+        soCount: entries.filter(e => e.type === "Sales Order").length,
+        invCount: entries.filter(e => e.type === "Invoice").length,
+        poCount: entries.filter(e => e.type === "Purchase Order").length,
+        cmCount: entries.filter(e => e.type === "Credit Memo").length
+      });
     }
 
     if (reportType === "purchases") {
@@ -36655,6 +36742,52 @@ function ReportsModule({ customers, invoices, arPayments, creditMemos, products,
       return React.createElement("div", null, hdr, renderTable(["Date", "Type", "Reference", "Details", "Charges", "Credits", "Balance"], [...rows, footer]));
     }
 
+    if (g.type === "productLedger") {
+      const prod = g.product;
+      const isCW = prod.catchWeight || prod.fixedWeight;
+      const prodInfo = React.createElement("div", { style: { display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 16, padding: 12, background: "#f1f5f9", borderRadius: 8, border: "1px solid #e2e8f0" } },
+        React.createElement("div", null, React.createElement("div", { style: { fontSize: 9, color: "#6b7280", textTransform: "uppercase", fontWeight: 700 } }, "Product"), React.createElement("div", { style: { fontSize: 14, fontWeight: 700, color: "#1e3a5f" } }, prod.name)),
+        React.createElement("div", null, React.createElement("div", { style: { fontSize: 9, color: "#6b7280", textTransform: "uppercase", fontWeight: 700 } }, "ID"), React.createElement("div", { style: { fontSize: 12, fontFamily: "monospace" } }, prod.id)),
+        React.createElement("div", null, React.createElement("div", { style: { fontSize: 9, color: "#6b7280", textTransform: "uppercase", fontWeight: 700 } }, "Category"), React.createElement("div", { style: { fontSize: 12 } }, prod.category || "—")),
+        React.createElement("div", null, React.createElement("div", { style: { fontSize: 9, color: "#6b7280", textTransform: "uppercase", fontWeight: 700 } }, "Type"), React.createElement("div", { style: { fontSize: 12 } }, isCW ? "Catch Weight ⚖" : prod.billedBy === "PIECE" ? "Piece" : "Case")),
+        React.createElement("div", null, React.createElement("div", { style: { fontSize: 9, color: "#6b7280", textTransform: "uppercase", fontWeight: 700 } }, "Current Price"), React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: "#16a34a" } }, fmt(prod.pricing ? prod.pricing.sales : 0))));
+      const summaryCards = React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginBottom: 16 } },
+        [{ label: "Sales Orders", val: g.soCount, color: "#3b82f6" }, { label: "Invoices", val: g.invCount, color: "#16a34a" }, { label: "Purchase Orders", val: g.poCount, color: "#f59e0b" }, { label: "Credit Memos", val: g.cmCount, color: "#ef4444" }, { label: "Avg Price", val: fmt(g.avgPrice), color: "#8b5cf6" }].map((c, i) =>
+          React.createElement("div", { key: i, style: { textAlign: "center", padding: 10, background: "#f8fafc", borderRadius: 6, border: "1px solid #e2e8f0" } },
+            React.createElement("div", { style: { fontSize: 18, fontWeight: 800, color: c.color } }, c.val),
+            React.createElement("div", { style: { fontSize: 9, color: "#6b7280", fontWeight: 600, textTransform: "uppercase", marginTop: 2 } }, c.label))));
+      const typeColors = { "Sales Order": { bg: "#dbeafe", tx: "#1e40af" }, "Invoice": { bg: "#dcfce7", tx: "#166534" }, "Purchase Order": { bg: "#fef3c7", tx: "#92400e" }, "Credit Memo": { bg: "#fce7f3", tx: "#9d174d" } };
+      const rows = g.entries.map((e, i) => React.createElement("tr", { key: i, style: { background: i % 2 === 0 ? "#fff" : "#f9fafb" } },
+        React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb" } }, fmtDate(e.date)),
+        React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb" } }, React.createElement("span", { style: { fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: (typeColors[e.type] || {}).bg || "#f3f4f6", color: (typeColors[e.type] || {}).tx || "#374151" } }, e.type)),
+        React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb", fontFamily: "monospace", fontWeight: 600, fontSize: 11 } }, e.ref),
+        React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb" } }, e.customer),
+        React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb" } }, React.createElement("span", { style: { fontSize: 9, padding: "1px 4px", borderRadius: 3, background: "#f3f4f6", color: "#6b7280" } }, e.status)),
+        React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb", textAlign: "right", fontFamily: "monospace" } }, e.qty),
+        React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb", textAlign: "right", fontFamily: "monospace" } }, e.weight > 0 ? e.weight.toFixed(1) : "—"),
+        React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb", textAlign: "right", fontFamily: "monospace" } }, fmt(e.price)),
+        React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb", textAlign: "right", fontWeight: 700, fontFamily: "monospace" } }, fmt(e.total))));
+      const footer = React.createElement("tr", { style: { background: "#f1f5f9", fontWeight: 700 } },
+        React.createElement("td", { colSpan: 5, style: { padding: "8px", borderTop: "2px solid #1e3a5f" } }, "TOTALS (", g.entries.length, " transactions)"),
+        React.createElement("td", { style: { padding: "8px", borderTop: "2px solid #1e3a5f", textAlign: "right", fontFamily: "monospace" } }, g.totalQty),
+        React.createElement("td", { style: { padding: "8px", borderTop: "2px solid #1e3a5f", textAlign: "right", fontFamily: "monospace" } }, g.totalWt > 0 ? g.totalWt.toFixed(1) : "—"),
+        React.createElement("td", { style: { padding: "8px", borderTop: "2px solid #1e3a5f" } }, ""),
+        React.createElement("td", { style: { padding: "8px", borderTop: "2px solid #1e3a5f", textAlign: "right", fontSize: 14, fontFamily: "monospace" } }, fmt(g.totalAmt)));
+      const custSection = g.customerBreakdown.length > 0 ? React.createElement("div", { style: { marginTop: 20 } },
+        React.createElement("div", { style: { fontSize: 13, fontWeight: 700, marginBottom: 8, color: "#1e3a5f" } }, "Customer Breakdown"),
+        renderTable(["Customer", "Transactions", "Qty", "Weight", "Total"],
+          g.customerBreakdown.map((c, i) => React.createElement("tr", { key: i, style: { background: i % 2 === 0 ? "#fff" : "#f9fafb" } },
+            React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb", fontWeight: 600 } }, c.name),
+            React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb", textAlign: "right" } }, c.count),
+            React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb", textAlign: "right" } }, c.qty),
+            React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb", textAlign: "right" } }, c.weight > 0 ? c.weight.toFixed(1) + " lbs" : "—"),
+            React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb", textAlign: "right", fontWeight: 700 } }, fmt(c.total)))))) : null;
+      return React.createElement("div", null, hdr, prodInfo, summaryCards,
+        React.createElement("div", { style: { fontSize: 13, fontWeight: 700, marginBottom: 8, color: "#1e3a5f" } }, "Transaction History"),
+        renderTable(["Date", "Type", "Reference", "Customer/Supplier", "Status", "Qty", "Weight", "Price", "Total"], [...rows, footer]),
+        custSection);
+    }
+
     if (g.type === "purchases") {
       const rows = g.items.map((it, i) => React.createElement("tr", { key: i, style: { background: i % 2 === 0 ? "#fff" : "#f9fafb" } },
         React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb", fontWeight: 600 } }, it.name, it.packSize ? React.createElement("span", { style: { fontSize: 9, color: "#6b7280", marginLeft: 4 } }, it.packSize) : null),
@@ -36757,6 +36890,14 @@ function ReportsModule({ customers, invoices, arPayments, creditMemos, products,
             onChange: e => setCustId(e.target.value),
             style: { width: "100%", background: "#1a2030", border: "1px solid #2d3748", borderRadius: 6, padding: "8px 10px", color: "#e2e8f0", fontSize: 13 }
           }, React.createElement("option", { value: "" }, "— Select Customer —"), [...customers].sort((a, b) => (a.name || "").localeCompare(b.name || "")).map(c => React.createElement("option", { key: c.id, value: c.id }, c.name)))),
+        rpt.needsProduct && React.createElement("div", null,
+          React.createElement("label", { style: { fontSize: 11, color: "#94a3b8", fontWeight: 600, display: "block", marginBottom: 4 } }, "Product"),
+          React.createElement("select", {
+            "data-testid": "select-report-product",
+            value: productId,
+            onChange: e => setProductId(e.target.value),
+            style: { width: "100%", background: "#1a2030", border: "1px solid #2d3748", borderRadius: 6, padding: "8px 10px", color: "#e2e8f0", fontSize: 13 }
+          }, React.createElement("option", { value: "" }, "— Select Product —"), [...products].sort((a, b) => (a.name || "").localeCompare(b.name || "")).map(p => React.createElement("option", { key: p.id, value: p.id }, p.name, " (", p.category || "", ")")))),
         React.createElement("div", null,
           React.createElement("label", { style: { fontSize: 11, color: "#94a3b8", fontWeight: 600, display: "block", marginBottom: 4 } }, "From"),
           React.createElement("input", {
