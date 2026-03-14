@@ -10714,6 +10714,7 @@ function Invoices({
   const [editingReceipt, setEditingReceipt] = useState(null);
   const [voidRcptTarget, setVoidRcptTarget] = useState(null);
   const [voidRcptReturnStock, setVoidRcptReturnStock] = useState(true);
+  const [deleteRcptTarget, setDeleteRcptTarget] = useState(null);
   const [showRcptStmt, setShowRcptStmt] = useState(false);
   const [rcptStmtName, setRcptStmtName] = useState("");
   const [rcptStmtFrom, setRcptStmtFrom] = useState("");
@@ -14141,7 +14142,17 @@ function Invoices({
         const html = renderReceiptPrintHTML(r, products);
         printLetterDocument(html, `Receipt ${r.id}`);
       }
-    }, "Print"))])
+    }, "Print"), /*#__PURE__*/React.createElement(Btn, {
+      variant: "secondary",
+      size: "sm",
+      "data-testid": "button-delete-receipt-" + r.id,
+      style: {
+        borderColor: "#ef444466",
+        color: "#ef4444",
+        fontSize: 11
+      },
+      onClick: () => setDeleteRcptTarget(r.id)
+    }, "\u00D7"))])
   }), receipts.length === 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       textAlign: "center",
@@ -14587,7 +14598,44 @@ function Invoices({
       },
       onClick: confirmVoidReceipt
     }, "Void Receipt")));
-  })()), showRcptStmt && /*#__PURE__*/React.createElement(Modal, {
+  })()), deleteRcptTarget && (() => {
+    const rcpt = receipts.find(r => r.id === deleteRcptTarget);
+    if (!rcpt) return null;
+    return /*#__PURE__*/React.createElement(Modal, {
+      title: "Delete Receipt",
+      onClose: () => setDeleteRcptTarget(null),
+      width: 420
+    }, /*#__PURE__*/React.createElement("div", {
+      style: { display: "flex", flexDirection: "column", gap: 16 }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: { background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: 16, textAlign: "center" }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: { fontSize: 32, marginBottom: 8 }
+    }, "\u26A0\uFE0F"), /*#__PURE__*/React.createElement("div", {
+      style: { fontWeight: 700, color: "#991b1b", marginBottom: 4 }
+    }, "Permanently Delete ", rcpt.id, "?"), /*#__PURE__*/React.createElement("div", {
+      style: { fontSize: 13, color: "#b91c1c" }
+    }, "This will completely remove this receipt from the system. This action cannot be undone.")), /*#__PURE__*/React.createElement("div", {
+      style: { background: "#1e293b", borderRadius: 8, padding: 12, fontSize: 13, color: "#e2e8f0" }
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, "Customer: "), rcpt.customerName || "Walk-in"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, "Date: "), rcpt.date, " ", rcpt.time || ""), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, "Total: "), "$", (rcpt.total || 0).toFixed(2)), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, "Items: "), rcpt.lines ? rcpt.lines.length : 0)), /*#__PURE__*/React.createElement("div", {
+      style: { display: "flex", gap: 8, justifyContent: "flex-end" }
+    }, /*#__PURE__*/React.createElement(Btn, {
+      variant: "secondary",
+      onClick: () => setDeleteRcptTarget(null)
+    }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
+      "data-testid": "button-confirm-delete-receipt",
+      style: { background: "#dc2626" },
+      onClick: () => {
+        setReceipts(prev => {
+          const updated = prev.filter(r => r.id !== deleteRcptTarget);
+          fetch("/api/data/receipts", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updated) });
+          return updated;
+        });
+        showToast("Receipt " + deleteRcptTarget + " deleted");
+        setDeleteRcptTarget(null);
+      }
+    }, "Delete Receipt"))));
+  })(), showRcptStmt && /*#__PURE__*/React.createElement(Modal, {
     title: "Receipt Statement",
     onClose: () => setShowRcptStmt(false),
     width: 500
