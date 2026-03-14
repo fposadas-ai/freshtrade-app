@@ -25305,6 +25305,8 @@ function Routes({
     day: "Mon/Wed/Fri"
   });
   const [selectedRoute, setSelectedRoute] = useState(null);
+  const [editRouteQuick, setEditRouteQuick] = useState(null);
+  const [editRouteQuickForm, setEditRouteQuickForm] = useState({ name: "", driver: "", vehicle: "" });
   const [poolSearch, setPoolSearch] = useState("");
   const [poolFilter, setPoolFilter] = useState("all"); // all | so | inv
   const [assignTarget, setAssignTarget] = useState(null); // { orderId, orderType }
@@ -26411,11 +26413,48 @@ function Routes({
         color: stats.orderCount > 0 ? "#22c55e" : "#475569",
         fontSize: 16
       }
-    }, "\uD83D\uDE9A"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    }, "\uD83D\uDE9A"), /*#__PURE__*/React.createElement("div", null, editRouteQuick === r.id ? /*#__PURE__*/React.createElement("div", {
+      style: { display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" },
+      onClick: e => e.stopPropagation()
+    }, /*#__PURE__*/React.createElement("input", {
+      value: editRouteQuickForm.name,
+      onChange: e => setEditRouteQuickForm(f => ({ ...f, name: e.target.value })),
+      placeholder: "Route name",
+      "data-testid": "edit-route-name-" + r.id,
+      style: { padding: "4px 8px", border: "1px solid #475569", borderRadius: 6, background: "#0f172a", color: "#f1f5f9", fontSize: 13, fontWeight: 700, width: 120 }
+    }), /*#__PURE__*/React.createElement("input", {
+      value: editRouteQuickForm.driver,
+      onChange: e => setEditRouteQuickForm(f => ({ ...f, driver: e.target.value })),
+      placeholder: "Driver",
+      "data-testid": "edit-route-driver-" + r.id,
+      style: { padding: "4px 8px", border: "1px solid #475569", borderRadius: 6, background: "#0f172a", color: "#f1f5f9", fontSize: 13, width: 120 }
+    }), /*#__PURE__*/React.createElement("input", {
+      value: editRouteQuickForm.vehicle,
+      onChange: e => setEditRouteQuickForm(f => ({ ...f, vehicle: e.target.value })),
+      placeholder: "Truck / Vehicle",
+      "data-testid": "edit-route-vehicle-" + r.id,
+      style: { padding: "4px 8px", border: "1px solid #475569", borderRadius: 6, background: "#0f172a", color: "#f1f5f9", fontSize: 13, width: 120 }
+    }), /*#__PURE__*/React.createElement("button", {
+      "data-testid": "save-route-quick-" + r.id,
+      onClick: e => {
+        e.stopPropagation();
+        if (!editRouteQuickForm.name.trim()) { showToast("Route name is required"); return; }
+        setRoutes(prev => prev.map(rt => rt.id === r.id ? { ...rt, name: editRouteQuickForm.name.trim(), driver: editRouteQuickForm.driver.trim(), vehicle: editRouteQuickForm.vehicle.trim() } : rt));
+        setEditRouteQuick(null);
+        showToast("Route updated");
+      },
+      style: { padding: "4px 10px", background: "#22c55e", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }
+    }, "\u2713"), /*#__PURE__*/React.createElement("button", {
+      onClick: e => { e.stopPropagation(); setEditRouteQuick(null); },
+      style: { padding: "4px 10px", background: "#475569", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }
+    }, "\u2717")) : /*#__PURE__*/React.createElement("div", {
       style: {
         fontWeight: 700,
         fontSize: 14,
-        color: "#f1f5f9"
+        color: "#f1f5f9",
+        display: "flex",
+        alignItems: "center",
+        gap: 6
       }
     }, r.name, /*#__PURE__*/React.createElement("span", {
       style: {
@@ -26423,11 +26462,20 @@ function Routes({
         color: "#64748b",
         marginLeft: 8
       }
-    }, r.driver, " \xB7 ", r.vehicle), isExpanded && /*#__PURE__*/React.createElement("span", {
+    }, r.driver, " \xB7 ", r.vehicle), /*#__PURE__*/React.createElement("button", {
+      "data-testid": "edit-route-btn-" + r.id,
+      title: "Edit route name, driver & truck",
+      onClick: e => {
+        e.stopPropagation();
+        setEditRouteQuick(r.id);
+        setEditRouteQuickForm({ name: r.name, driver: r.driver || "", vehicle: r.vehicle || "" });
+      },
+      style: { background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: 12, padding: "2px 4px" }
+    }, "\u270E"), isExpanded && /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 10,
         color: "#22c55e",
-        marginLeft: 8
+        marginLeft: 4
       }
     }, "\u25BC")), /*#__PURE__*/React.createElement("div", {
       style: {
