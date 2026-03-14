@@ -2947,20 +2947,35 @@ function App() {
       const tag = ae.tagName;
       return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || ae.isContentEditable;
     };
+    const focusSearch = () => {
+      const el = document.querySelector("[data-hotkey-search]");
+      if (el) {
+        const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+        nativeSetter.call(el, "");
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        el.focus();
+      }
+    };
     const handler = e => {
       if (e.key === "/" && !inInput()) {
         e.preventDefault();
-        const el = document.querySelector("[data-hotkey-search]");
-        if (el) { el.focus(); el.select && el.select(); }
+        focusSearch();
       }
       if ((e.key === "F2" || (e.key === "k" && (e.ctrlKey || e.metaKey))) && !e.shiftKey) {
         e.preventDefault();
-        const el = document.querySelector("[data-hotkey-search]");
-        if (el) { el.focus(); el.select && el.select(); }
+        focusSearch();
       }
       if (e.key === "?" && !inInput()) {
         e.preventDefault();
         setShowHotkeys(v => !v);
+      }
+      if ((e.key === "ArrowUp" || e.key === "ArrowDown") && !inInput()) {
+        e.preventDefault();
+        const btns = Array.from(document.querySelectorAll("[data-nav-module]"));
+        if (btns.length === 0) return;
+        const active = btns.findIndex(b => b.getAttribute("data-nav-active") === "true");
+        const next = e.key === "ArrowDown" ? Math.min(active + 1, btns.length - 1) : Math.max(active - 1, 0);
+        if (btns[next]) btns[next].click();
       }
       if (e.key === "Escape") {
         if (showHotkeys) { setShowHotkeys(false); return; }
@@ -3341,6 +3356,8 @@ function App() {
     }
   }, nav.map(n => /*#__PURE__*/React.createElement("button", {
     key: n.id,
+    "data-nav-module": n.id,
+    "data-nav-active": activeModule === n.id ? "true" : "false",
     onClick: () => setActiveModule(n.id),
     style: {
       width: "100%",
@@ -3715,7 +3732,7 @@ function App() {
       { key: "Ctrl+K", desc: "Jump to search (alternate)" },
       { key: "Enter", desc: "Confirm / submit" },
       { key: "Tab", desc: "Move to quantity after selecting product" },
-      { key: "\u2191 \u2193", desc: "Navigate product suggestions" },
+      { key: "\u2191 \u2193", desc: "Switch modules / navigate suggestions" },
       { key: "Esc", desc: "Close panel / deselect field" }
     ].map(s => React.createElement("div", { key: s.key, style: { display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: "1px solid #1e2d44" } },
       React.createElement("kbd", { style: { display: "inline-block", minWidth: 50, textAlign: "center", padding: "4px 10px", background: "#0f1729", border: "1px solid #334155", borderRadius: 6, color: "#22c55e", fontSize: 12, fontWeight: 700, fontFamily: "'DM Mono',monospace" } }, s.key),
