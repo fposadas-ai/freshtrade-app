@@ -7823,20 +7823,27 @@ function SOAddProductSearch({ products, existingIds, onAdd }) {
   const [idx, setIdx] = useState(0);
   const [open, setOpen] = useState(false);
   const inputRef = useRef(null);
+  const listRef = useRef(null);
   const available = products.filter(p => !existingIds.includes(p.id));
   const matches = q.trim().length >= 1 ? available.filter(p => {
     const s = q.toLowerCase();
     return (p.name || "").toLowerCase().includes(s) || (p.id || "").toLowerCase().includes(s) || (p.category || "").toLowerCase().includes(s);
-  }).slice(0, 12) : [];
-  const handleKey = e => {
-    if (e.key === "ArrowDown") { e.preventDefault(); setIdx(i => Math.min(i + 1, matches.length - 1)); }
-    else if (e.key === "ArrowUp") { e.preventDefault(); setIdx(i => Math.max(i - 1, 0)); }
-    else if (e.key === "Enter" && matches.length > 0) {
-      e.preventDefault();
-      const sel = matches[idx];
-      if (sel) { onAdd(sel.id); setQ(""); setIdx(0); setOpen(false); }
+  }).slice(0, 20) : open ? available.slice(0, 20) : [];
+  useEffect(() => {
+    if (listRef.current) {
+      const active = listRef.current.querySelector("[data-active-item]");
+      if (active) active.scrollIntoView({ block: "nearest" });
     }
-    else if (e.key === "Escape") { setQ(""); setOpen(false); inputRef.current && inputRef.current.blur(); }
+  }, [idx]);
+  const handleKey = e => {
+    if (e.key === "ArrowDown") { e.preventDefault(); e.stopPropagation(); setIdx(i => Math.min(i + 1, matches.length - 1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); e.stopPropagation(); setIdx(i => Math.max(i - 1, 0)); }
+    else if (e.key === "Enter" && matches.length > 0) {
+      e.preventDefault(); e.stopPropagation();
+      const sel = matches[idx];
+      if (sel) { onAdd(sel.id); setQ(""); setIdx(0); }
+    }
+    else if (e.key === "Escape") { e.stopPropagation(); setQ(""); setOpen(false); inputRef.current && inputRef.current.blur(); }
   };
   return React.createElement("div", { style: { position: "relative", padding: "8px 0", borderBottom: "1px solid #151821", marginTop: 4 } },
     React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center" } },
@@ -7844,8 +7851,8 @@ function SOAddProductSearch({ products, existingIds, onAdd }) {
         ref: inputRef,
         value: q,
         onChange: e => { setQ(e.target.value); setIdx(0); setOpen(true); },
-        onFocus: () => setOpen(true),
-        onBlur: () => setTimeout(() => setOpen(false), 200),
+        onFocus: () => { setOpen(true); setIdx(0); },
+        onBlur: () => setTimeout(() => setOpen(false), 250),
         onKeyDown: handleKey,
         placeholder: "Type to search & add product... (F2)",
         "data-hotkey-search": true,
@@ -7854,14 +7861,17 @@ function SOAddProductSearch({ products, existingIds, onAdd }) {
       }),
       React.createElement("span", { style: { fontSize: 11, color: "#475569" } }, available.length, " available")),
     open && matches.length > 0 && React.createElement("div", {
+      ref: listRef,
       style: { position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50, background: "#1a2236", border: "1px solid #334155", borderRadius: 8, maxHeight: 280, overflowY: "auto", boxShadow: "0 8px 24px rgba(0,0,0,0.5)" }
-    }, matches.map((p, i) => React.createElement("div", {
+    }, matches.map((p, i) => React.createElement("div", Object.assign({
       key: p.id,
-      onMouseDown: () => { onAdd(p.id); setQ(""); setIdx(0); setOpen(false); },
+      onMouseDown: () => { onAdd(p.id); setQ(""); setIdx(0); },
       style: { padding: "8px 12px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center",
-        background: i === idx ? "#22c55e22" : "transparent",
-        borderBottom: "1px solid #1e2535" }
-    },
+        background: i === idx ? "#22c55e33" : "transparent",
+        borderLeft: i === idx ? "3px solid #22c55e" : "3px solid transparent",
+        borderBottom: "1px solid #1e2535",
+        transition: "background 0.1s" }
+    }, i === idx ? { "data-active-item": true } : {}),
       React.createElement("span", { style: { fontWeight: 600, color: i === idx ? "#22c55e" : "#e2e8f0", fontSize: 13 } }, p.name),
       React.createElement("span", { style: { fontSize: 11, color: "#64748b" } },
         p.category, " · ", (p.catchWeight || p.fixedWeight) ? "⚖ CW" : p.billedBy === "PIECE" ? "pc" : "cs",
