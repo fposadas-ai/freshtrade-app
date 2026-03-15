@@ -755,7 +755,8 @@ const termsToDays = terms => {
   return 7;
 };
 const dueDateFromTerms = terms => dueDate(termsToDays(terms));
-const genId = prefix => `${prefix}-${Date.now().toString().slice(-6)}`;
+let _genIdCounter = 0;
+const genId = prefix => `${prefix}-${Date.now().toString().slice(-6)}${String(++_genIdCounter).padStart(2, "0")}`;
 
 // Product display name: lowercase when sold by piece, normal case when sold by case
 // If line has a customName override, use that instead
@@ -11098,7 +11099,18 @@ function Invoices({
         setImportInvRows([{ customerId: "", invoiceNum: "", date: today(), dueDate: "", total: "", amountPaid: "", notes: "" }]);
         setShowImportInv(true);
       }
-    }, "\u2B07 Import Open Invoices")), invTab === "receipts" && /*#__PURE__*/React.createElement(Btn, {
+    }, "\u2B07 Import Open Invoices"), invoices.length > 0 && /*#__PURE__*/React.createElement(Btn, {
+      variant: "danger",
+      "data-testid": "button-delete-all-invoices",
+      onClick: () => {
+        if (!confirm("Are you sure you want to DELETE ALL " + invoices.length + " invoices? This cannot be undone.")) return;
+        if (!confirm("This will permanently remove all invoices from the system. Type OK to confirm.")) return;
+        fetch("/api/data/invoices", { method: "DELETE" }).then(r => r.json()).then(d => {
+          if (d.success) { setInvoices([]); showToast("All invoices deleted"); }
+          else showToast("Error: " + (d.error || "Failed"));
+        }).catch(e => showToast("Error: " + e.message));
+      }
+    }, "\uD83D\uDDD1 Delete All Invoices")), invTab === "receipts" && /*#__PURE__*/React.createElement(Btn, {
       icon: "plus",
       onClick: () => {
         setReceiptForm({
@@ -23874,7 +23886,23 @@ function Customers({
       variant: "secondary",
       "data-testid": "button-import-customers",
       onClick: () => { setImportCustRows([]); setShowImportCust(true); }
-    }, "\u2B07 Import Customers"), /*#__PURE__*/React.createElement(Btn, {
+    }, "\u2B07 Import Customers"), (() => {
+      const ids = customers.map(c => c.id);
+      const dupes = ids.filter((id, i) => ids.indexOf(id) !== i).length;
+      return dupes > 0 ? /*#__PURE__*/React.createElement(Btn, {
+        variant: "danger",
+        "data-testid": "button-fix-customer-ids",
+        onClick: () => {
+          if (!confirm(dupes + " customers have duplicate IDs. Fix them now? Each duplicate will get a unique ID.")) return;
+          fetch("/api/data/fix-duplicate-ids/customers", { method: "POST" }).then(r => r.json()).then(d => {
+            if (d.success) {
+              showToast(d.fixed + " duplicate IDs fixed. Reloading...");
+              setTimeout(() => window.location.reload(), 1000);
+            } else showToast("Error: " + (d.error || "Failed"));
+          }).catch(e => showToast("Error: " + e.message));
+        }
+      }, "\u26A0 Fix " + dupes + " Duplicate IDs") : null;
+    })(), /*#__PURE__*/React.createElement(Btn, {
       icon: "plus",
       onClick: openAdd
     }, "Add Customer"))

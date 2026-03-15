@@ -77,6 +77,49 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/data/:tableName", async (req, res) => {
+    const { tableName } = req.params;
+    if (!VALID_TABLES.includes(tableName) || tableName === "settings") {
+      return res.status(400).json({ error: "Invalid table name" });
+    }
+    try {
+      await storage.setTableData(tableName, []);
+      res.json({ success: true, cleared: tableName });
+    } catch (e: any) {
+      console.error(`Error clearing ${tableName}:`, e);
+      res.status(500).json({ error: `Failed to clear ${tableName}` });
+    }
+  });
+
+  app.post("/api/data/fix-duplicate-ids/:tableName", async (req, res) => {
+    const { tableName } = req.params;
+    if (!VALID_TABLES.includes(tableName) || tableName === "settings") {
+      return res.status(400).json({ error: "Invalid table name" });
+    }
+    try {
+      const data = await storage.getTableData(tableName);
+      if (!Array.isArray(data)) return res.status(400).json({ error: "Not an array table" });
+      const seen = new Set();
+      let fixed = 0;
+      const updated = data.map((item: any, idx: number) => {
+        if (seen.has(item.id)) {
+          const newId = `${item.id}-${Date.now().toString().slice(-4)}${String(idx).padStart(2, "0")}`;
+          fixed++;
+          return { ...item, id: newId };
+        }
+        seen.add(item.id);
+        return item;
+      });
+      if (fixed > 0) {
+        await storage.setTableData(tableName, updated);
+      }
+      res.json({ success: true, fixed, total: data.length });
+    } catch (e: any) {
+      console.error(`Error fixing IDs in ${tableName}:`, e);
+      res.status(500).json({ error: `Failed to fix IDs in ${tableName}` });
+    }
+  });
+
   app.delete("/api/data/:tableName/:recordId", async (req, res) => {
     const { tableName, recordId } = req.params;
     if (!VALID_TABLES.includes(tableName) || tableName === "settings") {
