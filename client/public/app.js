@@ -29095,7 +29095,8 @@ function CustomerPortal({
   customer,
   invoices,
   products,
-  settings
+  settings,
+  isPreview
 }) {
   const co = (settings && settings.company) || {};
   const [viewInv, setViewInv] = useState(null);
@@ -29199,7 +29200,7 @@ function CustomerPortal({
   };
   return /*#__PURE__*/React.createElement("div", {
     style: {
-      minHeight: "100vh",
+      minHeight: isPreview ? "auto" : "100vh",
       background: "#f1f5f9",
       fontFamily: "'DM Sans',Arial,sans-serif"
     }
@@ -29211,7 +29212,7 @@ function CustomerPortal({
       display: "flex",
       justifyContent: "space-between",
       alignItems: "center",
-      position: "sticky",
+      position: isPreview ? "relative" : "sticky",
       top: 0,
       zIndex: 10
     }
@@ -29716,7 +29717,7 @@ function CustomerPortal({
     }
   }, "No invoices found."))), viewInv && /*#__PURE__*/React.createElement("div", {
     style: {
-      position: "fixed",
+      position: isPreview ? "absolute" : "fixed",
       inset: 0,
       background: "#00000066",
       display: "flex",
@@ -29730,7 +29731,7 @@ function CustomerPortal({
       background: "#fff",
       borderRadius: 12,
       width: 620,
-      maxHeight: "85vh",
+      maxHeight: isPreview ? "400px" : "85vh",
       overflow: "auto",
       padding: 24,
       boxShadow: "0 20px 60px #00000033"
@@ -29944,7 +29945,7 @@ function CustomerPortal({
     }
   }, "\uD83D\uDCBE Download")))), viewScan && /*#__PURE__*/React.createElement("div", {
     style: {
-      position: "fixed",
+      position: isPreview ? "absolute" : "fixed",
       inset: 0,
       background: "#000000dd",
       display: "flex",
@@ -30496,7 +30497,8 @@ function PortalManager({
       customer: cust,
       invoices: invoices,
       products: products,
-      settings: settings
+      settings: settings,
+      isPreview: true
     })), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
