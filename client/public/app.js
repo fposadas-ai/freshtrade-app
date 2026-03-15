@@ -29190,6 +29190,7 @@ function CustomerPortal({
   const fmtP = n => `$${Number(n || 0).toFixed(2)}`;
   const agingBuckets = (() => {
     const now = new Date();
+    now.setHours(0, 0, 0, 0);
     const buckets = {
       current: 0,
       w1: 0,
@@ -29198,16 +29199,35 @@ function CustomerPortal({
       w4: 0,
       over4: 0
     };
+    const parseD = s => {
+      if (!s) return null;
+      const m = String(s).match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+      if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+      const m2 = String(s).match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+      if (m2) { const yr = m2[3].length === 2 ? 2000 + +m2[3] : +m2[3]; return new Date(yr, +m2[1] - 1, +m2[2]); }
+      const d = new Date(s);
+      return isNaN(d.getTime()) ? null : d;
+    };
     openInvs.forEach(inv => {
-      const due = new Date(inv.dueDate || inv.date);
+      const due = parseD(inv.dueDate) || parseD(inv.date);
+      if (!due) { buckets.current += inv.total || 0; return; }
       const days = Math.floor((now - due) / 86400000);
       if (days <= 0) buckets.current += inv.total || 0;else if (days <= 7) buckets.w1 += inv.total || 0;else if (days <= 14) buckets.w2 += inv.total || 0;else if (days <= 21) buckets.w3 += inv.total || 0;else if (days <= 28) buckets.w4 += inv.total || 0;else buckets.over4 += inv.total || 0;
     });
     return buckets;
   })();
   const printStatement = () => {
+    const prsD = s => {
+      if (!s) return null;
+      const m = String(s).match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+      if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+      const m2 = String(s).match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+      if (m2) { const yr = m2[3].length === 2 ? 2000 + +m2[3] : +m2[3]; return new Date(yr, +m2[1] - 1, +m2[2]); }
+      const d = new Date(s);
+      return isNaN(d.getTime()) ? null : d;
+    };
     const rows = openInvs.map(inv => {
-      const due = new Date(inv.dueDate || inv.date);
+      const due = prsD(inv.dueDate) || prsD(inv.date) || new Date();
       const days = Math.max(0, Math.floor((new Date() - due) / 86400000));
       const corrTag = inv.correctedAt ? ' <span style="background:#fbbf24;color:#78350f;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:4px;">CORRECTED</span>' : '';
       const corrNote = inv.correctedAt && inv.correctedFrom != null ? `<div style="font-size:10px;color:#92400e;margin-top:2px;">Was $${Number(inv.correctedFrom).toFixed(2)}</div>` : '';
