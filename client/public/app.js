@@ -23681,6 +23681,7 @@ function Customers({
   const [acctNotes, setAcctNotes] = useState("");
   const [showImportCust, setShowImportCust] = useState(false);
   const [importCustRows, setImportCustRows] = useState([]);
+  const [deleteCustConfirm, setDeleteCustConfirm] = useState(null);
   const emptyForm = {
     name: "",
     owners: [{ name: "", phone: "", email: "" }],
@@ -23959,7 +23960,12 @@ function Customers({
         size: "sm",
         icon: "edit",
         onClick: () => openEdit(c)
-      }, "Edit"))];
+      }, "Edit"), /*#__PURE__*/React.createElement("button", {
+        "data-testid": "button-delete-customer-" + c.id,
+        onClick: e => { e.stopPropagation(); setDeleteCustConfirm(c); },
+        title: "Delete customer",
+        style: { background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: 16, fontWeight: 700, padding: "4px 6px", lineHeight: 1, borderRadius: 4 }
+      }, "\u00D7"))];
     })
   }))), viewCust && (() => {
     const c = viewCust;
@@ -25594,6 +25600,37 @@ function Customers({
           showToast((created > 0 ? created + " customer" + (created !== 1 ? "s" : "") + " created" : "") + (created > 0 && updated > 0 ? ", " : "") + (updated > 0 ? updated + " updated" : ""));
         }
       }, "Import Customers"))
+    )
+  )),
+
+  deleteCustConfirm && /*#__PURE__*/React.createElement(Modal, {
+    title: "Delete Customer",
+    onClose: () => setDeleteCustConfirm(null),
+    width: 440
+  }, /*#__PURE__*/React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 16 } },
+    /*#__PURE__*/React.createElement("p", { style: { margin: 0, fontSize: 14, lineHeight: 1.6 } },
+      "Are you sure you want to delete ", /*#__PURE__*/React.createElement("strong", null, deleteCustConfirm.name), "?",
+      /*#__PURE__*/React.createElement("br", null),
+      (() => {
+        const invCount = invoices.filter(i => i.customerId === deleteCustConfirm.id).length;
+        const soCount = (salesOrders || []).filter(so => so.customerId === deleteCustConfirm.id).length;
+        if (invCount > 0 || soCount > 0) return /*#__PURE__*/React.createElement("span", { style: { color: "#f59e0b", fontSize: 13 } }, "\u26A0 This customer has ", invCount > 0 ? invCount + " invoice" + (invCount !== 1 ? "s" : "") : "", invCount > 0 && soCount > 0 ? " and " : "", soCount > 0 ? soCount + " sales order" + (soCount !== 1 ? "s" : "") : "", ". They will remain in history but won\u2019t be linked to this customer.");
+        return /*#__PURE__*/React.createElement("span", { style: { color: "#64748b", fontSize: 13 } }, "This customer has no invoices or orders.");
+      })()
+    ),
+    /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 8, justifyContent: "flex-end" } },
+      /*#__PURE__*/React.createElement(Btn, { variant: "secondary", onClick: () => setDeleteCustConfirm(null) }, "Cancel"),
+      /*#__PURE__*/React.createElement(Btn, {
+        "data-testid": "button-confirm-delete-customer",
+        style: { background: "#ef4444" },
+        onClick: () => {
+          const id = deleteCustConfirm.id;
+          setCustomers(prev => prev.filter(c => c.id !== id));
+          if (viewCust && viewCust.id === id) setViewCust(null);
+          setDeleteCustConfirm(null);
+          showToast("Customer deleted");
+        }
+      }, "Delete")
     )
   )));
 }
