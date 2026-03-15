@@ -3446,10 +3446,6 @@ function App() {
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      color: "#22c55e"
-    }
-  }, "\u25CF QB Online Connected"), /*#__PURE__*/React.createElement("div", {
-    style: {
       color: dbStatus === "saved" || dbStatus === "loaded" ? "#22c55e" : "#f59e0b",
       fontSize: 10
     }
