@@ -29098,6 +29098,10 @@ function CustomerPortal({
   const [viewInv, setViewInv] = useState(null);
   const [showStatement, setShowStatement] = useState(false);
   const [viewScan, setViewScan] = useState(null);
+  const [payMode, setPayMode] = useState(false);
+  const [paySelected, setPaySelected] = useState([]);
+  const [payMethods, setPayMethods] = useState(["card", "us_bank_account"]);
+  const [payLoading, setPayLoading] = useState(false);
   if (!customer) {
     return /*#__PURE__*/React.createElement("div", {
       style: {
@@ -29432,7 +29436,89 @@ function CustomerPortal({
       alignItems: "center",
       gap: 6
     }
-  }, showStatement ? "📄 Show All" : "📊 Aging View")), /*#__PURE__*/React.createElement("div", {
+  }, showStatement ? "\uD83D\uDCC4 Show All" : "\uD83D\uDCCA Aging View"), totalOwed > 0 && /*#__PURE__*/React.createElement("button", {
+    "data-testid": "portal-pay-now",
+    onClick: () => { setPayMode(!payMode); if (!payMode) setPaySelected(openInvs.map(i => i.id)); },
+    style: {
+      padding: "10px 24px",
+      borderRadius: 8,
+      border: "none",
+      background: "linear-gradient(135deg,#059669,#10b981)",
+      color: "#fff",
+      fontSize: 14,
+      fontWeight: 700,
+      cursor: "pointer",
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      boxShadow: "0 2px 8px #05966933",
+      marginLeft: "auto"
+    }
+  }, "\uD83D\uDCB3 Pay Now")),
+
+  payMode && /*#__PURE__*/React.createElement("div", {
+    style: { background: "#fff", borderRadius: 12, border: "2px solid #059669", overflow: "hidden", marginBottom: 20, boxShadow: "0 4px 16px #05966922" }
+  },
+    /*#__PURE__*/React.createElement("div", { style: { background: "linear-gradient(135deg,#059669,#10b981)", padding: "14px 20px", color: "#fff", display: "flex", justifyContent: "space-between", alignItems: "center" } },
+      /*#__PURE__*/React.createElement("div", { style: { fontSize: 16, fontWeight: 700 } }, "\uD83D\uDCB3 Select Invoices to Pay"),
+      /*#__PURE__*/React.createElement("button", { onClick: () => setPayMode(false), style: { background: "none", border: "none", color: "#fff", fontSize: 20, cursor: "pointer", fontWeight: 700 } }, "\u00D7")
+    ),
+    /*#__PURE__*/React.createElement("div", { style: { padding: "16px 20px" } },
+      /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 16, marginBottom: 12 } },
+        /*#__PURE__*/React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer" } },
+          /*#__PURE__*/React.createElement("input", { type: "checkbox", checked: payMethods.includes("card"), onChange: () => setPayMethods(prev => prev.includes("card") ? prev.filter(m => m !== "card") : [...prev, "card"]) }), "\uD83D\uDCB3 Credit Card"),
+        /*#__PURE__*/React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer" } },
+          /*#__PURE__*/React.createElement("input", { type: "checkbox", checked: payMethods.includes("us_bank_account"), onChange: () => setPayMethods(prev => prev.includes("us_bank_account") ? prev.filter(m => m !== "us_bank_account") : [...prev, "us_bank_account"]) }), "\uD83C\uDFE6 ACH Bank Transfer"),
+        /*#__PURE__*/React.createElement("button", { onClick: () => setPaySelected(paySelected.length === openInvs.length ? [] : openInvs.map(i => i.id)), style: { marginLeft: "auto", background: "none", border: "1px solid #d1d5db", borderRadius: 6, padding: "4px 12px", fontSize: 12, cursor: "pointer", color: "#374151" } }, paySelected.length === openInvs.length ? "Deselect All" : "Select All")
+      ),
+      openInvs.map(inv => /*#__PURE__*/React.createElement("div", {
+        key: inv.id,
+        onClick: () => setPaySelected(prev => prev.includes(inv.id) ? prev.filter(x => x !== inv.id) : [...prev, inv.id]),
+        style: { display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 8, marginBottom: 4, cursor: "pointer", background: paySelected.includes(inv.id) ? "#f0fdf4" : "#fff", border: paySelected.includes(inv.id) ? "1px solid #86efac" : "1px solid #e2e8f0", transition: "all 0.15s" }
+      },
+        /*#__PURE__*/React.createElement("input", { type: "checkbox", checked: paySelected.includes(inv.id), readOnly: true }),
+        /*#__PURE__*/React.createElement("span", { style: { fontFamily: "'DM Mono',monospace", fontWeight: 700, color: "#059669", minWidth: 100 } }, inv.id),
+        /*#__PURE__*/React.createElement("span", { style: { flex: 1, color: "#6b7280", fontSize: 12 } }, inv.date, " \u2014 Due ", inv.dueDate || "\u2014"),
+        /*#__PURE__*/React.createElement("span", { style: { fontFamily: "'DM Mono',monospace", fontWeight: 700, fontSize: 15 } }, fmtP(inv.total))
+      )),
+      /*#__PURE__*/React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16, paddingTop: 16, borderTop: "2px solid #e2e8f0" } },
+        /*#__PURE__*/React.createElement("div", null,
+          /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, color: "#6b7280" } }, paySelected.length, " invoice", paySelected.length !== 1 ? "s" : "", " selected"),
+          /*#__PURE__*/React.createElement("div", { style: { fontSize: 28, fontWeight: 800, color: "#059669", fontFamily: "'DM Mono',monospace" } }, fmtP(openInvs.filter(i => paySelected.includes(i.id)).reduce((s, i) => s + (i.total || 0), 0)))
+        ),
+        /*#__PURE__*/React.createElement("button", {
+          "data-testid": "portal-proceed-to-pay",
+          disabled: payLoading || paySelected.length === 0 || payMethods.length === 0,
+          onClick: async () => {
+            setPayLoading(true);
+            try {
+              const selInvs = openInvs.filter(i => paySelected.includes(i.id));
+              const totalAmt = selInvs.reduce((s, i) => s + (i.total || 0), 0);
+              const invIds = selInvs.map(i => i.id).join(", ");
+              const resp = await fetch("/api/stripe/create-checkout", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  invoiceId: invIds,
+                  customerName: customer.name,
+                  amount: Math.round(totalAmt * 100) / 100,
+                  description: customer.name + " \u2014 Invoice" + (selInvs.length > 1 ? "s " : " ") + invIds,
+                  paymentMethods: payMethods
+                })
+              });
+              const data = await resp.json();
+              if (data.error) { alert("Payment error: " + data.error); }
+              else if (data.url) { window.location.href = data.url; }
+            } catch (err) { alert("Failed to start payment. Please try again."); }
+            setPayLoading(false);
+          },
+          style: { padding: "14px 36px", borderRadius: 10, border: "none", background: paySelected.length === 0 || payMethods.length === 0 ? "#d1d5db" : "linear-gradient(135deg,#059669,#10b981)", color: "#fff", fontSize: 16, fontWeight: 700, cursor: paySelected.length === 0 ? "default" : "pointer", boxShadow: paySelected.length > 0 ? "0 4px 16px #05966933" : "none", display: "flex", alignItems: "center", gap: 8 }
+        }, payLoading ? "Processing..." : "\u2192 Proceed to Payment")
+      )
+    )
+  ),
+
+  /*#__PURE__*/React.createElement("div", {
     style: {
       background: "#fff",
       borderRadius: 10,
@@ -29447,7 +29533,7 @@ function CustomerPortal({
       fontWeight: 700,
       color: "#111827"
     }
-  }, showStatement ? "Open Invoices — Aging Detail" : "All Invoices"), /*#__PURE__*/React.createElement("table", {
+  }, showStatement ? "Open Invoices \u2014 Aging Detail" : "All Invoices"), /*#__PURE__*/React.createElement("table", {
     style: {
       width: "100%",
       borderCollapse: "collapse",
