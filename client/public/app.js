@@ -23679,6 +23679,8 @@ function Customers({
   const [invFilter, setInvFilter] = useState("all");
   const [acctSearch, setAcctSearch] = useState("");
   const [acctNotes, setAcctNotes] = useState("");
+  const [showImportCust, setShowImportCust] = useState(false);
+  const [importCustRows, setImportCustRows] = useState([]);
   const emptyForm = {
     name: "",
     owners: [{ name: "", phone: "", email: "" }],
@@ -23838,10 +23840,14 @@ function Customers({
   }, !viewCust && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(PageHeader, {
     title: "Customers",
     subtitle: "Manage your customer accounts",
-    action: /*#__PURE__*/React.createElement(Btn, {
+    action: /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 8 } }, /*#__PURE__*/React.createElement(Btn, {
+      variant: "secondary",
+      "data-testid": "button-import-customers",
+      onClick: () => { setImportCustRows([]); setShowImportCust(true); }
+    }, "\u2B07 Import Customers"), /*#__PURE__*/React.createElement(Btn, {
       icon: "plus",
       onClick: openAdd
-    }, "Add Customer")
+    }, "Add Customer"))
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       position: "relative",
@@ -25351,7 +25357,245 @@ function Customers({
     onClick: save,
     disabled: !form.name || !(form.owners && form.owners.some(o => o.name)),
     icon: editCust ? "check" : "plus"
-  }, editCust ? "Save Changes" : "Add Customer"))));
+  }, editCust ? "Save Changes" : "Add Customer"))),
+
+  showImportCust && /*#__PURE__*/React.createElement(Modal, {
+    title: "Import Customers from Spreadsheet",
+    onClose: () => setShowImportCust(false),
+    width: 900
+  }, /*#__PURE__*/React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 16 } },
+    /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 12, alignItems: "center" } },
+      /*#__PURE__*/React.createElement("label", {
+        style: { padding: "10px 18px", background: "#1e293b", color: "#fff", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }
+      }, "\uD83D\uDCC1 Choose CSV File", /*#__PURE__*/React.createElement("input", {
+        type: "file",
+        accept: ".csv,.txt,.tsv",
+        "data-testid": "import-cust-file",
+        style: { display: "none" },
+        onChange: e => {
+          const file = e.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = ev => {
+            const text = ev.target.result;
+            const lines = text.split(/\r?\n/).filter(l => l.trim());
+            if (lines.length < 2) { showToast("File must have a header row and at least one data row"); return; }
+            const hdr = lines[0].toLowerCase();
+            const hdrs = [];
+            let cur = "", inQ = false;
+            for (let ch of hdr) { if (ch === '"') { inQ = !inQ; } else if ((ch === ',' || ch === '\t') && !inQ) { hdrs.push(cur.trim()); cur = ""; } else { cur += ch; } }
+            hdrs.push(cur.trim());
+            const nameCol = hdrs.findIndex(h => /^(customer|name|company|business|acct|account)(\s|_)*(name)?$/i.test(h));
+            const codeCol = hdrs.findIndex(h => /code|acct.*#|account.*#|cust.*#|number/i.test(h));
+            const phoneCol = hdrs.findIndex(h => /^phone|tel|telephone/i.test(h));
+            const emailCol = hdrs.findIndex(h => /email|e-mail/i.test(h));
+            const addressCol = hdrs.findIndex(h => /address|street|location/i.test(h));
+            const contactCol = hdrs.findIndex(h => /contact|owner|rep/i.test(h));
+            const routeCol = hdrs.findIndex(h => /route/i.test(h));
+            const termsCol = hdrs.findIndex(h => /terms|payment.*terms/i.test(h));
+            const creditCol = hdrs.findIndex(h => /credit.*limit|limit/i.test(h));
+            const priceLevelCol = hdrs.findIndex(h => /price.*level|tier|pricing/i.test(h));
+            const notesCol = hdrs.findIndex(h => /notes|memo|comment/i.test(h));
+            if (nameCol < 0) { showToast("Could not find a 'Customer' or 'Name' column in the header row"); return; }
+            const rows = [];
+            for (let li = 1; li < lines.length; li++) {
+              const vals = [];
+              let vc = "", vq = false;
+              for (let ch of lines[li]) { if (ch === '"') { vq = !vq; } else if ((ch === ',' || ch === '\t') && !vq) { vals.push(vc.trim()); vc = ""; } else { vc += ch; } }
+              vals.push(vc.trim());
+              const name = (vals[nameCol] || "").replace(/^["']|["']$/g, "").trim();
+              if (!name) continue;
+              const existing = customers.find(c => c.name.toLowerCase() === name.toLowerCase() || (c.code && c.code.toLowerCase() === name.toLowerCase()));
+              rows.push({
+                _existing: existing ? existing.id : null,
+                name: name,
+                code: codeCol >= 0 ? (vals[codeCol] || "").replace(/^["']|["']$/g, "").trim() : "",
+                phone: phoneCol >= 0 ? (vals[phoneCol] || "").replace(/^["']|["']$/g, "").trim() : "",
+                email: emailCol >= 0 ? (vals[emailCol] || "").replace(/^["']|["']$/g, "").trim() : "",
+                address: addressCol >= 0 ? (vals[addressCol] || "").replace(/^["']|["']$/g, "").trim() : "",
+                contact: contactCol >= 0 ? (vals[contactCol] || "").replace(/^["']|["']$/g, "").trim() : "",
+                route: routeCol >= 0 ? (vals[routeCol] || "").replace(/^["']|["']$/g, "").trim() : "",
+                terms: termsCol >= 0 ? (vals[termsCol] || "").replace(/^["']|["']$/g, "").trim() : "",
+                creditLimit: creditCol >= 0 ? (vals[creditCol] || "").replace(/[$,\s"']/g, "") : "",
+                priceLevel: priceLevelCol >= 0 ? (vals[priceLevelCol] || "").replace(/^["']|["']$/g, "").trim() : "",
+                notes: notesCol >= 0 ? (vals[notesCol] || "").replace(/^["']|["']$/g, "").trim() : "",
+                _skip: false
+              });
+            }
+            if (rows.length === 0) { showToast("No valid data rows found in file"); return; }
+            setImportCustRows(rows);
+            const dupeCount = rows.filter(r => r._existing).length;
+            if (dupeCount > 0) showToast(dupeCount + " customer(s) already exist and are marked for update");
+          };
+          reader.readAsText(file);
+          e.target.value = "";
+        }
+      }))),
+    /*#__PURE__*/React.createElement("div", {
+      style: { fontSize: 11, color: "#94a3b8", lineHeight: 1.5 }
+    }, /*#__PURE__*/React.createElement("strong", null, "Expected columns:"), " Customer Name, Code, Phone, Email, Address, Contact/Owner, Route, Terms, Credit Limit, Price Level, Notes", /*#__PURE__*/React.createElement("br", null), "Only 'Customer Name' is required. Headers are matched flexibly. Existing customers (matched by name) will be updated with new data."),
+    importCustRows.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null,
+      /*#__PURE__*/React.createElement("div", {
+        style: { overflowX: "auto", maxHeight: 400, overflowY: "auto" }
+      }, /*#__PURE__*/React.createElement("table", {
+        style: { width: "100%", borderCollapse: "collapse", fontSize: 13 }
+      }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+        style: { background: "#1e293b", color: "#fff" }
+      },
+        /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "center", fontSize: 11, width: 30 } }),
+        /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", fontSize: 11 } }, "Name"),
+        /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", fontSize: 11 } }, "Code"),
+        /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", fontSize: 11 } }, "Phone"),
+        /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", fontSize: 11 } }, "Email"),
+        /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", fontSize: 11 } }, "Address"),
+        /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", fontSize: 11 } }, "Contact"),
+        /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", fontSize: 11 } }, "Route"),
+        /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", fontSize: 11 } }, "Terms"),
+        /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "right", fontSize: 11 } }, "Credit Limit"),
+        /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", fontSize: 11 } }, "Notes")
+      )), /*#__PURE__*/React.createElement("tbody", null, importCustRows.map((row, idx) => /*#__PURE__*/React.createElement("tr", {
+        key: idx,
+        style: { borderBottom: "1px solid #e2e8f0", opacity: row._skip ? 0.4 : 1 }
+      },
+        /*#__PURE__*/React.createElement("td", { style: { padding: 4, textAlign: "center" } }, /*#__PURE__*/React.createElement("input", {
+          type: "checkbox",
+          checked: !row._skip,
+          onChange: () => setImportCustRows(prev => prev.map((r, i) => i === idx ? { ...r, _skip: !r._skip } : r)),
+          title: "Include this customer"
+        })),
+        /*#__PURE__*/React.createElement("td", { style: { padding: 4 } },
+          /*#__PURE__*/React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 4 } },
+            /*#__PURE__*/React.createElement("input", {
+              "data-testid": "import-cust-name-" + idx,
+              value: row.name,
+              onChange: e => setImportCustRows(prev => prev.map((r, i) => i === idx ? { ...r, name: e.target.value } : r)),
+              style: { width: 160, padding: "6px 8px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }
+            }),
+            row._existing && /*#__PURE__*/React.createElement("span", { style: { fontSize: 10, color: "#f59e0b", fontWeight: 600 }, title: "Will update existing customer" }, "\u2191")
+          )
+        ),
+        /*#__PURE__*/React.createElement("td", { style: { padding: 4 } }, /*#__PURE__*/React.createElement("input", {
+          value: row.code || "",
+          onChange: e => setImportCustRows(prev => prev.map((r, i) => i === idx ? { ...r, code: e.target.value } : r)),
+          style: { width: 70, padding: "6px 8px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }
+        })),
+        /*#__PURE__*/React.createElement("td", { style: { padding: 4 } }, /*#__PURE__*/React.createElement("input", {
+          value: row.phone || "",
+          onChange: e => setImportCustRows(prev => prev.map((r, i) => i === idx ? { ...r, phone: e.target.value } : r)),
+          style: { width: 120, padding: "6px 8px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }
+        })),
+        /*#__PURE__*/React.createElement("td", { style: { padding: 4 } }, /*#__PURE__*/React.createElement("input", {
+          value: row.email || "",
+          onChange: e => setImportCustRows(prev => prev.map((r, i) => i === idx ? { ...r, email: e.target.value } : r)),
+          style: { width: 160, padding: "6px 8px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }
+        })),
+        /*#__PURE__*/React.createElement("td", { style: { padding: 4 } }, /*#__PURE__*/React.createElement("input", {
+          value: row.address || "",
+          onChange: e => setImportCustRows(prev => prev.map((r, i) => i === idx ? { ...r, address: e.target.value } : r)),
+          style: { width: 180, padding: "6px 8px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }
+        })),
+        /*#__PURE__*/React.createElement("td", { style: { padding: 4 } }, /*#__PURE__*/React.createElement("input", {
+          value: row.contact || "",
+          onChange: e => setImportCustRows(prev => prev.map((r, i) => i === idx ? { ...r, contact: e.target.value } : r)),
+          style: { width: 120, padding: "6px 8px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }
+        })),
+        /*#__PURE__*/React.createElement("td", { style: { padding: 4 } }, /*#__PURE__*/React.createElement("input", {
+          value: row.route || "",
+          onChange: e => setImportCustRows(prev => prev.map((r, i) => i === idx ? { ...r, route: e.target.value } : r)),
+          style: { width: 60, padding: "6px 8px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }
+        })),
+        /*#__PURE__*/React.createElement("td", { style: { padding: 4 } }, /*#__PURE__*/React.createElement("input", {
+          value: row.terms || "",
+          onChange: e => setImportCustRows(prev => prev.map((r, i) => i === idx ? { ...r, terms: e.target.value } : r)),
+          style: { width: 90, padding: "6px 8px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }
+        })),
+        /*#__PURE__*/React.createElement("td", { style: { padding: 4 } }, /*#__PURE__*/React.createElement("input", {
+          type: "number",
+          value: row.creditLimit || "",
+          onChange: e => setImportCustRows(prev => prev.map((r, i) => i === idx ? { ...r, creditLimit: e.target.value } : r)),
+          style: { width: 90, padding: "6px 8px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13, textAlign: "right", fontFamily: "'DM Mono',monospace" }
+        })),
+        /*#__PURE__*/React.createElement("td", { style: { padding: 4 } }, /*#__PURE__*/React.createElement("input", {
+          value: row.notes || "",
+          onChange: e => setImportCustRows(prev => prev.map((r, i) => i === idx ? { ...r, notes: e.target.value } : r)),
+          style: { width: 120, padding: "6px 8px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }
+        }))
+      ))))),
+      /*#__PURE__*/React.createElement("div", {
+        style: { display: "flex", justifyContent: "space-between", alignItems: "center" }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: { fontSize: 13, color: "#64748b" }
+      }, importCustRows.filter(r => !r._skip && r.name).length, " of ", importCustRows.length, " customers selected",
+        importCustRows.filter(r => r._existing && !r._skip).length > 0 && /*#__PURE__*/React.createElement("span", { style: { color: "#f59e0b", marginLeft: 8 } }, "\u2191 ", importCustRows.filter(r => r._existing && !r._skip).length, " existing will be updated")
+      )),
+      /*#__PURE__*/React.createElement("div", {
+        style: { display: "flex", gap: 8, justifyContent: "flex-end" }
+      }, /*#__PURE__*/React.createElement(Btn, {
+        variant: "secondary",
+        onClick: () => setShowImportCust(false)
+      }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
+        "data-testid": "button-import-cust-submit",
+        disabled: importCustRows.filter(r => !r._skip && r.name).length === 0,
+        onClick: () => {
+          const active = importCustRows.filter(r => !r._skip && r.name.trim());
+          if (active.length === 0) { showToast("No customers selected for import"); return; }
+          let created = 0, updated = 0;
+          setCustomers(prev => {
+            const next = [...prev];
+            for (const row of active) {
+              const existIdx = next.findIndex(c => c.name.toLowerCase() === row.name.trim().toLowerCase() || (c.code && row.code && c.code.toLowerCase() === row.code.trim().toLowerCase()));
+              if (existIdx >= 0) {
+                const c = { ...next[existIdx] };
+                if (row.code) c.code = row.code.trim();
+                if (row.phone) c.phone = row.phone.trim();
+                if (row.email) c.email = row.email.trim();
+                if (row.address) c.address = row.address.trim();
+                if (row.contact) { c.contact = row.contact.trim(); c.owner = row.contact.trim(); c.owners = [{ name: row.contact.trim(), phone: row.phone || c.ownerPhone || "", email: row.email || c.ownerEmail || "" }]; }
+                if (row.route) c.route = row.route.trim();
+                if (row.terms) c.terms = row.terms.trim();
+                if (row.creditLimit) c.creditLimit = Number(row.creditLimit) || c.creditLimit;
+                if (row.notes) c.notes = (c.notes ? c.notes + "; " : "") + row.notes.trim();
+                next[existIdx] = c;
+                updated++;
+              } else {
+                next.push({
+                  id: genId("CUST"),
+                  name: row.name.trim(),
+                  code: row.code ? row.code.trim() : "",
+                  phone: row.phone ? row.phone.trim() : "",
+                  email: row.email ? row.email.trim() : "",
+                  address: row.address ? row.address.trim() : "",
+                  contact: row.contact ? row.contact.trim() : "",
+                  owner: row.contact ? row.contact.trim() : "",
+                  owners: [{ name: row.contact ? row.contact.trim() : "", phone: row.phone ? row.phone.trim() : "", email: row.email ? row.email.trim() : "" }],
+                  orderContacts: [{ name: "", phone: "", email: "" }],
+                  arContacts: [{ name: "", phone: "", email: "" }],
+                  route: row.route ? row.route.trim() : "R01",
+                  terms: row.terms ? row.terms.trim() : "1 Week",
+                  priceLevel: row.priceLevel || "level3",
+                  creditLimit: row.creditLimit ? Number(row.creditLimit) || 5000 : 5000,
+                  notes: row.notes ? row.notes.trim() : "",
+                  smsPhone: "",
+                  ownerPhone: row.phone ? row.phone.trim() : "",
+                  ownerEmail: row.email ? row.email.trim() : "",
+                  orderGiver: "",
+                  orderGiverPhone: "",
+                  orderGiverEmail: "",
+                  collectionDay: "",
+                  imported: true,
+                  importedAt: new Date().toISOString()
+                });
+                created++;
+              }
+            }
+            return next;
+          });
+          setShowImportCust(false);
+          showToast((created > 0 ? created + " customer" + (created !== 1 ? "s" : "") + " created" : "") + (created > 0 && updated > 0 ? ", " : "") + (updated > 0 ? updated + " updated" : ""));
+        }
+      }, "Import Customers"))
+    )
+  )));
 }
 
 // ============================================================
