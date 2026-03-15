@@ -15203,13 +15203,21 @@ function Invoices({
         const lines = text.split(/\r?\n/).filter(l => l.trim());
         if (lines.length < 2) { showToast("File appears empty or has no data rows"); return; }
         const hdrs = lines[0].split(sep).map(h => h.replace(/^["']|["']$/g, "").trim().toLowerCase());
-        const custCol = hdrs.findIndex(h => /customer|cust|name|account|acct/i.test(h));
-        const invCol = hdrs.findIndex(h => /invoice|inv|number|num|ref|#/i.test(h));
-        const dateCol = hdrs.findIndex(h => /^date$|inv.*date|invoice.*date/i.test(h));
-        const dueCol = hdrs.findIndex(h => /due|due.*date/i.test(h));
-        const totalCol = hdrs.findIndex(h => /total|amount|balance|amt|due.*amt/i.test(h));
-        const paidCol = hdrs.findIndex(h => /paid|payment|amount.*paid|amt.*paid|received/i.test(h));
-        const notesCol = hdrs.findIndex(h => /note|memo|desc|comment/i.test(h));
+        const used = new Set();
+        const findCol = (tests) => {
+          for (const re of tests) {
+            const idx = hdrs.findIndex((h, i) => !used.has(i) && re.test(h));
+            if (idx >= 0) { used.add(idx); return idx; }
+          }
+          return -1;
+        };
+        const custCol = findCol([/^customer\s*name$/i, /^customer$/i, /^cust$/i, /^client$/i, /^account\s*name$/i, /^acct\s*name$/i, /customer/i, /client/i, /^name$/i]);
+        const invCol = findCol([/^invoice\s*(number|num|no|#)?$/i, /^inv\s*(number|num|no|#)?$/i, /^number$/i, /^num$/i, /^ref$/i, /^doc\s*#$/i]);
+        const dateCol = findCol([/^(invoice\s*)?date$/i, /^inv\s*date$/i, /^trans.*date$/i]);
+        const dueCol = findCol([/due\s*date/i, /^due$/i, /^terms\s*date$/i]);
+        const totalCol = findCol([/^total$/i, /^invoice\s*total$/i, /^amount$/i, /^balance$/i, /open\s*balance/i, /^amt$/i, /^amt\s*due$/i, /^grand\s*total$/i]);
+        const paidCol = findCol([/paid/i, /^payment$/i, /^received$/i, /^amt\s*paid$/i, /^amount\s*paid$/i]);
+        const notesCol = findCol([/^note/i, /^memo$/i, /^description$/i, /^comment/i]);
         if (custCol === -1 && totalCol === -1) { showToast("Could not find Customer or Total columns. Check your column headers."); return; }
         const parseDate = s => {
           if (!s) return "";
@@ -15232,8 +15240,20 @@ function Invoices({
             else cur += ch;
           }
           vals.push(cur.trim());
-          const custName = custCol >= 0 ? vals[custCol] || "" : "";
-          const matchedCust = customers.find(c => c.name.toLowerCase() === custName.toLowerCase() || (c.code && c.code.toLowerCase() === custName.toLowerCase()));
+          const custName = custCol >= 0 ? (vals[custCol] || "").replace(/^["']|["']$/g, "").trim() : "";
+          const norm = s => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+          const custNorm = norm(custName);
+          const matchedCust = custNorm ? (() => {
+            const exact = customers.find(c => c.name.toLowerCase() === custName.toLowerCase() || (c.code && c.code.toLowerCase() === custName.toLowerCase()));
+            if (exact) return exact;
+            const normMatch = customers.find(c => norm(c.name) === custNorm || (c.code && norm(c.code) === custNorm));
+            if (normMatch) return normMatch;
+            const contains = customers.filter(c => norm(c.name).includes(custNorm) || custNorm.includes(norm(c.name)));
+            if (contains.length === 1) return contains[0];
+            const startsWith = customers.filter(c => norm(c.name).startsWith(custNorm) || custNorm.startsWith(norm(c.name)));
+            if (startsWith.length === 1) return startsWith[0];
+            return null;
+          })() : null;
           const totalStr = totalCol >= 0 ? (vals[totalCol] || "").replace(/[$,\s"']/g, "") : "";
           const paidStr = paidCol >= 0 ? (vals[paidCol] || "").replace(/[$,\s"']/g, "") : "";
           if (!custName && !totalStr) continue;
@@ -15270,9 +15290,17 @@ function Invoices({
   }, /*#__PURE__*/React.createElement("td", { style: { padding: 4 } }, /*#__PURE__*/React.createElement("select", {
     "data-testid": "import-inv-customer-" + idx,
     value: row.customerId,
-    onChange: e => setImportInvRows(prev => prev.map((r, i) => i === idx ? { ...r, customerId: e.target.value } : r)),
-    style: { width: "100%", padding: "6px 8px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13, background: "#fff" }
-  }, /*#__PURE__*/React.createElement("option", { value: "" }, row._custName ? "\u26A0 " + row._custName + " (not matched)" : "Select customer..."), customers.map(c => /*#__PURE__*/React.createElement("option", { key: c.id, value: c.id }, c.name)))), /*#__PURE__*/React.createElement("td", { style: { padding: 4 } }, /*#__PURE__*/React.createElement("input", {
+    onChange: e => {
+      const newCustId = e.target.value;
+      const csvName = row._custName;
+      setImportInvRows(prev => prev.map((r, i) => {
+        if (i === idx) return { ...r, customerId: newCustId };
+        if (csvName && r._custName === csvName && !r.customerId) return { ...r, customerId: newCustId };
+        return r;
+      }));
+    },
+    style: { width: "100%", padding: "6px 8px", border: "1px solid " + (row.customerId ? "#22c55e" : "#f59e0b"), borderRadius: 6, fontSize: 13, background: row.customerId ? "#f0fdf4" : "#fffbeb" }
+  }, /*#__PURE__*/React.createElement("option", { value: "" }, row._custName ? "\u26A0 " + row._custName + " (not matched)" : "Select customer..."), customers.map(c => /*#__PURE__*/React.createElement("option", { key: c.id, value: c.id }, c.name))), row._custName && row.customerId && /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, color: "#64748b", marginTop: 2 } }, "CSV: ", row._custName)), /*#__PURE__*/React.createElement("td", { style: { padding: 4 } }, /*#__PURE__*/React.createElement("input", {
     "data-testid": "import-inv-number-" + idx,
     value: row.invoiceNum,
     onChange: e => setImportInvRows(prev => prev.map((r, i) => i === idx ? { ...r, invoiceNum: e.target.value } : r)),
