@@ -44,3 +44,6 @@ waitForPort = 5000
 [userenv.shared]
 QB_REDIRECT_URI = "https://work.freshtrade.com/api/quickbooks/callback"
 QB_ENVIRONMENT = "production"
+
+[agent]
+integrations = ["stripe:1.0.0"]

@@ -35167,6 +35167,9 @@ function AccountsReceivable({
     applyTo: []
   });
   const [showPayForm, setShowPayForm] = useState(false);
+  const [stripePayModal, setStripePayModal] = useState(null);
+  const [stripePayLoading, setStripePayLoading] = useState(false);
+  const [stripePayResult, setStripePayResult] = useState(null);
   const [payFilter, setPayFilter] = useState({
     status: "all",
     method: "all",
@@ -35717,10 +35720,21 @@ function AccountsReceivable({
           color: "#ef4444",
           fontWeight: 700
         }
-      }, overdue.length, " (", fmt(overdue.reduce((s, i) => s + getInvBalance(i), 0)), ")") : "—", /*#__PURE__*/React.createElement(Btn, {
-        size: "sm",
-        onClick: () => openReceivePayment(c.id)
-      }, "\uD83D\uDCB0 Receive")];
+      }, overdue.length, " (", fmt(overdue.reduce((s, i) => s + getInvBalance(i), 0)), ")") : "—", /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 4 } },
+        /*#__PURE__*/React.createElement(Btn, {
+          size: "sm",
+          onClick: () => openReceivePayment(c.id)
+        }, "\uD83D\uDCB0 Receive"),
+        /*#__PURE__*/React.createElement(Btn, {
+          size: "sm",
+          variant: "secondary",
+          "data-testid": "button-stripe-pay-" + c.id,
+          onClick: () => {
+            const custInvsList = invoices.filter(i => i.customerId === c.id && i.status === "open" && getInvBalance(i) > 0.01);
+            setStripePayModal({ customer: c, invoices: custInvsList, selectedInvs: custInvsList.map(i => i.id), methods: ["card", "us_bank_account"] });
+            setStripePayResult(null);
+          }
+        }, "\uD83D\uDCB3 Pay Link"))];
     })
   }), customers.filter(c => getCustBalance(c.id) > 0.01).length === 0 && /*#__PURE__*/React.createElement("div", {
     style: {
@@ -37086,7 +37100,107 @@ function AccountsReceivable({
     style: {
       background: "#ef4444"
     }
-  }, "\u21A9 Process Return", Number(returnFee) > 0 ? ` + $${Number(returnFee).toFixed(2)} Fee` : ""))));
+  }, "\u21A9 Process Return", Number(returnFee) > 0 ? ` + $${Number(returnFee).toFixed(2)} Fee` : ""))),
+
+  stripePayModal && /*#__PURE__*/React.createElement(Modal, {
+    title: "\uD83D\uDCB3 Send Payment Link — " + stripePayModal.customer.name,
+    onClose: () => { setStripePayModal(null); setStripePayResult(null); },
+    width: 560
+  }, /*#__PURE__*/React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 16 } },
+    !stripePayResult && /*#__PURE__*/React.createElement(React.Fragment, null,
+      /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, color: "#64748b" } }, "Select which invoices to include in the payment link. The customer will be able to pay with credit card", stripePayModal.methods.includes("us_bank_account") ? " or ACH bank transfer" : "", "."),
+      /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 4 } },
+        /*#__PURE__*/React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer" } },
+          /*#__PURE__*/React.createElement("input", { type: "checkbox", checked: stripePayModal.methods.includes("card"), onChange: () => setStripePayModal(prev => ({ ...prev, methods: prev.methods.includes("card") ? prev.methods.filter(m => m !== "card") : [...prev.methods, "card"] })) }), "Credit Card"),
+        /*#__PURE__*/React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer" } },
+          /*#__PURE__*/React.createElement("input", { type: "checkbox", checked: stripePayModal.methods.includes("us_bank_account"), onChange: () => setStripePayModal(prev => ({ ...prev, methods: prev.methods.includes("us_bank_account") ? prev.methods.filter(m => m !== "us_bank_account") : [...prev.methods, "us_bank_account"] })) }), "ACH Bank Transfer")
+      ),
+      /*#__PURE__*/React.createElement("div", { style: { border: "1px solid #e2e8f0", borderRadius: 8, overflow: "hidden" } },
+        /*#__PURE__*/React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 13 } },
+          /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", { style: { background: "#f8fafc" } },
+            /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", width: 30 } }),
+            /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "left" } }, "Invoice"),
+            /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "left" } }, "Date"),
+            /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "right" } }, "Total"),
+            /*#__PURE__*/React.createElement("th", { style: { padding: "8px 10px", textAlign: "right" } }, "Balance Due")
+          )),
+          /*#__PURE__*/React.createElement("tbody", null, stripePayModal.invoices.map(inv => {
+            const bal = getInvBalance(inv);
+            return /*#__PURE__*/React.createElement("tr", { key: inv.id, style: { borderTop: "1px solid #e2e8f0" } },
+              /*#__PURE__*/React.createElement("td", { style: { padding: "6px 10px" } }, /*#__PURE__*/React.createElement("input", {
+                type: "checkbox",
+                checked: stripePayModal.selectedInvs.includes(inv.id),
+                onChange: () => setStripePayModal(prev => ({ ...prev, selectedInvs: prev.selectedInvs.includes(inv.id) ? prev.selectedInvs.filter(x => x !== inv.id) : [...prev.selectedInvs, inv.id] }))
+              })),
+              /*#__PURE__*/React.createElement("td", { style: { padding: "6px 10px", fontWeight: 600 } }, inv.id),
+              /*#__PURE__*/React.createElement("td", { style: { padding: "6px 10px" } }, inv.date),
+              /*#__PURE__*/React.createElement("td", { style: { padding: "6px 10px", textAlign: "right", fontFamily: "'DM Mono',monospace" } }, fmt(inv.total)),
+              /*#__PURE__*/React.createElement("td", { style: { padding: "6px 10px", textAlign: "right", fontFamily: "'DM Mono',monospace", fontWeight: 700, color: "#f59e0b" } }, fmt(bal))
+            );
+          }))
+        )
+      ),
+      /*#__PURE__*/React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0" } },
+        /*#__PURE__*/React.createElement("span", { style: { fontSize: 14, fontWeight: 600 } }, "Payment Total: ", /*#__PURE__*/React.createElement("span", { style: { fontFamily: "'DM Mono',monospace", color: "#f59e0b" } }, fmt(stripePayModal.invoices.filter(i => stripePayModal.selectedInvs.includes(i.id)).reduce((s, i) => s + getInvBalance(i), 0)))),
+        /*#__PURE__*/React.createElement(Btn, {
+          "data-testid": "button-generate-stripe-link",
+          disabled: stripePayLoading || stripePayModal.selectedInvs.length === 0 || stripePayModal.methods.length === 0,
+          onClick: async () => {
+            setStripePayLoading(true);
+            try {
+              const selInvs = stripePayModal.invoices.filter(i => stripePayModal.selectedInvs.includes(i.id));
+              const totalAmt = selInvs.reduce((s, i) => s + getInvBalance(i), 0);
+              const invIds = selInvs.map(i => i.id).join(", ");
+              const resp = await fetch("/api/stripe/create-checkout", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  invoiceId: invIds,
+                  customerName: stripePayModal.customer.name,
+                  amount: Math.round(totalAmt * 100) / 100,
+                  description: `${stripePayModal.customer.name} — Invoice${selInvs.length > 1 ? "s" : ""} ${invIds}`,
+                  paymentMethods: stripePayModal.methods
+                })
+              });
+              const data = await resp.json();
+              if (data.error) { showToast("Stripe error: " + data.error); }
+              else { setStripePayResult({ url: data.url, sessionId: data.sessionId, amount: totalAmt, invIds }); }
+            } catch (err) { showToast("Failed to create payment link"); }
+            setStripePayLoading(false);
+          }
+        }, stripePayLoading ? "Creating..." : "\uD83D\uDD17 Generate Payment Link")
+      )
+    ),
+    stripePayResult && /*#__PURE__*/React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 12 } },
+      /*#__PURE__*/React.createElement("div", { style: { background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 10, padding: 20, textAlign: "center" } },
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: 32, marginBottom: 8 } }, "\u2705"),
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: 15, fontWeight: 600, color: "#15803d", marginBottom: 4 } }, "Payment Link Ready"),
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, color: "#64748b" } }, fmt(stripePayResult.amount), " for invoice", stripePayResult.invIds.includes(",") ? "s " : " ", stripePayResult.invIds)
+      ),
+      /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 8 } },
+        /*#__PURE__*/React.createElement("input", {
+          readOnly: true,
+          value: stripePayResult.url,
+          "data-testid": "stripe-payment-url",
+          style: { flex: 1, padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: 12, fontFamily: "'DM Mono',monospace", background: "#f8fafc", color: "#334155" },
+          onClick: e => e.target.select()
+        }),
+        /*#__PURE__*/React.createElement(Btn, {
+          "data-testid": "button-copy-stripe-link",
+          onClick: () => { navigator.clipboard.writeText(stripePayResult.url); showToast("Payment link copied!"); }
+        }, "\uD83D\uDCCB Copy")
+      ),
+      /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 8, justifyContent: "center" } },
+        /*#__PURE__*/React.createElement(Btn, {
+          onClick: () => window.open(stripePayResult.url, "_blank")
+        }, "\u2197 Open Payment Page"),
+        /*#__PURE__*/React.createElement(Btn, {
+          variant: "secondary",
+          onClick: () => { setStripePayModal(null); setStripePayResult(null); }
+        }, "Done")
+      )
+    )
+  )));
 }
 
 // ============================================================

@@ -33,6 +33,11 @@ Preferred communication style: Simple, everyday language.
   - `PUT /api/data/:tableName` — save one table
   - `PUT /api/data` (bulk) — save multiple tables
   - Table names are validated against a hardcoded allowlist
+  - `POST /api/stripe/create-checkout` — create Stripe Checkout Session for invoice payment (card + ACH)
+  - `GET /api/stripe/session/:sessionId` — check Stripe payment status
+  - `GET /api/stripe/success` — payment success landing page
+  - `GET /api/stripe/cancel` — payment cancel landing page
+- **Stripe Integration**: Uses `@replit/connectors-sdk` to proxy requests to Stripe API. Connected via Replit's native Stripe connector. Supports credit card and ACH bank transfer payments.
 - **Storage Layer** (`server/storage.ts`): `DatabaseStorage` class wraps a `pg.Pool`. Uses raw SQL queries (not Drizzle ORM) for runtime data access. Drizzle is used only for schema definition and migrations.
 - **Dev Server**: Vite runs in middleware mode inside the Express server during development (`server/vite.ts`).
 - **Production Build**: `script/build.ts` runs Vite for the client and esbuild for the server, bundling key server dependencies to improve cold start.
