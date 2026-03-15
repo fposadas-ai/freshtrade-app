@@ -3114,7 +3114,8 @@ function App() {
     return /*#__PURE__*/React.createElement(CustomerPortal, {
       customer: portalCustomer,
       invoices: invoices,
-      products: products
+      products: products,
+      settings: settings
     });
   }
   const nav = [{
@@ -29093,8 +29094,10 @@ Order by 2PM for next-day delivery.
 function CustomerPortal({
   customer,
   invoices,
-  products
+  products,
+  settings
 }) {
+  const co = (settings && settings.company) || {};
   const [viewInv, setViewInv] = useState(null);
   const [showStatement, setShowStatement] = useState(false);
   const [viewScan, setViewScan] = useState(null);
@@ -29143,13 +29146,13 @@ function CustomerPortal({
         color: "#6b7280",
         fontSize: 14
       }
-    }, "This portal link has expired or is invalid. Please contact FreshTrade Distribution for a new link."), /*#__PURE__*/React.createElement("p", {
+    }, "This portal link has expired or is invalid. Please contact ", co.name || "FreshTrade Distribution", " for a new link."), /*#__PURE__*/React.createElement("p", {
       style: {
         color: "#9ca3af",
         fontSize: 12,
         marginTop: 12
       }
-    }, "(305) 555-0100 \xB7 orders@freshtrade.com")));
+    }, co.phone || "", co.phone && co.email ? " \xB7 " : "", co.email || "")));
   }
   const custInvoices = invoices.filter(inv => inv.customerId === customer.id && inv.status !== "draft").sort((a, b) => b.date.localeCompare(a.date));
   const openInvs = custInvoices.filter(inv => inv.status === "open");
@@ -29182,14 +29185,14 @@ function CustomerPortal({
       return `<tr><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${inv.id}${corrTag}</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${inv.date}</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${inv.dueDate || ""}</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center;">${days > 0 ? days + "d" : "Current"}</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:600;">${fmtP(inv.total)}${corrNote}</td></tr>`;
     }).join("");
     const html = `<div style="font-family:'DM Sans',Arial,sans-serif;max-width:700px;margin:0 auto;padding:20px;">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;"><div style="width:36px;height:36px;background:linear-gradient(135deg,#059669,#10b981);border-radius:8px;display:flex;align-items:center;justify-content:center;"><span style="font-size:18px;">🐟</span></div><div><div style="font-size:18px;font-weight:800;">FreshTrade Distribution</div><div style="font-size:7px;color:#059669;letter-spacing:2px;text-transform:uppercase;">STATEMENT OF ACCOUNT</div></div></div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">${co.logo ? `<img src="${co.logo}" style="max-height:40px;max-width:180px;object-fit:contain;" />` : `<div style="width:36px;height:36px;background:linear-gradient(135deg,#059669,#10b981);border-radius:8px;display:flex;align-items:center;justify-content:center;"><span style="font-size:18px;">🐟</span></div>`}<div><div style="font-size:18px;font-weight:800;">${co.name || "FreshTrade Distribution"}</div><div style="font-size:7px;color:#059669;letter-spacing:2px;text-transform:uppercase;">STATEMENT OF ACCOUNT</div></div></div>
       <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:14px;margin-bottom:16px;"><div style="font-size:15px;font-weight:700;color:#111;">${customer.name}</div><div style="font-size:11px;color:#6b7280;">${customer.address || ""}</div><div style="font-size:11px;color:#6b7280;">Statement Date: ${new Date().toLocaleDateString()}</div></div>
       <table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="background:#059669;color:#fff;"><th style="padding:8px 10px;text-align:left;">Invoice</th><th style="padding:8px 10px;text-align:left;">Date</th><th style="padding:8px 10px;text-align:left;">Due</th><th style="padding:8px 10px;text-align:center;">Age</th><th style="padding:8px 10px;text-align:right;">Amount</th></tr></thead><tbody>${rows}</tbody></table>
       <div style="margin-top:16px;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
         <div style="display:flex;text-align:center;font-size:11px;"><div style="flex:1;padding:10px;background:#f0fdf4;"><div style="font-weight:700;color:#059669;">Current</div><div style="font-size:14px;font-weight:700;">${fmtP(agingBuckets.current)}</div></div><div style="flex:1;padding:10px;background:#fefce8;"><div style="font-weight:700;color:#ca8a04;">1st Wk</div><div style="font-size:14px;font-weight:700;">${fmtP(agingBuckets.w1)}</div></div><div style="flex:1;padding:10px;background:#fff7ed;"><div style="font-weight:700;color:#ea580c;">2nd Wk</div><div style="font-size:14px;font-weight:700;">${fmtP(agingBuckets.w2)}</div></div><div style="flex:1;padding:10px;background:#fecaca;"><div style="font-weight:700;color:#dc2626;">3rd Wk</div><div style="font-size:14px;font-weight:700;">${fmtP(agingBuckets.w3)}</div></div><div style="flex:1;padding:10px;background:#fef2f2;"><div style="font-weight:700;color:#991b1b;">4th Wk</div><div style="font-size:14px;font-weight:700;">${fmtP(agingBuckets.w4)}</div></div><div style="flex:1;padding:10px;background:#ef4444;"><div style="font-weight:700;color:#fff;">Over 4</div><div style="font-size:14px;font-weight:700;color:#fff;">${fmtP(agingBuckets.over4)}</div></div></div>
       </div>
       <div style="margin-top:14px;text-align:right;font-size:18px;font-weight:800;color:#111;">Total Due: ${fmtP(totalOwed)}</div>
-      <div style="margin-top:20px;text-align:center;font-size:10px;color:#9ca3af;">FreshTrade Distribution · 1200 Port Blvd, Miami FL 33132 · (305) 555-0100</div>
+      <div style="margin-top:20px;text-align:center;font-size:10px;color:#9ca3af;">${co.name || "FreshTrade Distribution"} · ${co.address || ""} · ${co.phone || ""}</div>
     </div>`;
     const w = window.open("", "_blank", "width=750,height=900");
     w.document.write(`<html><head><title>Statement — ${customer.name}</title><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"><style>@media print{body{margin:0}}</style></head><body>${html}<script>setTimeout(()=>window.print(),400)<\/script></body></html>`);
@@ -29216,9 +29219,13 @@ function CustomerPortal({
     style: {
       display: "flex",
       alignItems: "center",
-      gap: 10
+      gap: 12
     }
-  }, /*#__PURE__*/React.createElement("div", {
+  }, co.logo ? /*#__PURE__*/React.createElement("img", {
+    src: co.logo,
+    alt: co.name || "Company Logo",
+    style: { maxHeight: 44, maxWidth: 180, objectFit: "contain" }
+  }) : /*#__PURE__*/React.createElement("div", {
     style: {
       width: 40,
       height: 40,
@@ -29239,7 +29246,7 @@ function CustomerPortal({
       color: "#111827",
       lineHeight: 1
     }
-  }, "FreshTrade"), /*#__PURE__*/React.createElement("div", {
+  }, co.name || "FreshTrade"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 7,
       fontWeight: 700,
@@ -30488,7 +30495,8 @@ function PortalManager({
     }, /*#__PURE__*/React.createElement(CustomerPortal, {
       customer: cust,
       invoices: invoices,
-      products: products
+      products: products,
+      settings: settings
     })), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
