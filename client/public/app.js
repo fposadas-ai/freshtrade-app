@@ -12603,7 +12603,30 @@ function Invoices({
           reader.readAsDataURL(file);
           e.target.value = "";
         }
-      })))));
+      })), /*#__PURE__*/React.createElement("button", {
+        "data-testid": "button-delete-invoice-" + inv.id,
+        onClick: () => {
+          if (!confirm("Delete invoice " + inv.id + " (" + ((cust === null || cust === void 0 ? void 0 : cust.name) || "unknown") + " — " + fmt(inv.total) + ")? This cannot be undone.")) return;
+          fetch("/api/data/invoices/" + inv.id, { method: "DELETE" }).then(r => r.json()).then(d => {
+            if (d.success) {
+              setInvoices(prev => prev.filter(x => x.id !== inv.id));
+              showToast("Invoice " + inv.id + " deleted");
+            } else {
+              showToast("Error: " + (d.error || "Failed to delete"));
+            }
+          }).catch(e => showToast("Error: " + e.message));
+        },
+        style: {
+          padding: "4px 8px",
+          borderRadius: 4,
+          border: "none",
+          cursor: "pointer",
+          fontSize: 10,
+          fontWeight: 600,
+          background: "#ef444422",
+          color: "#ef4444"
+        }
+      }, "\uD83D\uDDD1"))));
     })))), shareTarget && /*#__PURE__*/React.createElement("div", {
       style: {
         position: "absolute",
