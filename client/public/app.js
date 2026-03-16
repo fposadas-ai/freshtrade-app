@@ -2777,6 +2777,50 @@ const dbLoadAsync = async () => {
     if (!res.ok) return null;
     const data = await res.json();
     if (Object.keys(data).length === 0) return null;
+    if (Array.isArray(data.customers) && data.customers.length > 1) {
+      const ids = data.customers.map(c => c.id);
+      const hasDupes = ids.some((id, i) => ids.indexOf(id) !== i);
+      if (hasDupes) {
+        console.warn("Duplicate customer IDs detected — auto-fixing...");
+        const seen = new Set();
+        let fixed = 0;
+        const oldToNew = {};
+        data.customers = data.customers.map((c, idx) => {
+          if (seen.has(c.id)) {
+            const newId = `${c.id}-${Date.now().toString().slice(-4)}${String(idx).padStart(2, "0")}`;
+            oldToNew[c.id + ":" + idx] = newId;
+            fixed++;
+            return { ...c, id: newId };
+          }
+          seen.add(c.id);
+          return c;
+        });
+        if (Array.isArray(data.invoices)) {
+          const dupeId = Object.keys(oldToNew).length > 0 ? ids.find((id, i) => ids.indexOf(id) !== i) : null;
+          if (dupeId) {
+            const custById = {};
+            data.customers.forEach(c => { custById[c.id] = c; });
+            data.invoices = data.invoices.map(inv => {
+              if (inv.customerId === dupeId && inv.customerName) {
+                const match = data.customers.find(c => c.name.toLowerCase().replace(/[^a-z0-9]/g, "") === inv.customerName.toLowerCase().replace(/[^a-z0-9]/g, ""));
+                if (match && match.id !== inv.customerId) {
+                  return { ...inv, customerId: match.id };
+                }
+              }
+              return inv;
+            });
+          }
+        }
+        try {
+          await fetch("/api/data", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ customers: data.customers, invoices: data.invoices || [] })
+          });
+          console.log("Auto-fixed " + fixed + " duplicate customer IDs");
+        } catch (e2) { console.warn("Could not save fixed IDs:", e2); }
+      }
+    }
     return data;
   } catch (e) {
     console.warn("DB load error:", e);
