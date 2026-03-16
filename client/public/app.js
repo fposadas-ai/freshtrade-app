@@ -731,7 +731,7 @@ const Icon = ({
 // ============================================================
 // UTILITY FUNCTIONS
 // ============================================================
-const fmt = n => `$${Number(n || 0).toFixed(2)}`;
+const fmt = n => { const v = Number(n || 0); return v < 0 ? `-$${Math.abs(v).toFixed(2)}` : `$${v.toFixed(2)}`; };
 const fmtW = n => `${Number(n || 0).toFixed(2)} lbs`;
 const today = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
 const dueDate = (days = 7) => {
@@ -800,7 +800,7 @@ const getCustomerOrderHistory = (custId, salesOrders, invoices) => {
 const arGetInvPaid = (invId, arPayments) => (arPayments || []).filter(p => p.status !== "void" && p.status !== "returned").reduce((s, p) => s + (p.appliedTo || []).filter(a => a.invoiceId === invId).reduce((ss, a) => ss + a.amount, 0), 0);
 const arGetInvCredits = (invId, creditMemos) => (creditMemos || []).filter(cm => cm.invoiceId === invId && cm.status !== "void").reduce((s, cm) => s + (cm.total || 0), 0);
 const arGetInvBalance = (inv, arPayments, creditMemos) => Math.round(((inv.total || 0) - arGetInvPaid(inv.id, arPayments) - arGetInvCredits(inv.id, creditMemos) - (Number(inv.importedPaid) || 0)) * 100) / 100;
-const arGetCustBalance = (custId, invoices, arPayments, creditMemos) => (invoices || []).filter(i => i.customerId === custId && i.status === "open").reduce((s, i) => s + Math.max(0, arGetInvBalance(i, arPayments, creditMemos)), 0);
+const arGetCustBalance = (custId, invoices, arPayments, creditMemos) => (invoices || []).filter(i => i.customerId === custId && (i.status === "open" || i.status === "credit")).reduce((s, i) => s + arGetInvBalance(i, arPayments, creditMemos), 0);
 
 // ── DOCUMENT LOCK SYSTEM (cross-tab editing protection) ──
 const TAB_ID = `tab_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -5797,8 +5797,8 @@ function Dashboard({
   showToast,
   settings
 }) {
-  const openInvoices = invoices.filter(i => i.status === "open");
-  const totalAR = openInvoices.reduce((s, i) => s + Math.max(0, arGetInvBalance(i, arPayments, creditMemos)), 0);
+  const openInvoices = invoices.filter(i => i.status === "open" || i.status === "credit");
+  const totalAR = openInvoices.reduce((s, i) => s + arGetInvBalance(i, arPayments, creditMemos), 0);
   const lowStock = products.filter(p => p.catchWeight ? p.stock < 50 : p.stockUnits < 20);
   const todayInvoices = invoices.filter(i => i.date === today());
   const pendingSOs = salesOrders.filter(so => ["draft", "confirmed", "picking"].includes(so.status));
@@ -12516,7 +12516,7 @@ function Invoices({
           fontFamily: "'DM Mono',monospace",
           fontWeight: 600
         }
-      }, fmt(inv.total)), /*#__PURE__*/React.createElement("td", {
+      }, /*#__PURE__*/React.createElement("span", { style: { color: inv.total < 0 ? "#ef4444" : "inherit" } }, fmt(inv.total), inv.total < 0 ? " ↩" : "")), /*#__PURE__*/React.createElement("td", {
         style: {
           padding: "7px 10px",
           textAlign: "center"
@@ -35764,8 +35764,8 @@ function AccountsReceivable({
   const getInvCredits = invId => (creditMemos || []).filter(cm => cm.invoiceId === invId && cm.status !== "void").reduce((s, cm) => s + (cm.total || 0), 0);
   const getInvWrittenOff = invId => writeOffs.filter(w => w.invoiceId === invId && w.status !== "void").reduce((s, w) => s + (w.amount || 0), 0);
   const getInvBalance = inv => Math.round(((inv.total || 0) - getInvPaid(inv.id) - getInvCredits(inv.id) - getInvWrittenOff(inv.id) - (Number(inv.importedPaid) || 0)) * 100) / 100;
-  const openInvoices = invoices.filter(i => i.status === "open" && getInvBalance(i) > 0.005);
-  const getCustBalance = custId => invoices.filter(i => i.customerId === custId && i.status === "open").reduce((s, i) => s + Math.max(0, getInvBalance(i)), 0);
+  const openInvoices = invoices.filter(i => (i.status === "open" || i.status === "credit") && Math.abs(getInvBalance(i)) > 0.005);
+  const getCustBalance = custId => invoices.filter(i => i.customerId === custId && (i.status === "open" || i.status === "credit")).reduce((s, i) => s + getInvBalance(i), 0);
 
   // ── Receive Payment ──
   const openReceivePayment = custId => {
@@ -36018,9 +36018,9 @@ function AccountsReceivable({
   const getAgingBuckets = asOf => {
     const d = new Date(asOf || today());
     const byCustomer = {};
-    invoices.filter(i => i.status === "open").forEach(inv => {
+    invoices.filter(i => i.status === "open" || i.status === "credit").forEach(inv => {
       const bal = getInvBalance(inv);
-      if (bal < 0.01) return;
+      if (Math.abs(bal) < 0.01) return;
       const due = new Date(inv.dueDate || inv.date);
       const days = Math.floor((d - due) / 86400000);
       const bucket = days <= 0 ? "current" : days <= 7 ? "w1" : days <= 14 ? "w2" : days <= 21 ? "w3" : days <= 28 ? "w4" : "over4";
@@ -36053,7 +36053,7 @@ function AccountsReceivable({
     if (!cust) return;
     const custInvs = invoices.filter(i => i.customerId === custId && (i.status === "open" || i.status === "paid")).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
     const custPmts = arPayments.filter(p => p.customerId === custId && p.status !== "void").sort((a, b) => (a.date || "").localeCompare(b.date || ""));
-    const openBal = invoices.filter(i => i.customerId === custId && i.status === "open").reduce((s, i) => s + Math.max(0, getInvBalance(i)), 0);
+    const openBal = invoices.filter(i => i.customerId === custId && (i.status === "open" || i.status === "credit")).reduce((s, i) => s + getInvBalance(i), 0);
     const aging = getAgingBuckets(asOfDate)[custId] || {
       current: 0,
       w1: 0,
@@ -37895,7 +37895,7 @@ function ReportsModule({ customers, invoices, arPayments, creditMemos, products,
     }
 
     if (reportType === "openar") {
-      const openInvs = invoices.filter(i => i.status === "open").map(inv => {
+      const openInvs = invoices.filter(i => i.status === "open" || i.status === "credit").map(inv => {
         const cust = customers.find(c => c.id === inv.customerId);
         const paid = (arPayments || []).filter(p => p.status !== "void" && p.status !== "returned").reduce((s, p) => s + (p.appliedTo || []).filter(a => a.invoiceId === inv.id).reduce((ss, a) => ss + a.amount, 0), 0);
         const credits = (creditMemos || []).filter(cm => cm.invoiceId === inv.id && cm.status !== "void").reduce((s, cm) => s + (cm.total || 0), 0);
