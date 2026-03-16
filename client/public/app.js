@@ -20555,6 +20555,8 @@ function Inventory({
   const [editProduct, setEditProduct] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleteTyped, setDeleteTyped] = useState("");
+  const [showTransfer, setShowTransfer] = useState(false);
+  const [transferForm, setTransferForm] = useState({ fromId: "", toId: "", qty: "", weight: "", reason: "" });
   const [filterCat, setFilterCat] = useState("all");
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("details"); // details or pricing
@@ -21187,6 +21189,13 @@ function Inventory({
         background: "linear-gradient(135deg,#8b5cf611,#3b82f611)"
       }
     }, "\uD83D\uDCE5 Import Products"), /*#__PURE__*/React.createElement(Btn, {
+      variant: "secondary",
+      "data-testid": "button-transfer-product",
+      onClick: () => {
+        setTransferForm({ fromId: "", toId: "", qty: "", weight: "", reason: "" });
+        setShowTransfer(true);
+      }
+    }, "\u21C4 Transfer Stock"), /*#__PURE__*/React.createElement(Btn, {
       icon: "plus",
       onClick: () => {
         setEditProduct(null);
@@ -23933,7 +23942,77 @@ function Inventory({
     onClick: saveProduct,
     disabled: !form.name,
     icon: editProduct ? "check" : "plus"
-  }, editProduct ? "Save Changes" : "Add Product"))));
+  }, editProduct ? "Save Changes" : "Add Product"))), showTransfer && /*#__PURE__*/React.createElement(Modal, {
+    title: "\u21C4 Transfer Stock Between Products",
+    onClose: () => setShowTransfer(false),
+    width: 560
+  }, (() => {
+    const fromProd = products.find(p => p.id === transferForm.fromId);
+    const toProd = products.find(p => p.id === transferForm.toId);
+    const fromStock = fromProd ? (fromProd.soldByPiece ? (fromProd.stockPieces || 0) : (fromProd.stockCases || 0)) : 0;
+    const fromWeight = fromProd ? (fromProd.totalWeight || 0) : 0;
+    const isCW = fromProd && fromProd.catchWeight;
+    return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", { style: { marginBottom: 16, padding: 12, background: "#eff6ff", borderRadius: 8, fontSize: 12, color: "#1e40af" } }, "Transfer stock from one product to another. Use this when product was received under the wrong item or was mislabeled."), /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 40px 1fr", gap: 8, alignItems: "start", marginBottom: 16 } }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", { style: { fontSize: 11, fontWeight: 600, color: "#64748b", display: "block", marginBottom: 4 } }, "FROM (Source)"), /*#__PURE__*/React.createElement("select", {
+      "data-testid": "transfer-from-product",
+      value: transferForm.fromId,
+      onChange: e => setTransferForm(f => ({ ...f, fromId: e.target.value })),
+      style: { width: "100%", padding: "8px 10px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }
+    }, /*#__PURE__*/React.createElement("option", { value: "" }, "Select product..."), products.filter(p => (p.stockCases || 0) > 0 || (p.stockPieces || 0) > 0 || (p.totalWeight || 0) > 0).map(p => /*#__PURE__*/React.createElement("option", { key: p.id, value: p.id }, p.name, " (", p.soldByPiece ? (p.stockPieces || 0) + " pcs" : (p.stockCases || 0) + " cs", p.totalWeight ? " / " + p.totalWeight.toFixed(1) + " lbs" : "", ")"))), fromProd && /*#__PURE__*/React.createElement("div", { style: { marginTop: 6, fontSize: 11, color: "#64748b" } }, "In stock: ", fromProd.soldByPiece ? (fromProd.stockPieces || 0) + " pieces" : (fromProd.stockCases || 0) + " cases", fromWeight > 0 ? " / " + fromWeight.toFixed(1) + " lbs" : "")), /*#__PURE__*/React.createElement("div", { style: { textAlign: "center", paddingTop: 24, fontSize: 20, color: "#94a3b8" } }, "\u2192"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", { style: { fontSize: 11, fontWeight: 600, color: "#64748b", display: "block", marginBottom: 4 } }, "TO (Destination)"), /*#__PURE__*/React.createElement("select", {
+      "data-testid": "transfer-to-product",
+      value: transferForm.toId,
+      onChange: e => setTransferForm(f => ({ ...f, toId: e.target.value })),
+      style: { width: "100%", padding: "8px 10px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }
+    }, /*#__PURE__*/React.createElement("option", { value: "" }, "Select product..."), products.filter(p => p.id !== transferForm.fromId).map(p => /*#__PURE__*/React.createElement("option", { key: p.id, value: p.id }, p.name))))), /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: isCW ? "1fr 1fr" : "1fr", gap: 12, marginBottom: 16 } }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", { style: { fontSize: 11, fontWeight: 600, color: "#64748b", display: "block", marginBottom: 4 } }, "Quantity (", fromProd ? (fromProd.soldByPiece ? "pieces" : "cases") : "units", ")"), /*#__PURE__*/React.createElement("input", {
+      "data-testid": "transfer-qty",
+      type: "number",
+      value: transferForm.qty,
+      onChange: e => setTransferForm(f => ({ ...f, qty: e.target.value })),
+      placeholder: "0",
+      min: "1",
+      max: String(fromStock),
+      style: { width: "100%", padding: "8px 10px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 14, fontFamily: "'DM Mono',monospace" }
+    }), Number(transferForm.qty) > fromStock && /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, color: "#ef4444", marginTop: 2 } }, "Exceeds available stock (", fromStock, ")")), isCW && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", { style: { fontSize: 11, fontWeight: 600, color: "#64748b", display: "block", marginBottom: 4 } }, "Weight (lbs)"), /*#__PURE__*/React.createElement("input", {
+      "data-testid": "transfer-weight",
+      type: "number",
+      value: transferForm.weight,
+      onChange: e => setTransferForm(f => ({ ...f, weight: e.target.value })),
+      placeholder: "0.0",
+      step: "0.1",
+      max: String(fromWeight),
+      style: { width: "100%", padding: "8px 10px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 14, fontFamily: "'DM Mono',monospace" }
+    }))), /*#__PURE__*/React.createElement("div", { style: { marginBottom: 16 } }, /*#__PURE__*/React.createElement("label", { style: { fontSize: 11, fontWeight: 600, color: "#64748b", display: "block", marginBottom: 4 } }, "Reason (optional)"), /*#__PURE__*/React.createElement("input", {
+      "data-testid": "transfer-reason",
+      value: transferForm.reason,
+      onChange: e => setTransferForm(f => ({ ...f, reason: e.target.value })),
+      placeholder: "e.g. Mislabeled, wrong product received",
+      style: { width: "100%", padding: "8px 10px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }
+    })), transferForm.fromId && transferForm.toId && Number(transferForm.qty) > 0 && /*#__PURE__*/React.createElement("div", { style: { background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 12 } }, /*#__PURE__*/React.createElement("div", { style: { fontWeight: 700, marginBottom: 4, color: "#15803d" } }, "Transfer Summary"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", null, fromProd.name), " \u2192 ", /*#__PURE__*/React.createElement("b", null, toProd ? toProd.name : "?")), /*#__PURE__*/React.createElement("div", null, Number(transferForm.qty), " ", fromProd.soldByPiece ? "pieces" : "cases", transferForm.weight ? " / " + transferForm.weight + " lbs" : "")), /*#__PURE__*/React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", gap: 8 } }, /*#__PURE__*/React.createElement(Btn, { variant: "secondary", onClick: () => setShowTransfer(false) }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
+      "data-testid": "button-confirm-transfer",
+      disabled: !transferForm.fromId || !transferForm.toId || Number(transferForm.qty) <= 0 || Number(transferForm.qty) > fromStock || transferForm.fromId === transferForm.toId,
+      onClick: () => {
+        const qty = Number(transferForm.qty);
+        const wt = Number(transferForm.weight) || 0;
+        setProducts(prev => prev.map(p => {
+          if (p.id === transferForm.fromId) {
+            const newPcs = Math.max(0, (p.stockPieces || 0) - qty);
+            const newCs = p.piecesPerBox ? Math.floor(newPcs / p.piecesPerBox) : Math.max(0, (p.stockCases || 0) - qty);
+            const newWt = wt > 0 ? Math.max(0, (p.totalWeight || 0) - wt) : p.totalWeight;
+            return { ...p, stockPieces: newPcs, stockCases: newCs, totalWeight: newWt };
+          }
+          if (p.id === transferForm.toId) {
+            const addPcs = qty;
+            const newPcs = (p.stockPieces || 0) + addPcs;
+            const newCs = p.piecesPerBox ? Math.floor(newPcs / p.piecesPerBox) : (p.stockCases || 0) + qty;
+            const newWt = wt > 0 ? (p.totalWeight || 0) + wt : p.totalWeight;
+            return { ...p, stockPieces: newPcs, stockCases: newCs, totalWeight: newWt };
+          }
+          return p;
+        }));
+        showToast("Transferred " + qty + " " + (fromProd.soldByPiece ? "pcs" : "cases") + (wt > 0 ? " / " + wt + " lbs" : "") + " from " + fromProd.name + " to " + (toProd ? toProd.name : "?"));
+        setShowTransfer(false);
+      }
+    }, "\u21C4 Confirm Transfer")));
+  })()));
 }
 
 // ============================================================
