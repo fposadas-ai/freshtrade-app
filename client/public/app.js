@@ -11191,63 +11191,115 @@ function Invoices({
           }
           const lines = fullText.split("\n").map(l => l.trim()).filter(l => l && l !== "---PAGE---");
           let custName = "";
-          const custPatterns = [/(?:bill\s*to|customer|client|sold\s*to|account)[:\s]+(.+)/i, /(?:statement\s+(?:for|of))[:\s]+(.+)/i];
-          for (const line of lines.slice(0, 15)) {
-            for (const pat of custPatterns) {
-              const m = line.match(pat);
-              if (m && m[1].trim().length > 2) { custName = m[1].trim().replace(/\s{2,}/g, " "); break; }
+          let custCode = "";
+          let stmtTerms = "";
+          for (const line of lines.slice(0, 20)) {
+            const codeM = line.match(/customer\s*#\s*:\s*(\S+)/i);
+            if (codeM) custCode = codeM[1];
+            const termsM = line.match(/terms\s*:\s*(.+)/i);
+            if (termsM) stmtTerms = termsM[1].trim();
+            if (/bill\s*to|customer\s*name|sold\s*to|statement\s*(for|of)/i.test(line)) {
+              const m = line.match(/(?:bill\s*to|customer\s*name|sold\s*to|statement\s*(?:for|of))\s*:?\s*(.+)/i);
+              if (m && m[1].trim().length > 2) custName = m[1].trim();
             }
-            if (custName) break;
+          }
+          if (!custName) {
+            for (const line of lines.slice(0, 5)) {
+              const cleaned = line.replace(/\t/g, "  ").trim();
+              if (!cleaned) continue;
+              if (/page|date|statement|customer\s*#|salesperson|terms|phone|ID:/i.test(cleaned)) continue;
+              if (/^\d/.test(cleaned)) continue;
+              if (/^[\-=]+$/.test(cleaned)) continue;
+              if (cleaned.length > 3 && cleaned.length < 80 && /[A-Za-z]{2,}/.test(cleaned)) {
+                custName = cleaned.replace(/\s{2,}/g, " ").trim();
+                break;
+              }
+            }
           }
           const norm = s => s.toLowerCase().replace(/[^a-z0-9]/g, "");
-          const matchCust = name => {
+          const matchCust = (name, code) => {
+            if (code) {
+              const byCode = customers.find(c => c.code && norm(c.code) === norm(code));
+              if (byCode) return byCode;
+            }
             if (!name) return null;
             const n = norm(name);
-            const exact = customers.find(c => norm(c.name) === n || (c.code && norm(c.code) === n));
+            const exact = customers.find(c => norm(c.name) === n);
             if (exact) return exact;
+            const normMatch = customers.find(c => norm(c.name) === n || (c.code && norm(c.code) === n));
+            if (normMatch) return normMatch;
             const partial = customers.filter(c => norm(c.name).includes(n) || n.includes(norm(c.name)));
             if (partial.length === 1) return partial[0];
             return null;
           };
-          const matched = matchCust(custName);
+          const matched = matchCust(custName, custCode);
+          let headerColOrder = null;
+          const headerLine = lines.find(l => /inv\.?\s*(no|num|number|#)/i.test(l) && /amount|amt/i.test(l));
+          if (headerLine) {
+            const hasAmtDue = /amt\.?\s*due|amount\s*due/i.test(headerLine);
+            const hasPayments = /payment/i.test(headerLine);
+            const hasBalFwd = /bal\.?\s*(fwd|forward)|balance/i.test(headerLine);
+            headerColOrder = { hasAmtDue, hasPayments, hasBalFwd };
+          }
           const rows = [];
-          const dateRe = /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/;
-          const moneyRe = /\$?\s*([\d,]+\.\d{2})/;
-          const invNumRe = /\b(INV[\-\s]?\d{3,}|\d{4,7})\b/i;
-          for (const line of lines) {
-            const moneyMatches = [...line.matchAll(/\$?\s*([\d,]+\.\d{2})/g)];
+          const parseDateStr = s => {
+            if (!s) return "";
+            const m = s.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+            if (!m) return "";
+            const yr = m[3].length === 2 ? "20" + m[3] : m[3];
+            return yr + "-" + m[1].padStart(2, "0") + "-" + m[2].padStart(2, "0");
+          };
+          const pastHeader = headerLine ? lines.indexOf(headerLine) + 1 : 0;
+          for (let li = pastHeader; li < lines.length; li++) {
+            const line = lines[li];
+            if (/^[\-=]+$/.test(line.replace(/\s/g, ""))) continue;
+            if (/\b(current|over\s*\d|amount\s*due|aging|page\s*:)\b/i.test(line) && !/\d{4,}/.test(line.match(/\b(\d{4,})\b/)?.[0] || "")) continue;
+            const dateMatch = line.match(/^\s*(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+            if (!dateMatch) continue;
+            const invMatch = line.match(/\b(\d{4,7})\b/);
+            if (!invMatch) continue;
+            const invNum = invMatch[1];
+            if (invNum === dateMatch[3]) {
+              const invMatch2 = line.slice(line.indexOf(invNum) + invNum.length).match(/\b(\d{4,7})\b/);
+              if (!invMatch2) continue;
+            }
+            const moneyMatches = [...line.matchAll(/-?\$?\s*-?([\d,]+\.\d{2})/g)];
             if (moneyMatches.length === 0) continue;
-            const dateMatch = line.match(dateRe);
-            const invMatch = line.match(invNumRe);
-            if (!dateMatch && !invMatch) continue;
-            const amounts = moneyMatches.map(m => parseFloat(m[1].replace(/,/g, "")));
-            const mainAmt = amounts[amounts.length - 1];
-            if (mainAmt <= 0 || mainAmt > 999999) continue;
-            let paidAmt = 0;
-            if (amounts.length >= 3) paidAmt = amounts[amounts.length - 2] || 0;
-            let parsedDate = "";
-            if (dateMatch) {
-              const yr = dateMatch[3].length === 2 ? "20" + dateMatch[3] : dateMatch[3];
-              parsedDate = yr + "-" + dateMatch[1].padStart(2, "0") + "-" + dateMatch[2].padStart(2, "0");
+            const amounts = moneyMatches.map(m => {
+              const val = parseFloat(m[1].replace(/,/g, ""));
+              const isNeg = m[0].includes("-");
+              return isNeg ? -val : val;
+            });
+            const parsedDate = parseDateStr(dateMatch[0]);
+            let invAmount, amtDue, payments;
+            if (headerColOrder && headerColOrder.hasAmtDue && amounts.length >= 3) {
+              invAmount = amounts[0];
+              payments = amounts.length >= 4 ? amounts[amounts.length - 3] : 0;
+              amtDue = amounts[amounts.length - 2];
+            } else if (amounts.length >= 2) {
+              invAmount = amounts[0];
+              amtDue = amounts.length >= 3 ? amounts[amounts.length - 2] : amounts[0];
+              payments = 0;
+            } else {
+              invAmount = amounts[0];
+              amtDue = amounts[0];
+              payments = 0;
             }
-            const dates = [...line.matchAll(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/g)];
-            let dueDate = "";
-            if (dates.length >= 2) {
-              const d2 = dates[1];
-              const yr2 = d2[3].length === 2 ? "20" + d2[3] : d2[3];
-              dueDate = yr2 + "-" + d2[1].padStart(2, "0") + "-" + d2[2].padStart(2, "0");
-            }
-            const lineNorm = line.toLowerCase();
-            if (/\b(total|balance due|amount due|subtotal|aging|current|overdue|past due|page)\b/i.test(lineNorm) && !invMatch) continue;
+            const realInvNum = line.match(new RegExp("\\b" + dateMatch[0].replace(/[\/\-]/g, "\\$&") + "\\b"))?.[0] ? (() => {
+              const after = line.slice(line.indexOf(dateMatch[0]) + dateMatch[0].length);
+              const m = after.match(/\b(\d{4,7})\b/);
+              return m ? m[1] : invNum;
+            })() : invNum;
+            const paidAmt = Math.abs(invAmount) - Math.abs(amtDue);
             rows.push({
               customerId: matched ? matched.id : "",
-              _custName: custName,
-              invoiceNum: invMatch ? invMatch[1].replace(/\s/g, "") : "",
+              _custName: custName || "",
+              invoiceNum: realInvNum,
               date: parsedDate || today(),
-              dueDate: dueDate,
-              total: String(mainAmt),
-              amountPaid: paidAmt > 0 && paidAmt < mainAmt ? String(paidAmt) : "",
-              notes: "Imported from PDF"
+              dueDate: "",
+              total: String(Math.abs(amtDue)),
+              amountPaid: paidAmt > 0.01 ? String(Math.round(paidAmt * 100) / 100) : "",
+              notes: amtDue < 0 ? "Credit memo from PDF" : "Imported from PDF"
             });
           }
           if (rows.length === 0) {
@@ -15502,8 +15554,8 @@ function Invoices({
     onChange: e => setImportInvRows(prev => prev.map((r, i) => i === idx ? { ...r, total: e.target.value } : r)),
     placeholder: "0.00",
     step: "0.01",
-    style: { width: 110, padding: "6px 8px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13, textAlign: "right", fontFamily: "'DM Mono',monospace" }
-  })), /*#__PURE__*/React.createElement("td", { style: { padding: 4 } }, /*#__PURE__*/React.createElement("input", {
+    style: { width: 110, padding: "6px 8px", border: "1px solid " + (Number(row.total) < 0 ? "#ef4444" : "#cbd5e1"), borderRadius: 6, fontSize: 13, textAlign: "right", fontFamily: "'DM Mono',monospace", color: Number(row.total) < 0 ? "#ef4444" : "inherit", background: Number(row.total) < 0 ? "#fef2f2" : "#fff" }
+  }), Number(row.total) < 0 && /*#__PURE__*/React.createElement("div", { style: { fontSize: 9, color: "#ef4444", fontWeight: 600 } }, "CREDIT")), /*#__PURE__*/React.createElement("td", { style: { padding: 4 } }, /*#__PURE__*/React.createElement("input", {
     type: "number",
     "data-testid": "import-inv-paid-" + idx,
     value: row.amountPaid || "",
@@ -15539,35 +15591,58 @@ function Invoices({
     onClick: () => {
       const valid = importInvRows.filter(r => r.customerId && r.total !== "" && Number(r.total) !== 0);
       if (valid.length === 0) { showToast("Fill in at least one row with a customer and a total amount"); return; }
-      const newInvs = valid.map(r => {
+      const newInvs = [];
+      const newCMs = [];
+      valid.forEach(r => {
         const cust = customers.find(c => c.id === r.customerId);
         const invNum = r.invoiceNum.trim() || genId("INV");
-        const total = Math.abs(Number(r.total)) || 0;
+        const rawTotal = Number(r.total) || 0;
+        const isCredit = rawTotal < 0;
+        const total = Math.abs(rawTotal);
         const paid = Math.abs(Number(r.amountPaid)) || 0;
-        return {
-          id: invNum,
-          customerId: r.customerId,
-          customerName: cust ? cust.name : "",
-          date: r.date || today(),
-          dueDate: r.dueDate || "",
-          status: paid >= total ? "paid" : "open",
-          lines: [{ productId: null, customName: "Imported balance", qty: 1, unit: "ea", weightBased: false, priceEach: total, total: total, _misc: true }],
-          subtotal: total,
-          total: total,
-          importedPaid: paid > 0 ? paid : undefined,
-          deliveryCharge: 0,
-          gasCharge: 0,
-          notes: r.notes || "",
-          imported: true,
-          importedAt: new Date().toISOString()
-        };
+        if (isCredit) {
+          newCMs.push({
+            id: "CM-" + invNum,
+            customerId: r.customerId,
+            customerName: cust ? cust.name : "",
+            date: r.date || today(),
+            total: total,
+            reason: r.notes || "Credit from imported statement",
+            status: "applied",
+            invoiceId: null,
+            imported: true,
+            importedAt: new Date().toISOString()
+          });
+        } else {
+          newInvs.push({
+            id: invNum,
+            customerId: r.customerId,
+            customerName: cust ? cust.name : "",
+            date: r.date || today(),
+            dueDate: r.dueDate || "",
+            status: paid >= total ? "paid" : "open",
+            lines: [{ productId: null, customName: "Imported balance", qty: 1, unit: "ea", weightBased: false, priceEach: total, total: total, _misc: true }],
+            subtotal: total,
+            total: total,
+            importedPaid: paid > 0 ? paid : undefined,
+            deliveryCharge: 0,
+            gasCharge: 0,
+            notes: r.notes || "",
+            imported: true,
+            importedAt: new Date().toISOString()
+          });
+        }
       });
       const dupeIds = newInvs.filter(ni => invoices.some(ei => ei.id === ni.id));
       if (dupeIds.length > 0) { showToast("Duplicate invoice number(s): " + dupeIds.map(d => d.id).join(", ")); return; }
-      setInvoices(prev => [...newInvs, ...prev]);
+      if (newInvs.length > 0) setInvoices(prev => [...newInvs, ...prev]);
+      if (newCMs.length > 0) setCreditMemos(prev => [...newCMs, ...prev]);
       setShowImportInv(false);
       const paidCount = newInvs.filter(n => n.importedPaid > 0).length;
-      showToast(newInvs.length + " invoice" + (newInvs.length !== 1 ? "s" : "") + " imported" + (paidCount > 0 ? " (" + paidCount + " with payments applied)" : ""));
+      let msg = newInvs.length + " invoice" + (newInvs.length !== 1 ? "s" : "") + " imported";
+      if (paidCount > 0) msg += " (" + paidCount + " with payments applied)";
+      if (newCMs.length > 0) msg += " + " + newCMs.length + " credit memo(s)";
+      showToast(msg);
     }
   }, "Import Invoices")))));
 }
