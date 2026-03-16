@@ -11106,12 +11106,16 @@ function Invoices({
       id: "pdfStatementInput",
       type: "file",
       accept: ".pdf",
+      multiple: true,
       style: { display: "none" },
       onChange: async e => {
-        const file = e.target.files[0];
-        if (!file) return;
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
         e.target.value = "";
         setPdfImportLoading(true);
+        const allRows = [];
+        const allCustNames = new Set();
+        for (const file of files) {
         try {
           const loadPdfJs = async () => {
             if (window.pdfjsLib) return window.pdfjsLib;
@@ -11294,21 +11298,24 @@ function Invoices({
             }
             if (custName && pageHasData) customerNames.add(custName);
           }
-          if (rows.length === 0) {
-            showToast("Could not find invoice data in this PDF. Try the CSV import instead.");
-          } else {
-            setImportInvRows(rows);
-            setShowImportInv(true);
-            const custCount = customerNames.size;
-            const matchedCount = new Set(rows.filter(r => r.customerId).map(r => r.customerId)).size;
-            showToast(rows.length + " invoice(s) found across " + custCount + " customer(s)" + (matchedCount > 0 ? " (" + matchedCount + " matched)" : "") + (custCount > matchedCount ? " — select unmatched manually" : ""));
-          }
+          allRows.push(...rows);
+          customerNames.forEach(n => allCustNames.add(n));
+          console.log("PDF parsed: " + file.name + " -> " + rows.length + " invoices, customers: " + [...customerNames].join(", "));
         } catch (err) {
-          console.error("PDF parse error:", err);
-          showToast("Error reading PDF: " + err.message);
-        } finally {
-          setPdfImportLoading(false);
+          console.error("PDF parse error for " + file.name + ":", err);
+          showToast("Error reading " + file.name + ": " + err.message);
         }
+        }
+        if (allRows.length === 0) {
+          showToast("Could not find invoice data in the PDF(s). Try the CSV import instead.");
+        } else {
+          setImportInvRows(allRows);
+          setShowImportInv(true);
+          const custCount = allCustNames.size;
+          const matchedCount = new Set(allRows.filter(r => r.customerId).map(r => r.customerId)).size;
+          showToast(allRows.length + " invoice(s) found across " + custCount + " customer(s) from " + files.length + " file(s)" + (matchedCount > 0 ? " (" + matchedCount + " matched)" : "") + (custCount > matchedCount ? " — select unmatched manually" : ""));
+        }
+        setPdfImportLoading(false);
       }
     }), pdfImportLoading && /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, color: "#f59e0b" } }, "Reading PDF..."), invoices.length > 0 && /*#__PURE__*/React.createElement(Btn, {
       variant: "danger",
