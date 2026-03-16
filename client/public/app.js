@@ -15622,7 +15622,8 @@ function Invoices({
         const invNum = r.invoiceNum.trim() || genId("INV");
         const rawTotal = Number(r.total) || 0;
         const isCredit = rawTotal < 0;
-        const total = Math.abs(rawTotal);
+        const total = rawTotal;
+        const absTotal = Math.abs(rawTotal);
         const paid = Math.abs(Number(r.amountPaid)) || 0;
         if (isCredit) {
           newCMs.push({
@@ -15630,10 +15631,26 @@ function Invoices({
             customerId: r.customerId,
             customerName: cust ? cust.name : "",
             date: r.date || today(),
-            total: total,
+            total: absTotal,
             reason: r.notes || "Credit from imported statement",
             status: "applied",
             invoiceId: null,
+            imported: true,
+            importedAt: new Date().toISOString()
+          });
+          newInvs.push({
+            id: invNum,
+            customerId: r.customerId,
+            customerName: cust ? cust.name : "",
+            date: r.date || today(),
+            dueDate: r.dueDate || "",
+            status: "credit",
+            lines: [{ productId: null, customName: r.notes || "Credit / overpayment", qty: 1, unit: "ea", weightBased: false, priceEach: total, total: total, _misc: true }],
+            subtotal: total,
+            total: total,
+            deliveryCharge: 0,
+            gasCharge: 0,
+            notes: r.notes || "Credit memo / overpayment",
             imported: true,
             importedAt: new Date().toISOString()
           });
@@ -15644,10 +15661,10 @@ function Invoices({
             customerName: cust ? cust.name : "",
             date: r.date || today(),
             dueDate: r.dueDate || "",
-            status: paid >= total ? "paid" : "open",
-            lines: [{ productId: null, customName: "Imported balance", qty: 1, unit: "ea", weightBased: false, priceEach: total, total: total, _misc: true }],
-            subtotal: total,
-            total: total,
+            status: paid >= absTotal ? "paid" : "open",
+            lines: [{ productId: null, customName: "Imported balance", qty: 1, unit: "ea", weightBased: false, priceEach: absTotal, total: absTotal, _misc: true }],
+            subtotal: absTotal,
+            total: absTotal,
             importedPaid: paid > 0 ? paid : undefined,
             deliveryCharge: 0,
             gasCharge: 0,
@@ -15663,9 +15680,10 @@ function Invoices({
       if (newCMs.length > 0) setCreditMemos(prev => [...newCMs, ...prev]);
       setShowImportInv(false);
       const paidCount = newInvs.filter(n => n.importedPaid > 0).length;
-      let msg = newInvs.length + " invoice" + (newInvs.length !== 1 ? "s" : "") + " imported";
+      const creditCount = newInvs.filter(n => n.total < 0).length;
+      let msg = (newInvs.length - creditCount) + " invoice" + ((newInvs.length - creditCount) !== 1 ? "s" : "") + " imported";
       if (paidCount > 0) msg += " (" + paidCount + " with payments applied)";
-      if (newCMs.length > 0) msg += " + " + newCMs.length + " credit memo(s)";
+      if (creditCount > 0) msg += " + " + creditCount + " credit(s) with negative amounts";
       showToast(msg);
     }
   }, "Import Invoices")))));
