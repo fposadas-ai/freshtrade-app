@@ -10760,6 +10760,7 @@ function Invoices({
   const [deleteRcptTarget, setDeleteRcptTarget] = useState(null);
   const [showImportInv, setShowImportInv] = useState(false);
   const [importInvRows, setImportInvRows] = useState([]);
+  const [pdfImportLoading, setPdfImportLoading] = useState(false);
   const [showRcptStmt, setShowRcptStmt] = useState(false);
   const [rcptStmtName, setRcptStmtName] = useState("");
   const [rcptStmtFrom, setRcptStmtFrom] = useState("");
@@ -11139,7 +11140,131 @@ function Invoices({
         setImportInvRows([{ customerId: "", invoiceNum: "", date: today(), dueDate: "", total: "", amountPaid: "", notes: "" }]);
         setShowImportInv(true);
       }
-    }, "\u2B07 Import Open Invoices"), invoices.length > 0 && /*#__PURE__*/React.createElement(Btn, {
+    }, "\u2B07 Import CSV"), /*#__PURE__*/React.createElement(Btn, {
+      variant: "secondary",
+      "data-testid": "button-import-pdf-statement",
+      onClick: () => document.getElementById("pdfStatementInput").click()
+    }, "\uD83D\uDCC4 Import PDF Statement"), /*#__PURE__*/React.createElement("input", {
+      id: "pdfStatementInput",
+      type: "file",
+      accept: ".pdf",
+      style: { display: "none" },
+      onChange: async e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        e.target.value = "";
+        setPdfImportLoading(true);
+        try {
+          const loadPdfJs = async () => {
+            if (window.pdfjsLib) return window.pdfjsLib;
+            await new Promise((resolve, reject) => {
+              const script = document.createElement("script");
+              script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+              script.onload = resolve;
+              script.onerror = () => reject(new Error("Failed to load PDF library"));
+              document.head.appendChild(script);
+            });
+            window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+            return window.pdfjsLib;
+          };
+          const pdfjsLib = await loadPdfJs();
+          const buf = await file.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+          let fullText = "";
+          for (let p = 1; p <= pdf.numPages; p++) {
+            const page = await pdf.getPage(p);
+            const content = await page.getTextContent();
+            const items = content.items.sort((a, b) => {
+              const yDiff = Math.abs(a.transform[5] - b.transform[5]);
+              if (yDiff > 3) return b.transform[5] - a.transform[5];
+              return a.transform[4] - b.transform[4];
+            });
+            let lastY = null;
+            items.forEach(item => {
+              const y = Math.round(item.transform[5]);
+              if (lastY !== null && Math.abs(y - lastY) > 3) fullText += "\n";
+              else if (lastY !== null) fullText += "\t";
+              fullText += item.str;
+              lastY = y;
+            });
+            fullText += "\n---PAGE---\n";
+          }
+          const lines = fullText.split("\n").map(l => l.trim()).filter(l => l && l !== "---PAGE---");
+          let custName = "";
+          const custPatterns = [/(?:bill\s*to|customer|client|sold\s*to|account)[:\s]+(.+)/i, /(?:statement\s+(?:for|of))[:\s]+(.+)/i];
+          for (const line of lines.slice(0, 15)) {
+            for (const pat of custPatterns) {
+              const m = line.match(pat);
+              if (m && m[1].trim().length > 2) { custName = m[1].trim().replace(/\s{2,}/g, " "); break; }
+            }
+            if (custName) break;
+          }
+          const norm = s => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+          const matchCust = name => {
+            if (!name) return null;
+            const n = norm(name);
+            const exact = customers.find(c => norm(c.name) === n || (c.code && norm(c.code) === n));
+            if (exact) return exact;
+            const partial = customers.filter(c => norm(c.name).includes(n) || n.includes(norm(c.name)));
+            if (partial.length === 1) return partial[0];
+            return null;
+          };
+          const matched = matchCust(custName);
+          const rows = [];
+          const dateRe = /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/;
+          const moneyRe = /\$?\s*([\d,]+\.\d{2})/;
+          const invNumRe = /\b(INV[\-\s]?\d{3,}|\d{4,7})\b/i;
+          for (const line of lines) {
+            const moneyMatches = [...line.matchAll(/\$?\s*([\d,]+\.\d{2})/g)];
+            if (moneyMatches.length === 0) continue;
+            const dateMatch = line.match(dateRe);
+            const invMatch = line.match(invNumRe);
+            if (!dateMatch && !invMatch) continue;
+            const amounts = moneyMatches.map(m => parseFloat(m[1].replace(/,/g, "")));
+            const mainAmt = amounts[amounts.length - 1];
+            if (mainAmt <= 0 || mainAmt > 999999) continue;
+            let paidAmt = 0;
+            if (amounts.length >= 3) paidAmt = amounts[amounts.length - 2] || 0;
+            let parsedDate = "";
+            if (dateMatch) {
+              const yr = dateMatch[3].length === 2 ? "20" + dateMatch[3] : dateMatch[3];
+              parsedDate = yr + "-" + dateMatch[1].padStart(2, "0") + "-" + dateMatch[2].padStart(2, "0");
+            }
+            const dates = [...line.matchAll(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/g)];
+            let dueDate = "";
+            if (dates.length >= 2) {
+              const d2 = dates[1];
+              const yr2 = d2[3].length === 2 ? "20" + d2[3] : d2[3];
+              dueDate = yr2 + "-" + d2[1].padStart(2, "0") + "-" + d2[2].padStart(2, "0");
+            }
+            const lineNorm = line.toLowerCase();
+            if (/\b(total|balance due|amount due|subtotal|aging|current|overdue|past due|page)\b/i.test(lineNorm) && !invMatch) continue;
+            rows.push({
+              customerId: matched ? matched.id : "",
+              _custName: custName,
+              invoiceNum: invMatch ? invMatch[1].replace(/\s/g, "") : "",
+              date: parsedDate || today(),
+              dueDate: dueDate,
+              total: String(mainAmt),
+              amountPaid: paidAmt > 0 && paidAmt < mainAmt ? String(paidAmt) : "",
+              notes: "Imported from PDF"
+            });
+          }
+          if (rows.length === 0) {
+            showToast("Could not find invoice data in this PDF. Try the CSV import instead.");
+          } else {
+            setImportInvRows(rows);
+            setShowImportInv(true);
+            showToast(rows.length + " invoice(s) found in PDF" + (custName ? " for " + custName : "") + (matched ? " (matched)" : custName ? " (not matched — select manually)" : ""));
+          }
+        } catch (err) {
+          console.error("PDF parse error:", err);
+          showToast("Error reading PDF: " + err.message);
+        } finally {
+          setPdfImportLoading(false);
+        }
+      }
+    }), pdfImportLoading && /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, color: "#f59e0b" } }, "Reading PDF..."), invoices.length > 0 && /*#__PURE__*/React.createElement(Btn, {
       variant: "danger",
       "data-testid": "button-delete-all-invoices",
       onClick: () => {
