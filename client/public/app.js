@@ -11254,13 +11254,17 @@ function Invoices({
               });
               const parsedDate = parseDateStr(dateMatch[0]);
               let invAmount, amtDue, payments;
-              if (headerColOrder && headerColOrder.hasAmtDue && amounts.length >= 3) {
+              if (headerColOrder && headerColOrder.hasAmtDue && amounts.length >= 4) {
                 invAmount = amounts[0];
-                payments = amounts.length >= 4 ? amounts[amounts.length - 3] : 0;
-                amtDue = amounts[amounts.length - 2];
+                payments = amounts[1];
+                amtDue = amounts[2];
+              } else if (headerColOrder && headerColOrder.hasAmtDue && amounts.length === 3) {
+                invAmount = amounts[0];
+                payments = 0;
+                amtDue = amounts[1];
               } else if (amounts.length >= 2) {
                 invAmount = amounts[0];
-                amtDue = amounts.length >= 3 ? amounts[amounts.length - 2] : amounts[0];
+                amtDue = amounts[amounts.length - 1];
                 payments = 0;
               } else {
                 invAmount = amounts[0];
@@ -11272,16 +11276,19 @@ function Invoices({
                 const m = after.match(/\b(\d{4,7})\b/);
                 return m ? m[1] : invNum;
               })() : invNum;
-              const paidAmt = Math.abs(invAmount) - Math.abs(amtDue);
+              const isCredit = invAmount < 0;
+              const totalAbs = Math.abs(invAmount);
+              const dueAbs = Math.abs(amtDue);
+              const paidAmt = totalAbs - dueAbs;
               rows.push({
                 customerId: matched ? matched.id : "",
                 _custName: custName || "",
                 invoiceNum: realInvNum,
                 date: parsedDate || today(),
                 dueDate: "",
-                total: String(Math.abs(amtDue)),
+                total: String(totalAbs),
                 amountPaid: paidAmt > 0.01 ? String(Math.round(paidAmt * 100) / 100) : "",
-                notes: amtDue < 0 ? "Credit memo from PDF" : "Imported from PDF"
+                notes: isCredit ? "Credit memo from PDF" : "Imported from PDF"
               });
               pageHasData = true;
             }
