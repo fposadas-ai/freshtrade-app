@@ -11180,7 +11180,18 @@ function Invoices({
             const headerArea = lines.slice(0, 25);
             for (const line of headerArea) {
               const codeM = line.match(/customer\s*(?:#|no|number|code)\s*:?\s*(\S+)/i);
-              if (codeM) custCode = codeM[1];
+              if (codeM) {
+                custCode = codeM[1];
+                if (!custName) {
+                  const parts = line.split(/\t/);
+                  if (parts.length >= 2) {
+                    const beforeCode = parts[0].trim();
+                    if (beforeCode.length > 2 && /[A-Za-z]{2,}/.test(beforeCode) && !/^(page|date|statement)/i.test(beforeCode)) {
+                      custName = beforeCode.replace(/\s{2,}/g, " ");
+                    }
+                  }
+                }
+              }
               if (/bill\s*to|customer\s*name|sold\s*to|statement\s*(for|of)|acct|account\s*name/i.test(line)) {
                 const m = line.match(/(?:bill\s*to|customer\s*name|sold\s*to|statement\s*(?:for|of)|acct|account\s*name)\s*:?\s*(.+)/i);
                 if (m && m[1].trim().length > 2) {
@@ -11194,16 +11205,16 @@ function Invoices({
               if (headerIdx < 0) headerIdx = 15;
               const topLines = lines.slice(0, Math.min(headerIdx, 15));
               for (const line of topLines) {
-                const cleaned = line.replace(/\t/g, "  ").trim();
+                const parts = line.split(/\t/);
+                const cleaned = parts[0].trim().replace(/\s{2,}/g, " ");
                 if (!cleaned) continue;
-                if (/^(page|date|statement|customer\s*#|salesperson|terms|phone|fax|ID:|invoice|amount|amt|due|balance|current|over\s*\d|aging|remit|po\s*box|\d{1,2}[\/\-]\d{1,2}[\/\-])/i.test(cleaned)) continue;
+                if (/^(page|date|statement$|customer\s*#|salesperson|terms|phone|fax|ID:|invoice|amount|amt|due|balance|current|over\s*\d|aging|remit|po\s*box|\d{1,2}[\/\-]\d{1,2}[\/\-])/i.test(cleaned)) continue;
                 if (/^\d/.test(cleaned)) continue;
                 if (/^[\-=\*]+$/.test(cleaned)) continue;
-                if (/^(total|subtotal|please\s|thank\s|remittance)/i.test(cleaned)) continue;
-                if (cleaned.length > 3 && cleaned.length < 80 && /[A-Za-z]{2,}/.test(cleaned)) {
-                  const nameCandidate = cleaned.replace(/\s{2,}/g, " ").trim();
-                  if (!/^\d{1,2}[\/\-]/.test(nameCandidate)) {
-                    custName = nameCandidate;
+                if (/^(total|subtotal|please\s|thank\s|remittance|s\s*t\s*a\s*t\s*e\s*m\s*e\s*n\s*t)/i.test(cleaned)) continue;
+                if (cleaned.length > 2 && cleaned.length < 80 && /[A-Za-z]{2,}/.test(cleaned)) {
+                  if (!/^\d{1,2}[\/\-]/.test(cleaned)) {
+                    custName = cleaned;
                     break;
                   }
                 }
