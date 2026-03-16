@@ -11277,18 +11277,18 @@ function Invoices({
                 return m ? m[1] : invNum;
               })() : invNum;
               const isCredit = invAmount < 0;
-              const totalAbs = Math.abs(invAmount);
-              const dueAbs = Math.abs(amtDue);
-              const paidAmt = totalAbs - dueAbs;
+              const totalVal = isCredit ? invAmount : Math.abs(invAmount);
+              const dueVal = isCredit ? amtDue : Math.abs(amtDue);
+              const paidAmt = isCredit ? 0 : (Math.abs(invAmount) - Math.abs(amtDue));
               rows.push({
                 customerId: matched ? matched.id : "",
                 _custName: custName || "",
                 invoiceNum: realInvNum,
                 date: parsedDate || today(),
                 dueDate: "",
-                total: String(totalAbs),
+                total: String(totalVal),
                 amountPaid: paidAmt > 0.01 ? String(Math.round(paidAmt * 100) / 100) : "",
-                notes: isCredit ? "Credit memo from PDF" : "Imported from PDF"
+                notes: isCredit ? "Credit memo / overpayment from PDF" : "Imported from PDF"
               });
               pageHasData = true;
             }
