@@ -3163,91 +3163,42 @@ function App() {
       settings: settings
     });
   }
-  const nav = [{
-    id: "dashboard",
-    label: "Dashboard",
-    icon: "dashboard"
-  }, {
-    id: "orderguide",
-    label: "Order Guide",
-    icon: "clipboard"
-  }, {
-    id: "calllist",
-    label: "Call List",
-    icon: "customers"
-  }, {
-    id: "salesorders",
-    label: "Sales Orders",
-    icon: "salesorder"
-  }, {
-    id: "invoices",
-    label: "Invoices",
-    icon: "invoice"
-  }, {
-    id: "creditmemos",
-    label: "Credit Memos",
-    icon: "convert"
-  }, {
-    id: "ar",
-    label: "Accounts Receivable",
-    icon: "dollar"
-  }, {
-    id: "catchweight",
-    label: "Catch Weight",
-    icon: "weight"
-  }, {
-    id: "production",
-    label: "Production",
-    icon: "convert"
-  }, {
-    id: "purchasing",
-    label: "Purchasing",
-    icon: "dollar"
-  }, {
-    id: "autopurchase",
-    label: "Auto PO",
-    icon: "sync"
-  }, {
-    id: "inventory",
-    label: "Inventory",
-    icon: "inventory"
-  }, {
-    id: "cyclecount",
-    label: "Cycle Count",
-    icon: "clipboard"
-  }, {
-    id: "customers",
-    label: "Customers",
-    icon: "customers"
-  }, {
-    id: "portal",
-    label: "Customer Portal",
-    icon: "link"
-  }, {
-    id: "salespeople",
-    label: "Salespeople",
-    icon: "customers"
-  }, {
-    id: "routes",
-    label: "Routes",
-    icon: "route"
-  }, {
-    id: "pod",
-    label: "Proof of Delivery",
-    icon: "truck"
-  }, {
-    id: "driverportal",
-    label: "Driver Portal",
-    icon: "route"
-  }, {
-    id: "pricelist",
-    label: "Price List",
-    icon: "list"
-  }, {
-    id: "reports",
-    label: "Reports",
-    icon: "dashboard"
-  }];
+  const navGroups = [
+    { label: "OVERVIEW", color: "#22c55e", items: [
+      { id: "dashboard", label: "Dashboard", icon: "dashboard" }
+    ]},
+    { label: "SALES", color: "#3b82f6", items: [
+      { id: "orderguide", label: "Order Guide", icon: "clipboard" },
+      { id: "calllist", label: "Call List", icon: "customers" },
+      { id: "salesorders", label: "Sales Orders", icon: "salesorder" },
+      { id: "invoices", label: "Invoices", icon: "invoice" },
+      { id: "creditmemos", label: "Credit Memos", icon: "convert" },
+      { id: "pricelist", label: "Price List", icon: "list" }
+    ]},
+    { label: "FINANCE", color: "#f59e0b", items: [
+      { id: "ar", label: "Accounts Receivable", icon: "dollar" },
+      { id: "reports", label: "Reports", icon: "dashboard" }
+    ]},
+    { label: "WAREHOUSE", color: "#8b5cf6", items: [
+      { id: "inventory", label: "Inventory", icon: "inventory" },
+      { id: "catchweight", label: "Catch Weight", icon: "weight" },
+      { id: "production", label: "Production", icon: "convert" },
+      { id: "cyclecount", label: "Cycle Count", icon: "clipboard" },
+      { id: "purchasing", label: "Purchasing", icon: "dollar" },
+      { id: "autopurchase", label: "Auto PO", icon: "sync" }
+    ]},
+    { label: "PEOPLE", color: "#06b6d4", items: [
+      { id: "customers", label: "Customers", icon: "customers" },
+      { id: "portal", label: "Customer Portal", icon: "link" },
+      { id: "salespeople", label: "Salespeople", icon: "customers" }
+    ]},
+    { label: "DELIVERY", color: "#ef4444", items: [
+      { id: "routes", label: "Routes", icon: "route" },
+      { id: "pod", label: "Proof of Delivery", icon: "truck" },
+      { id: "driverportal", label: "Driver Portal", icon: "route" }
+    ]}
+  ];
+  const nav = navGroups.flatMap(g => g.items);
   const handleLogin = (e) => {
     e.preventDefault();
     const form = e.target;
@@ -3412,55 +3363,62 @@ function App() {
       padding: "12px 10px",
       overflowY: "auto"
     }
-  }, nav.map(n => /*#__PURE__*/React.createElement("button", {
-    key: n.id,
-    onClick: () => setActiveModule(n.id),
-    style: {
-      width: "100%",
-      display: "flex",
-      alignItems: "center",
-      gap: 10,
-      padding: "10px 12px",
-      borderRadius: 8,
-      border: "none",
-      cursor: "pointer",
-      marginBottom: 2,
-      background: activeModule === n.id ? "linear-gradient(135deg,rgba(34,197,94,0.15),rgba(34,197,94,0.05))" : "transparent",
-      color: activeModule === n.id ? "#22c55e" : "#94a3b8",
-      fontWeight: activeModule === n.id ? 600 : 400,
-      fontSize: 13,
-      borderLeft: activeModule === n.id ? "2px solid #22c55e" : "2px solid transparent",
-      transition: "all 0.15s"
-    }
-  }, /*#__PURE__*/React.createElement(Icon, {
-    name: n.icon,
-    size: 16
-  }), n.label))), /*#__PURE__*/React.createElement("div", {
+  }, navGroups.map(group => {
+    const groupActive = group.items.some(n => n.id === activeModule);
+    return /*#__PURE__*/React.createElement("div", { key: group.label, style: { marginBottom: 6 } },
+      /*#__PURE__*/React.createElement("div", {
+        style: { fontSize: 9, fontWeight: 700, letterSpacing: "1.5px", color: group.color, padding: "8px 14px 3px", opacity: 0.85 }
+      }, group.label),
+      group.items.map(n => /*#__PURE__*/React.createElement("button", {
+        key: n.id,
+        "data-testid": "nav-" + n.id,
+        onClick: () => setActiveModule(n.id),
+        style: {
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          padding: "8px 12px",
+          borderRadius: 8,
+          border: "none",
+          cursor: "pointer",
+          marginBottom: 1,
+          background: activeModule === n.id ? `linear-gradient(135deg,${group.color}22,${group.color}0a)` : "transparent",
+          color: activeModule === n.id ? group.color : "#94a3b8",
+          fontWeight: activeModule === n.id ? 600 : 400,
+          fontSize: 12.5,
+          borderLeft: activeModule === n.id ? `2px solid ${group.color}` : "2px solid transparent",
+          transition: "all 0.15s"
+        }
+      }, /*#__PURE__*/React.createElement(Icon, { name: n.icon, size: 15 }), n.label))
+    );
+  })), /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "8px 10px",
       borderTop: "1px solid #1e2535"
     }
   }, /*#__PURE__*/React.createElement("button", {
+    "data-testid": "nav-settings",
     onClick: () => setActiveModule("settings"),
     style: {
       width: "100%",
       display: "flex",
       alignItems: "center",
       gap: 10,
-      padding: "10px 12px",
+      padding: "8px 12px",
       borderRadius: 8,
       border: "none",
       cursor: "pointer",
-      background: activeModule === "settings" ? "linear-gradient(135deg,rgba(34,197,94,0.15),rgba(34,197,94,0.05))" : "transparent",
-      color: activeModule === "settings" ? "#22c55e" : "#94a3b8",
+      background: activeModule === "settings" ? "linear-gradient(135deg,#64748b22,#64748b0a)" : "transparent",
+      color: activeModule === "settings" ? "#e2e8f0" : "#94a3b8",
       fontWeight: activeModule === "settings" ? 600 : 400,
-      fontSize: 13,
-      borderLeft: activeModule === "settings" ? "2px solid #22c55e" : "2px solid transparent",
+      fontSize: 12.5,
+      borderLeft: activeModule === "settings" ? "2px solid #94a3b8" : "2px solid transparent",
       transition: "all 0.15s"
     }
   }, /*#__PURE__*/React.createElement(Icon, {
     name: "settings",
-    size: 16
+    size: 15
   }), " System Settings")), /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "8px 14px 12px",
