@@ -15465,7 +15465,24 @@ function Invoices({
     style: { display: "flex", flexDirection: "column", gap: 12 }
   }, /*#__PURE__*/React.createElement("div", {
     style: { background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: 12, fontSize: 13, color: "#1e40af" }
-  }, "Enter open invoices from your other system. These will be added as open invoices so they appear on customer statements and AR."), /*#__PURE__*/React.createElement("div", {
+  }, "Enter open invoices from your other system. These will be added as open invoices so they appear on customer statements and AR."), importInvRows.length > 0 && importInvRows.some(r => !r.customerId) && /*#__PURE__*/React.createElement("div", {
+    style: { background: "#1e293b", border: "1px solid #f59e0b", borderRadius: 8, padding: 14, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }
+  }, /*#__PURE__*/React.createElement("span", { style: { color: "#f59e0b", fontWeight: 600, fontSize: 13, whiteSpace: "nowrap" } }, "\u26A0 " + importInvRows.filter(r => !r.customerId).length + " rows need a customer:"), /*#__PURE__*/React.createElement("select", {
+    "data-testid": "bulk-assign-customer",
+    style: { padding: "6px 10px", borderRadius: 6, border: "1px solid #475569", background: "#0f172a", color: "#f1f5f9", fontSize: 13, flex: 1, minWidth: 160 },
+    onChange: e => {
+      const val = e.target.value;
+      if (!val) return;
+      if (val === "__new__") {
+        const name = prompt("Enter new customer name:");
+        if (!name || !name.trim()) { e.target.value = ""; return; }
+        setImportInvRows(prev => prev.map(r => r.customerId ? r : { ...r, customerId: "__create__", _custName: name.trim(), _newCustName: name.trim() }));
+      } else {
+        setImportInvRows(prev => prev.map(r => r.customerId ? r : { ...r, customerId: val }));
+      }
+      e.target.value = "";
+    }
+  }, /*#__PURE__*/React.createElement("option", { value: "" }, "Assign customer to all unmatched rows..."), /*#__PURE__*/React.createElement("option", { value: "__new__" }, "\u2795 Create New Customer..."), customers.map(c => /*#__PURE__*/React.createElement("option", { key: c.id, value: c.id }, c.name)))), /*#__PURE__*/React.createElement("div", {
     style: { background: "#0f172a", border: "1px solid #334155", borderRadius: 8, padding: 16 }
   }, /*#__PURE__*/React.createElement("div", {
     style: { display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }
