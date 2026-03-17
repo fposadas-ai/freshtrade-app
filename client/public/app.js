@@ -15544,9 +15544,24 @@ function Invoices({
     style: { borderBottom: "1px solid #e2e8f0" }
   }, /*#__PURE__*/React.createElement("td", { style: { padding: 4 } }, /*#__PURE__*/React.createElement("select", {
     "data-testid": "import-inv-customer-" + idx,
-    value: row.customerId,
+    value: row.customerId || "",
     onChange: e => {
       const newCustId = e.target.value;
+      if (newCustId === "__new__") {
+        const name = prompt("Enter new customer name:", row._custName || "");
+        if (!name || !name.trim()) return;
+        const sameName = importInvRows.find(r => r._custName === (row._custName || "") && r.customerId);
+        if (sameName) {
+          setImportInvRows(prev => prev.map((r, i) => i === idx ? { ...r, customerId: sameName.customerId, _custName: name.trim(), _newCustName: name.trim() } : r));
+        } else {
+          setImportInvRows(prev => prev.map((r, i) => {
+            if (i === idx) return { ...r, customerId: "__create__", _custName: name.trim(), _newCustName: name.trim() };
+            if (row._custName && r._custName === row._custName && !r.customerId) return { ...r, customerId: "__create__", _custName: name.trim(), _newCustName: name.trim() };
+            return r;
+          }));
+        }
+        return;
+      }
       const csvName = row._custName;
       setImportInvRows(prev => prev.map((r, i) => {
         if (i === idx) return { ...r, customerId: newCustId };
@@ -15555,7 +15570,7 @@ function Invoices({
       }));
     },
     style: { width: "100%", padding: "6px 8px", border: "1px solid " + (row.customerId ? "#22c55e" : "#f59e0b"), borderRadius: 6, fontSize: 13, background: row.customerId ? "#f0fdf4" : "#fffbeb" }
-  }, /*#__PURE__*/React.createElement("option", { value: "" }, row._custName ? "\u26A0 " + row._custName + " (not matched)" : "Select customer..."), row._custName && /*#__PURE__*/React.createElement("option", { value: "__create__" }, "\u2795 Create \"" + row._custName + "\""), customers.map(c => /*#__PURE__*/React.createElement("option", { key: c.id, value: c.id }, c.name))), row._custName && row.customerId && row.customerId !== "__create__" && /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, color: "#64748b", marginTop: 2 } }, "PDF: ", row._custName)), /*#__PURE__*/React.createElement("td", { style: { padding: 4 } }, /*#__PURE__*/React.createElement("input", {
+  }, /*#__PURE__*/React.createElement("option", { value: "" }, row._custName ? "\u26A0 " + row._custName + " (not matched)" : "Select customer..."), /*#__PURE__*/React.createElement("option", { value: "__new__" }, "\u2795 Create New Customer..."), row._custName && /*#__PURE__*/React.createElement("option", { value: "__create__" }, "\u2795 Create \"" + row._custName + "\""), customers.map(c => /*#__PURE__*/React.createElement("option", { key: c.id, value: c.id }, c.name))), row._newCustName && row.customerId === "__create__" && /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, color: "#22c55e", marginTop: 2 } }, "\u2713 Will create: ", row._newCustName), row._custName && row.customerId && row.customerId !== "__create__" && /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, color: "#64748b", marginTop: 2 } }, "PDF: ", row._custName)), /*#__PURE__*/React.createElement("td", { style: { padding: 4 } }, /*#__PURE__*/React.createElement("input", {
     "data-testid": "import-inv-number-" + idx,
     value: row.invoiceNum,
     onChange: e => setImportInvRows(prev => prev.map((r, i) => i === idx ? { ...r, invoiceNum: e.target.value } : r)),
@@ -15620,7 +15635,7 @@ function Invoices({
       if (rowsToProcess.length === 0) { showToast("Fill in at least one row with a customer and a total amount"); return; }
       rowsToProcess.forEach(r => {
         if (r.customerId === "__create__" || (!r.customerId && r._custName)) {
-          const nm = r._custName;
+          const nm = r._newCustName || r._custName;
           if (!createdCusts[nm]) {
             const newId = genId("cust");
             createdCusts[nm] = { id: newId, name: nm, code: "", standardOrder: [] };
