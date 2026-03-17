@@ -15555,7 +15555,7 @@ function Invoices({
       }));
     },
     style: { width: "100%", padding: "6px 8px", border: "1px solid " + (row.customerId ? "#22c55e" : "#f59e0b"), borderRadius: 6, fontSize: 13, background: row.customerId ? "#f0fdf4" : "#fffbeb" }
-  }, /*#__PURE__*/React.createElement("option", { value: "" }, row._custName ? "\u26A0 " + row._custName + " (not matched)" : "Select customer..."), customers.map(c => /*#__PURE__*/React.createElement("option", { key: c.id, value: c.id }, c.name))), row._custName && row.customerId && /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, color: "#64748b", marginTop: 2 } }, "CSV: ", row._custName)), /*#__PURE__*/React.createElement("td", { style: { padding: 4 } }, /*#__PURE__*/React.createElement("input", {
+  }, /*#__PURE__*/React.createElement("option", { value: "" }, row._custName ? "\u26A0 " + row._custName + " (not matched)" : "Select customer..."), row._custName && /*#__PURE__*/React.createElement("option", { value: "__create__" }, "\u2795 Create \"" + row._custName + "\""), customers.map(c => /*#__PURE__*/React.createElement("option", { key: c.id, value: c.id }, c.name))), row._custName && row.customerId && row.customerId !== "__create__" && /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, color: "#64748b", marginTop: 2 } }, "PDF: ", row._custName)), /*#__PURE__*/React.createElement("td", { style: { padding: 4 } }, /*#__PURE__*/React.createElement("input", {
     "data-testid": "import-inv-number-" + idx,
     value: row.invoiceNum,
     onChange: e => setImportInvRows(prev => prev.map((r, i) => i === idx ? { ...r, invoiceNum: e.target.value } : r)),
@@ -15615,12 +15615,27 @@ function Invoices({
     "data-testid": "button-import-invoices-submit",
     style: { background: "#2563eb" },
     onClick: () => {
-      const valid = importInvRows.filter(r => r.customerId && r.total !== "" && Number(r.total) !== 0);
+      const createdCusts = {};
+      const rowsToProcess = importInvRows.filter(r => (r.customerId || r._custName) && r.total !== "" && Number(r.total) !== 0);
+      if (rowsToProcess.length === 0) { showToast("Fill in at least one row with a customer and a total amount"); return; }
+      rowsToProcess.forEach(r => {
+        if (r.customerId === "__create__" || (!r.customerId && r._custName)) {
+          const nm = r._custName;
+          if (!createdCusts[nm]) {
+            const newId = genId("cust");
+            createdCusts[nm] = { id: newId, name: nm, code: "", standardOrder: [] };
+          }
+          r.customerId = createdCusts[nm].id;
+        }
+      });
+      const valid = rowsToProcess.filter(r => r.customerId && r.total !== "" && Number(r.total) !== 0);
       if (valid.length === 0) { showToast("Fill in at least one row with a customer and a total amount"); return; }
+      const newCusts = Object.values(createdCusts);
+      if (newCusts.length > 0) setCustomers(prev => [...prev, ...newCusts]);
       const newInvs = [];
       const newCMs = [];
       valid.forEach(r => {
-        const cust = customers.find(c => c.id === r.customerId);
+        const cust = customers.find(c => c.id === r.customerId) || newCusts.find(c => c.id === r.customerId);
         const invNum = r.invoiceNum.trim() || genId("INV");
         const rawTotal = Number(r.total) || 0;
         const isCredit = rawTotal < 0;
@@ -15686,6 +15701,7 @@ function Invoices({
       let msg = (newInvs.length - creditCount) + " invoice" + ((newInvs.length - creditCount) !== 1 ? "s" : "") + " imported";
       if (paidCount > 0) msg += " (" + paidCount + " with payments applied)";
       if (creditCount > 0) msg += " + " + creditCount + " credit(s) with negative amounts";
+      if (newCusts.length > 0) msg += " — created " + newCusts.length + " new customer(s): " + newCusts.map(c => c.name).join(", ");
       showToast(msg);
     }
   }, "Import Invoices")))));
