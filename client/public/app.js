@@ -11138,13 +11138,13 @@ function Invoices({
             const content = await page.getTextContent();
             const items = content.items.sort((a, b) => {
               const yDiff = Math.abs(a.transform[5] - b.transform[5]);
-              if (yDiff > 3) return b.transform[5] - a.transform[5];
+              if (yDiff > 5) return b.transform[5] - a.transform[5];
               return a.transform[4] - b.transform[4];
             });
             let lastY = null;
             items.forEach(item => {
               const y = Math.round(item.transform[5]);
-              if (lastY !== null && Math.abs(y - lastY) > 3) fullText += "\n";
+              if (lastY !== null && Math.abs(y - lastY) > 5) fullText += "\n";
               else if (lastY !== null) fullText += "\t";
               fullText += item.str;
               lastY = y;
@@ -11239,16 +11239,18 @@ function Invoices({
             for (let li = pastHeader; li < lines.length; li++) {
               const line = lines[li];
               if (/^[\-=]+$/.test(line.replace(/\s/g, ""))) continue;
-              if (/\b(current|over\s*\d|amount\s*due|aging|page\s*:)\b/i.test(line) && !/\d{4,}/.test(line.match(/\b(\d{4,})\b/)?.[0] || "")) continue;
-              const dateMatch = line.match(/^\s*(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+              if (/^\s*(current|over\s*\d|amount\s*due|aging\s+summary|page\s*:)\s*$/i.test(line.replace(/\t/g, " ").trim())) continue;
+              if (/\b(aging\s*summary|remittance|please\s*(pay|remit)|total\s*due)\b/i.test(line) && !/\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(line)) continue;
+              const dateMatch = line.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
               if (!dateMatch) continue;
-              const invMatch = line.match(/\b(\d{4,7})\b/);
-              if (!invMatch) continue;
-              const invNum = invMatch[1];
-              if (invNum === dateMatch[3]) {
-                const invMatch2 = line.slice(line.indexOf(invNum) + invNum.length).match(/\b(\d{4,7})\b/);
-                if (!invMatch2) continue;
+              const yearStr = dateMatch[3].length === 2 ? "20" + dateMatch[3] : dateMatch[3];
+              const allNums = [...line.matchAll(/\b(\d{3,10})\b/g)].map(m => m[1]);
+              const invCandidates = allNums.filter(n => n !== dateMatch[1] && n !== dateMatch[2] && n !== dateMatch[3] && n !== yearStr && n !== dateMatch[0].replace(/\D/g, ""));
+              let invNum = "";
+              if (invCandidates.length > 0) {
+                invNum = invCandidates.find(n => n.length >= 4 && n.length <= 7) || invCandidates[0];
               }
+              if (!invNum) continue;
               const moneyMatches = [...line.matchAll(/-?\$?\s*-?([\d,]+\.\d{2})/g)];
               if (moneyMatches.length === 0) continue;
               const amounts = moneyMatches.map(m => {
@@ -11275,11 +11277,7 @@ function Invoices({
                 amtDue = amounts[0];
                 payments = 0;
               }
-              const realInvNum = line.match(new RegExp("\\b" + dateMatch[0].replace(/[\/\-]/g, "\\$&") + "\\b"))?.[0] ? (() => {
-                const after = line.slice(line.indexOf(dateMatch[0]) + dateMatch[0].length);
-                const m = after.match(/\b(\d{4,7})\b/);
-                return m ? m[1] : invNum;
-              })() : invNum;
+              const realInvNum = invNum;
               const isCredit = invAmount < 0;
               const totalVal = isCredit ? invAmount : Math.abs(invAmount);
               const dueVal = isCredit ? amtDue : Math.abs(amtDue);
@@ -11297,10 +11295,11 @@ function Invoices({
               pageHasData = true;
             }
             if (custName && pageHasData) customerNames.add(custName);
+            console.log("Page " + (pages.indexOf(pageText) + 1) + "/" + pages.length + " customer='" + custName + "' invoices found on page: " + (pageHasData ? "yes" : "no") + " total rows so far: " + rows.length);
           }
           allRows.push(...rows);
           customerNames.forEach(n => allCustNames.add(n));
-          console.log("PDF parsed: " + file.name + " -> " + rows.length + " invoices, customers: " + [...customerNames].join(", "));
+          console.log("PDF parsed: " + file.name + " -> " + rows.length + " invoices from " + pages.length + " pages, customers: " + [...customerNames].join(", "));
         } catch (err) {
           console.error("PDF parse error for " + file.name + ":", err);
           showToast("Error reading " + file.name + ": " + err.message);
