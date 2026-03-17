@@ -3506,7 +3506,8 @@ function App() {
     salesOrders: salesOrders,
     receipts: receipts,
     setReceipts: setReceipts,
-    settings: settings
+    settings: settings,
+    loggedInUser: loggedInUser
   }), activeModule === "catchweight" && /*#__PURE__*/React.createElement(CatchWeight, {
     invoices: invoices,
     setInvoices: setInvoices,
@@ -10671,8 +10672,11 @@ function Invoices({
   salesOrders,
   receipts,
   setReceipts,
-  settings
+  settings,
+  loggedInUser
 }) {
+  const canDelete = loggedInUser && (loggedInUser.role === "admin" || loggedInUser.role === "manager");
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [invTab, setInvTab] = useState("invoices"); // "invoices" or "receipts"
   const [showNew, setShowNew] = useState(false);
   const [search, setSearch] = useState("");
@@ -11319,7 +11323,7 @@ function Invoices({
         }
         setPdfImportLoading(false);
       }
-    }), pdfImportLoading && /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, color: "#f59e0b" } }, "Reading PDF..."), invoices.length > 0 && /*#__PURE__*/React.createElement(Btn, {
+    }), pdfImportLoading && /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, color: "#f59e0b" } }, "Reading PDF..."), canDelete && invoices.length > 0 && /*#__PURE__*/React.createElement(Btn, {
       variant: "danger",
       "data-testid": "button-delete-all-invoices",
       onClick: () => {
@@ -12619,19 +12623,10 @@ function Invoices({
           reader.readAsDataURL(file);
           e.target.value = "";
         }
-      })), /*#__PURE__*/React.createElement("button", {
+      })), canDelete && /*#__PURE__*/React.createElement("button", {
         "data-testid": "button-delete-invoice-" + inv.id,
-        onClick: () => {
-          if (!confirm("Delete invoice " + inv.id + " (" + ((cust === null || cust === void 0 ? void 0 : cust.name) || "unknown") + " — " + fmt(inv.total) + ")? This cannot be undone.")) return;
-          fetch("/api/data/invoices/" + inv.id, { method: "DELETE" }).then(r => r.json()).then(d => {
-            if (d.success) {
-              setInvoices(prev => prev.filter(x => x.id !== inv.id));
-              showToast("Invoice " + inv.id + " deleted");
-            } else {
-              showToast("Error: " + (d.error || "Failed to delete"));
-            }
-          }).catch(e => showToast("Error: " + e.message));
-        },
+        onClick: () => setDeleteConfirm(inv),
+        title: "Delete invoice",
         style: {
           padding: "4px 8px",
           borderRadius: 4,
@@ -12787,7 +12782,40 @@ function Invoices({
         setBulkScans([]);
       }
     }, "Done")));
-  })(), showNew && /*#__PURE__*/React.createElement(Modal, {
+  })(), deleteConfirm && /*#__PURE__*/React.createElement("div", {
+    style: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 },
+    onClick: () => setDeleteConfirm(null)
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { background: "#1e293b", borderRadius: 12, padding: 28, width: 420, maxWidth: "90vw", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" },
+    onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { textAlign: "center", marginBottom: 18 }
+  }, /*#__PURE__*/React.createElement("div", { style: { fontSize: 40, marginBottom: 8 } }, "\u26A0\uFE0F"), /*#__PURE__*/React.createElement("div", { style: { fontSize: 18, fontWeight: 700, color: "#ef4444" } }, "Delete Invoice?")), /*#__PURE__*/React.createElement("div", {
+    style: { background: "#0f172a", borderRadius: 8, padding: 16, marginBottom: 18 }
+  }, /*#__PURE__*/React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 6 } }, /*#__PURE__*/React.createElement("span", { style: { color: "#94a3b8", fontSize: 13 } }, "Invoice:"), /*#__PURE__*/React.createElement("span", { style: { color: "#f1f5f9", fontWeight: 600, fontFamily: "'DM Mono',monospace" } }, deleteConfirm.id)), /*#__PURE__*/React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 6 } }, /*#__PURE__*/React.createElement("span", { style: { color: "#94a3b8", fontSize: 13 } }, "Customer:"), /*#__PURE__*/React.createElement("span", { style: { color: "#f1f5f9", fontWeight: 600 } }, (customers.find(c => c.id === deleteConfirm.customerId) || {}).name || "Unknown")), /*#__PURE__*/React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 6 } }, /*#__PURE__*/React.createElement("span", { style: { color: "#94a3b8", fontSize: 13 } }, "Amount:"), /*#__PURE__*/React.createElement("span", { style: { color: "#f1f5f9", fontWeight: 700, fontFamily: "'DM Mono',monospace" } }, fmt(deleteConfirm.total))), /*#__PURE__*/React.createElement("div", { style: { display: "flex", justifyContent: "space-between" } }, /*#__PURE__*/React.createElement("span", { style: { color: "#94a3b8", fontSize: 13 } }, "Date:"), /*#__PURE__*/React.createElement("span", { style: { color: "#f1f5f9" } }, deleteConfirm.date || "—"))), /*#__PURE__*/React.createElement("div", {
+    style: { background: "#ef444422", border: "1px solid #ef4444", borderRadius: 8, padding: 12, marginBottom: 18, fontSize: 12, color: "#fca5a5", lineHeight: 1.5 }
+  }, "\u26A0 This action cannot be undone. The invoice will be permanently removed from the system. Any linked payments or credits will not be automatically adjusted."), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 11, color: "#64748b", marginBottom: 14, textAlign: "center" }
+  }, "Deleting as: ", /*#__PURE__*/React.createElement("strong", { style: { color: "#f1f5f9" } }, loggedInUser ? loggedInUser.name : "Admin"), " (", loggedInUser ? loggedInUser.role : "admin", ")"), /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 10 } }, /*#__PURE__*/React.createElement("button", {
+    "data-testid": "button-cancel-delete",
+    onClick: () => setDeleteConfirm(null),
+    style: { flex: 1, padding: "10px 16px", borderRadius: 8, border: "1px solid #334155", background: "transparent", color: "#94a3b8", fontSize: 14, fontWeight: 600, cursor: "pointer" }
+  }, "Cancel"), /*#__PURE__*/React.createElement("button", {
+    "data-testid": "button-confirm-delete",
+    onClick: () => {
+      const invId = deleteConfirm.id;
+      fetch("/api/data/invoices/" + invId, { method: "DELETE" }).then(r => r.json()).then(d => {
+        if (d.success) {
+          setInvoices(prev => prev.filter(x => x.id !== invId));
+          showToast("Invoice " + invId + " deleted by " + (loggedInUser ? loggedInUser.name : "Admin"));
+        } else {
+          showToast("Error: " + (d.error || "Failed to delete"));
+        }
+      }).catch(e => showToast("Error: " + e.message));
+      setDeleteConfirm(null);
+    },
+    style: { flex: 1, padding: "10px 16px", borderRadius: 8, border: "none", background: "#ef4444", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }
+  }, "\uD83D\uDDD1 Delete Permanently")))), showNew && /*#__PURE__*/React.createElement(Modal, {
     title: "Create New Invoice",
     onClose: () => setShowNew(false),
     width: 1260
