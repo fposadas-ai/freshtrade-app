@@ -11236,23 +11236,25 @@ function Invoices({
             }
             const pastHeader = headerLine ? lines.indexOf(headerLine) + 1 : 0;
             let pageHasData = false;
+            let _skipped = [];
             for (let li = pastHeader; li < lines.length; li++) {
               const line = lines[li];
               if (/^[\-=]+$/.test(line.replace(/\s/g, ""))) continue;
               if (/^\s*(current|over\s*\d|amount\s*due|aging\s+summary|page\s*:)\s*$/i.test(line.replace(/\t/g, " ").trim())) continue;
               if (/\b(aging\s*summary|remittance|please\s*(pay|remit)|total\s*due)\b/i.test(line) && !/\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(line)) continue;
               const dateMatch = line.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
-              if (!dateMatch) continue;
+              if (!dateMatch) { if (line.length > 5) _skipped.push("no-date: " + line.substring(0, 120)); continue; }
               const yearStr = dateMatch[3].length === 2 ? "20" + dateMatch[3] : dateMatch[3];
+              const dateParts = [dateMatch[1], dateMatch[2], dateMatch[3], yearStr, dateMatch[0].replace(/\D/g, "")];
               const allNums = [...line.matchAll(/\b(\d{3,10})\b/g)].map(m => m[1]);
-              const invCandidates = allNums.filter(n => n !== dateMatch[1] && n !== dateMatch[2] && n !== dateMatch[3] && n !== yearStr && n !== dateMatch[0].replace(/\D/g, ""));
+              const invCandidates = allNums.filter(n => !dateParts.includes(n));
               let invNum = "";
               if (invCandidates.length > 0) {
                 invNum = invCandidates.find(n => n.length >= 4 && n.length <= 7) || invCandidates[0];
               }
-              if (!invNum) continue;
               const moneyMatches = [...line.matchAll(/-?\$?\s*-?([\d,]+\.\d{2})/g)];
-              if (moneyMatches.length === 0) continue;
+              if (moneyMatches.length === 0) { _skipped.push("no-money: " + line.substring(0, 120)); continue; }
+              if (!invNum) invNum = "IMP-" + parseDateStr(dateMatch[0]).replace(/-/g, "") + "-" + (rows.length + 1);
               const amounts = moneyMatches.map(m => {
                 const val = parseFloat(m[1].replace(/,/g, ""));
                 const isNeg = m[0].includes("-");
@@ -11295,7 +11297,8 @@ function Invoices({
               pageHasData = true;
             }
             if (custName && pageHasData) customerNames.add(custName);
-            console.log("Page " + (pages.indexOf(pageText) + 1) + "/" + pages.length + " customer='" + custName + "' invoices found on page: " + (pageHasData ? "yes" : "no") + " total rows so far: " + rows.length);
+            console.log("Page " + (pages.indexOf(pageText) + 1) + "/" + pages.length + " customer='" + custName + "' found=" + (pageHasData ? "yes" : "no") + " rows=" + rows.length + " lines=" + lines.length + " pastHeader=" + pastHeader);
+            if (_skipped.length > 0) console.log("Skipped lines on page:", _skipped);
           }
           allRows.push(...rows);
           customerNames.forEach(n => allCustNames.add(n));
