@@ -37841,7 +37841,10 @@ function ReportsModule({ customers, invoices, arPayments, creditMemos, products,
     { id: "purchases", label: "Purchase History", desc: "Products purchased by a customer over a date range", needsCust: true },
     { id: "payments", label: "Payment History", desc: "All payments made by a customer", needsCust: true },
     { id: "openar", label: "Open Receivables", desc: "All unpaid invoices across all customers", needsCust: false },
-    { id: "sales", label: "Sales Report", desc: "Total sales by date range with customer breakdown", needsCust: false }
+    { id: "sales", label: "Sales Report", desc: "Total sales by date range with customer breakdown", needsCust: false },
+    { id: "customerList", label: "Customer List", desc: "Complete list of all customers with contact info and balances", needsCust: false, needsDate: false },
+    { id: "shortages", label: "Shortages Report", desc: "Products that are low in stock or out of stock", needsCust: false, needsDate: false },
+    { id: "productList", label: "Product List", desc: "Complete list of all products with pricing and stock levels", needsCust: false, needsDate: false }
   ];
 
   const generateReport = () => {
@@ -38017,6 +38020,43 @@ function ReportsModule({ customers, invoices, arPayments, creditMemos, products,
       const catBreakdown = Object.entries(byCategory).map(([cat, d]) => ({ category: cat, qty: d.qty, total: d.total })).sort((a, b) => b.total - a.total);
       setGenerated({ type: "sales", title: "Sales Report", dateFrom, dateTo, invoiceCount: rangeInvs.length, totalSales: rangeInvs.reduce((s, i) => s + (i.total || 0), 0), custBreakdown, catBreakdown });
     }
+
+    if (reportType === "customerList") {
+      const custRows = customers.map(c => {
+        const custInvs = invoices.filter(i => i.customerId === c.id && (i.status === "open" || i.status === "credit"));
+        const balance = custInvs.reduce((s, i) => s + arGetInvBalance(i, arPayments, creditMemos), 0);
+        const totalSales = invoices.filter(i => i.customerId === c.id && i.status !== "voided").reduce((s, i) => s + (i.total || 0), 0);
+        const invCount = invoices.filter(i => i.customerId === c.id && i.status !== "voided").length;
+        return { id: c.id, name: c.name, code: c.code || "—", phone: c.phone || "—", email: c.email || "—", address: c.deliveryAddress || c.address || "—", priceLevel: c.priceLevel || "—", balance, totalSales, invCount };
+      }).sort((a, b) => a.name.localeCompare(b.name));
+      setGenerated({ type: "customerList", title: "Customer List", rows: custRows, totalBalance: custRows.reduce((s, r) => s + r.balance, 0), totalSales: custRows.reduce((s, r) => s + r.totalSales, 0) });
+    }
+
+    if (reportType === "shortages") {
+      const threshold = Number((settings && settings.preferences && settings.preferences.lowStockThreshold) || 10);
+      const shortItems = products.filter(p => {
+        const stockQty = p.soldByPiece ? (p.stockPieces || 0) : (p.stockCases || 0);
+        return stockQty <= threshold;
+      }).map(p => {
+        const stockQty = p.soldByPiece ? (p.stockPieces || 0) : (p.stockCases || 0);
+        const unit = p.soldByPiece ? "pcs" : "cases";
+        const weight = p.catchWeight ? (p.stock || p.totalWeight || 0) : null;
+        return { id: p.id, name: p.name, category: p.category || "—", stock: stockQty, unit, weight, threshold, status: stockQty === 0 ? "OUT OF STOCK" : "LOW STOCK" };
+      }).sort((a, b) => a.stock - b.stock);
+      setGenerated({ type: "shortages", title: "Shortages Report", rows: shortItems, threshold, outCount: shortItems.filter(r => r.stock === 0).length, lowCount: shortItems.filter(r => r.stock > 0).length });
+    }
+
+    if (reportType === "productList") {
+      const prodRows = products.map(p => {
+        const stockQty = p.soldByPiece ? (p.stockPieces || 0) : (p.stockCases || 0);
+        const unit = p.soldByPiece ? "pcs" : "cases";
+        const cost = (p.pricing && p.pricing.cost) || 0;
+        const salesPrice = (p.pricing && p.pricing.sales) || 0;
+        const isCW = p.catchWeight || p.fixedWeight;
+        return { id: p.id, name: p.name, category: p.category || "—", type: isCW ? "Catch Wt" : p.soldByPiece ? "Piece" : "Case", stock: stockQty, unit, weight: isCW ? (p.stock || p.totalWeight || 0) : null, cost, salesPrice, pcsPerBox: p.piecesPerBox || 1 };
+      }).sort((a, b) => (a.category || "").localeCompare(b.category || "") || a.name.localeCompare(b.name));
+      setGenerated({ type: "productList", title: "Product List", rows: prodRows });
+    }
   };
 
   const printReport = () => {
@@ -38190,6 +38230,68 @@ function ReportsModule({ customers, invoices, arPayments, creditMemos, products,
         React.createElement("div", { style: { fontWeight: 700, fontSize: 14, marginBottom: 8, marginTop: 24 } }, "Sales by Category"),
         renderTable(["Category", "Qty Sold", "Total", "% of Sales"], catRows));
     }
+
+    if (g.type === "customerList") {
+      const summaryCards = React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 24 } },
+        React.createElement("div", { style: { background: "#eff6ff", borderRadius: 10, padding: 16, textAlign: "center" } },
+          React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "#3b82f6", textTransform: "uppercase" } }, "Total Customers"),
+          React.createElement("div", { style: { fontSize: 24, fontWeight: 800, color: "#1e3a5f", marginTop: 4 } }, g.rows.length)),
+        React.createElement("div", { style: { background: "#fef2f2", borderRadius: 10, padding: 16, textAlign: "center" } },
+          React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "#ef4444", textTransform: "uppercase" } }, "Total AR Balance"),
+          React.createElement("div", { style: { fontSize: 24, fontWeight: 800, color: "#991b1b", marginTop: 4 } }, fmt(g.totalBalance))),
+        React.createElement("div", { style: { background: "#f0fdf4", borderRadius: 10, padding: 16, textAlign: "center" } },
+          React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "#16a34a", textTransform: "uppercase" } }, "Total Sales"),
+          React.createElement("div", { style: { fontSize: 24, fontWeight: 800, color: "#166534", marginTop: 4 } }, fmt(g.totalSales))));
+      const rows = g.rows.map((c, i) => React.createElement("tr", { key: i, style: { background: i % 2 === 0 ? "#fff" : "#f9fafb" } },
+        React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb", fontWeight: 600 } }, c.name),
+        React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb", fontFamily: "monospace", fontSize: 11 } }, c.code),
+        React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb", fontSize: 11 } }, c.phone),
+        React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb", fontSize: 11 } }, c.email),
+        React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb", textAlign: "center" } }, c.invCount),
+        React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb", textAlign: "right", fontWeight: 600, color: c.balance > 0 ? "#dc2626" : "#16a34a" } }, fmt(c.balance)),
+        React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb", textAlign: "right" } }, fmt(c.totalSales))));
+      return React.createElement("div", null, hdr, summaryCards,
+        renderTable(["Customer", "Code", "Phone", "Email", "Invoices", "AR Balance", "Total Sales"], rows, { align: [null, null, null, null, "center", "right", "right"] }));
+    }
+
+    if (g.type === "shortages") {
+      const summaryCards = React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 24 } },
+        React.createElement("div", { style: { background: "#fef2f2", borderRadius: 10, padding: 16, textAlign: "center" } },
+          React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "#ef4444", textTransform: "uppercase" } }, "Out of Stock"),
+          React.createElement("div", { style: { fontSize: 24, fontWeight: 800, color: "#991b1b", marginTop: 4 } }, g.outCount)),
+        React.createElement("div", { style: { background: "#fefce8", borderRadius: 10, padding: 16, textAlign: "center" } },
+          React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "#ca8a04", textTransform: "uppercase" } }, "Low Stock"),
+          React.createElement("div", { style: { fontSize: 24, fontWeight: 800, color: "#854d0e", marginTop: 4 } }, g.lowCount)),
+        React.createElement("div", { style: { background: "#f0fdf4", borderRadius: 10, padding: 16, textAlign: "center" } },
+          React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "#16a34a", textTransform: "uppercase" } }, "Threshold"),
+          React.createElement("div", { style: { fontSize: 24, fontWeight: 800, color: "#166534", marginTop: 4 } }, "\u2264 ", g.threshold)));
+      const rows = g.rows.map((p, i) => React.createElement("tr", { key: i, style: { background: i % 2 === 0 ? "#fff" : "#f9fafb" } },
+        React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb", fontWeight: 600 } }, p.name),
+        React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb" } }, p.category),
+        React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb", textAlign: "center", fontWeight: 700, fontFamily: "monospace" } }, p.stock, " ", p.unit),
+        React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb", textAlign: "center" } }, p.weight !== null ? p.weight.toFixed(1) + " lbs" : "—"),
+        React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb", textAlign: "center" } },
+          React.createElement("span", { style: { fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 4, background: p.status === "OUT OF STOCK" ? "#fecaca" : "#fef3c7", color: p.status === "OUT OF STOCK" ? "#991b1b" : "#92400e" } }, p.status))));
+      return React.createElement("div", null, hdr, summaryCards,
+        g.rows.length === 0 ? React.createElement("div", { style: { textAlign: "center", padding: 30, color: "#16a34a", fontSize: 16, fontWeight: 600 } }, "\u2705 All products are above the stock threshold!") :
+        renderTable(["Product", "Category", "Stock", "Weight", "Status"], rows, { align: [null, null, "center", "center", "center"] }));
+    }
+
+    if (g.type === "productList") {
+      const rows = g.rows.map((p, i) => React.createElement("tr", { key: i, style: { background: i % 2 === 0 ? "#fff" : "#f9fafb" } },
+        React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb", fontWeight: 600 } }, p.name),
+        React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb" } }, p.category),
+        React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb", textAlign: "center" } },
+          React.createElement("span", { style: { fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 3, background: p.type === "Catch Wt" ? "#fef3c7" : "#e0f2fe", color: p.type === "Catch Wt" ? "#92400e" : "#0369a1" } }, p.type)),
+        React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb", textAlign: "center", fontFamily: "monospace" } }, p.stock, " ", p.unit),
+        React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb", textAlign: "center" } }, p.pcsPerBox),
+        React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb", textAlign: "right", fontFamily: "monospace" } }, fmt(p.cost)),
+        React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #e5e7eb", textAlign: "right", fontWeight: 600, fontFamily: "monospace" } }, fmt(p.salesPrice))));
+      return React.createElement("div", null, hdr,
+        React.createElement("div", { style: { marginBottom: 16, fontSize: 13, color: "#64748b" } }, g.rows.length, " products total"),
+        renderTable(["Product", "Category", "Type", "Stock", "Pcs/Box", "Cost", "Sales Price"], rows, { align: [null, null, "center", "center", "center", "right", "right"] }));
+    }
+
     return null;
   };
 
@@ -38221,7 +38323,7 @@ function ReportsModule({ customers, invoices, arPayments, creditMemos, products,
             onChange: e => setProductId(e.target.value),
             style: { width: "100%", background: "#1a2030", border: "1px solid #2d3748", borderRadius: 6, padding: "8px 10px", color: "#e2e8f0", fontSize: 13 }
           }, React.createElement("option", { value: "" }, "— Select Product —"), [...products].sort((a, b) => (a.name || "").localeCompare(b.name || "")).map(p => React.createElement("option", { key: p.id, value: p.id }, p.name, " (", p.category || "", ")")))),
-        React.createElement("div", null,
+        rpt.needsDate !== false && React.createElement("div", null,
           React.createElement("label", { style: { fontSize: 11, color: "#94a3b8", fontWeight: 600, display: "block", marginBottom: 4 } }, "From"),
           React.createElement("input", {
             type: "date",
@@ -38230,7 +38332,7 @@ function ReportsModule({ customers, invoices, arPayments, creditMemos, products,
             onChange: e => setDateFrom(e.target.value),
             style: { width: "100%", background: "#1a2030", border: "1px solid #2d3748", borderRadius: 6, padding: "8px 10px", color: "#e2e8f0", fontSize: 13 }
           })),
-        React.createElement("div", null,
+        rpt.needsDate !== false && React.createElement("div", null,
           React.createElement("label", { style: { fontSize: 11, color: "#94a3b8", fontWeight: 600, display: "block", marginBottom: 4 } }, "To"),
           React.createElement("input", {
             type: "date",
