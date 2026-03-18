@@ -4344,7 +4344,7 @@ const SpreadsheetGrid = ({
       const prod = products.find(p => p.id === pid);
       if (!prod) return;
       const price = mode === "po" ? null : getPrice(prod);
-      const defaultUnit = "CS";
+      const defaultUnit = prod.soldByPiece ? "PCS" : "CS";
       const isWeightBased = prod.catchWeight || prod.fixedWeight;
       const getWeightPer = unit => {
         if (prod.fixedWeight) return unit === "CS" ? prod.caseWeightLbs || 0 : prod.weightPerPack || 0;
@@ -4442,7 +4442,7 @@ const SpreadsheetGrid = ({
     if (!prod) return;
     const qty = Number(addQty) || 1;
     const price = mode === "po" ? null : getPrice(prod);
-    const defaultUnit = "CS";
+    const defaultUnit = prod.soldByPiece ? "PCS" : "CS";
     const isWB = prod.catchWeight || prod.fixedWeight;
     const getWPer = u => {
       if (prod.fixedWeight) return u === "CS" ? prod.caseWeightLbs || 0 : prod.weightPerPack || 0;
@@ -5082,7 +5082,11 @@ const SpreadsheetGrid = ({
       }
     }, (() => {
       const curUnit = getLineVal(p.id, "unit") || "CS";
-      const toggle = () => updateLine(p.id, "unit", curUnit === "PCS" ? "CS" : "PCS");
+      const canSellByPiece = p.soldByPiece === true;
+      const toggle = () => {
+        if (!canSellByPiece) return;
+        updateLine(p.id, "unit", curUnit === "PCS" ? "CS" : "PCS");
+      };
       return /*#__PURE__*/React.createElement("button", {
         onClick: toggle,
         onKeyDown: e => {
@@ -5096,17 +5100,18 @@ const SpreadsheetGrid = ({
           width: "100%",
           padding: "3px 2px",
           borderRadius: 4,
-          border: "2px solid #4a78b0",
-          cursor: "pointer",
+          border: "2px solid " + (canSellByPiece ? "#4a78b0" : "#334155"),
+          cursor: canSellByPiece ? "pointer" : "default",
           fontSize: 12,
           fontWeight: 800,
           letterSpacing: "0.5px",
           background: curUnit === "CS" ? "#2c4a7c" : "#e8f0f8",
           color: curUnit === "CS" ? "#fff" : "#2c4a7c",
+          opacity: canSellByPiece ? 1 : 0.6,
           outline: "none",
           transition: "all 0.1s"
         },
-        title: "Press Space to toggle PCS \u2194 CS"
+        title: canSellByPiece ? "Press Space to toggle PCS \u2194 CS" : "This product is sold by case only"
       }, curUnit);
     })()), !isPO && /*#__PURE__*/React.createElement("td", {
       className: "sg-cell",
