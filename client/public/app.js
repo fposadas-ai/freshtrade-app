@@ -28662,6 +28662,12 @@ function PricingCenter({ products, setProducts, customers, setCustomers, salesOr
   const [editingCustPricing, setEditingCustPricing] = useState(null);
   const [custSpecialPrices, setCustSpecialPrices] = useState({});
   const [limitSearch, setLimitSearch] = useState("");
+  const [groupCusts, setGroupCusts] = useState({});
+  const [groupProduct, setGroupProduct] = useState("");
+  const [groupPrice, setGroupPrice] = useState("");
+  const [groupSearch, setGroupSearch] = useState("");
+  const [saleSearch, setSaleSearch] = useState("");
+  const [saleCat, setSaleCat] = useState("all");
 
   const cats = getCategories(settings);
   const canEdit = loggedInUser && (loggedInUser.role === "admin" || loggedInUser.role === "manager");
@@ -28801,6 +28807,7 @@ function PricingCenter({ products, setProducts, customers, setCustomers, salesOr
   const tabs = [
     { id: "products", label: "Product Pricing" },
     { id: "customers", label: "Customer Levels" },
+    { id: "sales", label: "Sales & Clearance" },
     { id: "documents", label: "Today & Upcoming" },
     { id: "bulk", label: "Bulk Adjust" },
     { id: "limits", label: "Price Limits" }
@@ -28871,12 +28878,17 @@ function PricingCenter({ products, setProducts, customers, setCustomers, salesOr
                   }) : React.createElement("span", { style: { color: "#ef4444", fontWeight: 700, fontFamily: "'DM Mono',monospace" } }, fmt(cost))),
                 ...priceLevels.map(pl => {
                   const val = Number(pr[pl.id]) || 0;
+                  const plusDollar = cost > 0 && val > 0 ? (val - cost) : null;
+                  const plusPct = cost > 0 && val > 0 ? ((val - cost) / cost * 100) : null;
                   return React.createElement("td", { key: pl.id, style: { padding: "6px", textAlign: "right" } },
                     isEditing ? React.createElement("input", {
                       type: "number", step: "0.01", value: pr[pl.id] ?? "",
                       onChange: e => setEditPrices(prev => ({ ...prev, [pl.id]: e.target.value })),
                       style: { width: 72, background: "#0f1117", border: `1px solid ${pl.color}66`, borderRadius: 4, padding: "4px 6px", color: pl.color, fontSize: 12, fontFamily: "'DM Mono',monospace", fontWeight: 700, textAlign: "right" }
-                    }) : React.createElement("span", { style: { color: val > 0 ? pl.color : "#475569", fontFamily: "'DM Mono',monospace", fontWeight: 600 } }, val > 0 ? fmt(val) : "—"));
+                    }) : React.createElement("div", null,
+                      React.createElement("span", { style: { color: val > 0 ? pl.color : "#475569", fontFamily: "'DM Mono',monospace", fontWeight: 600 } }, val > 0 ? fmt(val) : "—"),
+                      plusPct !== null && React.createElement("div", { style: { fontSize: 9, color: plusDollar >= 0 ? "#22c55e" : "#ef4444", fontFamily: "'DM Mono',monospace", lineHeight: 1.2 } },
+                        (plusDollar >= 0 ? "+" : "") + "$" + plusDollar.toFixed(2) + " · " + (plusPct >= 0 ? "+" : "") + plusPct.toFixed(1) + "%")));
                 }),
                 React.createElement("td", { style: { padding: "6px", textAlign: "right" } },
                   isEditing ? React.createElement("input", {
@@ -28899,6 +28911,64 @@ function PricingCenter({ products, setProducts, customers, setCustomers, salesOr
             })))))),
 
     activeTab === "customers" && React.createElement("div", null,
+      React.createElement(Card, { style: { marginBottom: 20, background: "#0f1117", border: "1px solid #a855f744" } },
+        React.createElement("div", { style: { padding: 16 } },
+          React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 12 } },
+            React.createElement("span", { style: { fontSize: 16 } }, "\uD83D\uDC65"),
+            React.createElement("span", { style: { fontSize: 14, fontWeight: 700, color: "#a855f7" } }, "Group Pricing"),
+            React.createElement("span", { style: { fontSize: 11, color: "#64748b" } }, "— Apply special pricing to multiple customers at once")),
+          React.createElement("div", { style: { display: "flex", gap: 12, marginBottom: 12, flexWrap: "wrap", alignItems: "flex-end" } },
+            React.createElement("div", { style: { flex: 1, minWidth: 200 } },
+              React.createElement("label", { style: { fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", display: "block", marginBottom: 4 } }, "Product"),
+              React.createElement("select", { value: groupProduct, onChange: e => setGroupProduct(e.target.value), "data-testid": "select-group-product",
+                style: { width: "100%", background: "#1a2030", border: "1px solid #2d3748", borderRadius: 6, padding: "8px 10px", color: "#e2e8f0", fontSize: 12 }
+              }, React.createElement("option", { value: "" }, "Select a product..."),
+                [...products].sort((a, b) => (a.category || "").localeCompare(b.category || "") || a.name.localeCompare(b.name)).map(p =>
+                  React.createElement("option", { key: p.id, value: p.id }, (p.category ? p.category + " — " : "") + pName(p))))),
+            React.createElement("div", { style: { minWidth: 120 } },
+              React.createElement("label", { style: { fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", display: "block", marginBottom: 4 } }, "Special Price"),
+              React.createElement("input", { type: "number", step: "0.01", value: groupPrice, onChange: e => setGroupPrice(e.target.value), placeholder: "$0.00", "data-testid": "input-group-price",
+                style: { width: "100%", background: "#1a2030", border: "1px solid #a855f766", borderRadius: 6, padding: "8px 10px", color: "#a855f7", fontSize: 13, fontWeight: 700, fontFamily: "'DM Mono',monospace", textAlign: "right" } })),
+            groupProduct && React.createElement("div", { style: { fontSize: 11, color: "#64748b", padding: "8px 0" } },
+              (() => { const gp = products.find(p2 => p2.id === groupProduct); return gp ? "Cost: " + fmt((gp.pricing || {}).cost || 0) + " · L3: " + fmt((gp.pricing || {}).level3 || 0) : ""; })())),
+          React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 12, alignItems: "center" } },
+            React.createElement("input", { value: groupSearch, onChange: e => setGroupSearch(e.target.value), placeholder: "\uD83D\uDD0D Filter customers...", "data-testid": "input-group-search",
+              style: { flex: 1, background: "#1a2030", border: "1px solid #2d3748", borderRadius: 6, padding: "6px 10px", color: "#e2e8f0", fontSize: 12 } }),
+            React.createElement("button", { onClick: () => { const all = {}; customers.forEach(c => { all[c.id] = true; }); setGroupCusts(all); }, "data-testid": "btn-group-select-all",
+              style: { padding: "6px 12px", borderRadius: 6, border: "1px solid #a855f744", background: "#a855f711", color: "#a855f7", fontSize: 11, fontWeight: 600, cursor: "pointer" } }, "Select All"),
+            React.createElement("button", { onClick: () => setGroupCusts({}), "data-testid": "btn-group-clear",
+              style: { padding: "6px 12px", borderRadius: 6, border: "1px solid #47556944", background: "transparent", color: "#94a3b8", fontSize: 11, fontWeight: 600, cursor: "pointer" } }, "Clear")),
+          React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 6, maxHeight: 180, overflow: "auto", marginBottom: 12, padding: 4 } },
+            customers.filter(c => !groupSearch || c.name.toLowerCase().includes(groupSearch.toLowerCase())).sort((a, b) => a.name.localeCompare(b.name)).map(c =>
+              React.createElement("label", { key: c.id, style: { display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 6, cursor: "pointer", fontSize: 12, fontWeight: 600, background: groupCusts[c.id] ? "#a855f722" : "#1a2030", border: groupCusts[c.id] ? "1px solid #a855f766" : "1px solid #2d3748", color: groupCusts[c.id] ? "#a855f7" : "#94a3b8" } },
+                React.createElement("input", { type: "checkbox", checked: !!groupCusts[c.id], onChange: e => setGroupCusts(prev => ({ ...prev, [c.id]: e.target.checked ? true : undefined })) }),
+                c.name,
+                c.specialPricing && c.specialPricing[groupProduct] ? React.createElement("span", { style: { fontSize: 10, color: "#3b82f6" } }, "(has: " + fmt(c.specialPricing[groupProduct]) + ")") : null))),
+          React.createElement("div", { style: { display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center" } },
+            React.createElement("span", { style: { fontSize: 11, color: "#64748b" } }, Object.keys(groupCusts).filter(k => groupCusts[k]).length, " customers selected"),
+            React.createElement(Btn, { size: "sm", icon: "check", "data-testid": "btn-apply-group-pricing", onClick: () => {
+              const selectedIds = Object.keys(groupCusts).filter(k => groupCusts[k]);
+              if (!groupProduct) { showToast("Select a product first", "warn"); return; }
+              if (selectedIds.length === 0) { showToast("Select at least one customer", "warn"); return; }
+              const price = Number(groupPrice);
+              if (groupPrice === "") {
+                setCustomers(prev => prev.map(c => {
+                  if (!selectedIds.includes(c.id)) return c;
+                  const sp = { ...(c.specialPricing || {}) };
+                  delete sp[groupProduct];
+                  return { ...c, specialPricing: sp };
+                }));
+                showToast(`Cleared special pricing on ${selectedIds.length} customer${selectedIds.length > 1 ? "s" : ""}`);
+              } else {
+                if (isNaN(price) || price < 0) { showToast("Enter a valid price", "warn"); return; }
+                setCustomers(prev => prev.map(c => {
+                  if (!selectedIds.includes(c.id)) return c;
+                  return { ...c, specialPricing: { ...(c.specialPricing || {}), [groupProduct]: price } };
+                }));
+                showToast(`Set ${fmt(price)} on ${selectedIds.length} customer${selectedIds.length > 1 ? "s" : ""}`);
+              }
+              setGroupCusts({}); setGroupPrice("");
+            } }, groupPrice !== "" ? "Apply Price" : "Clear Special Price")))),
       React.createElement("div", { style: { display: "flex", gap: 12, marginBottom: 16, alignItems: "center" } },
         React.createElement("input", {
           value: custSearch, onChange: e => setCustSearch(e.target.value),
@@ -28940,7 +29010,7 @@ function PricingCenter({ products, setProducts, customers, setCustomers, salesOr
                   isEditing && React.createElement("tr", null,
                     React.createElement("td", { colSpan: 4, style: { padding: "8px 10px", background: "#0f1117" } },
                       React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8, maxHeight: 300, overflow: "auto" } },
-                        products.sort((a, b) => a.name.localeCompare(b.name)).map(prod => {
+                        [...products].sort((a, b) => a.name.localeCompare(b.name)).map(prod => {
                           const specPrice = custSpecialPrices[prod.id] || "";
                           const levelPrice = Number((prod.pricing || {})[c.priceLevel || "level3"]) || 0;
                           return React.createElement("div", { key: prod.id, style: { display: "flex", alignItems: "center", gap: 6, padding: "4px 8px", background: "#1a2030", borderRadius: 6, border: specPrice ? "1px solid #3b82f644" : "1px solid #2d3748" } },
@@ -28957,6 +29027,77 @@ function PricingCenter({ products, setProducts, customers, setCustomers, salesOr
                         React.createElement(Btn, { variant: "secondary", size: "sm", onClick: () => setEditingCustPricing(null) }, "Cancel"),
                         React.createElement(Btn, { size: "sm", icon: "check", onClick: saveCustSpecial }, "Save Special Prices")))));
               }))))),
+
+    activeTab === "sales" && React.createElement("div", null,
+      React.createElement("div", { style: { display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap", alignItems: "center" } },
+        React.createElement("input", { value: saleSearch, onChange: e => setSaleSearch(e.target.value), placeholder: "\uD83D\uDD0D Search products...", "data-testid": "input-sale-search",
+          style: { flex: 1, minWidth: 200, background: "#1a2030", border: "1px solid #2d3748", borderRadius: 8, padding: "10px 14px", color: "#e2e8f0", fontSize: 13 } }),
+        React.createElement("select", { value: saleCat, onChange: e => setSaleCat(e.target.value), "data-testid": "select-sale-category",
+          style: { background: "#1a2030", border: "1px solid #2d3748", borderRadius: 8, padding: "10px 14px", color: "#e2e8f0", fontSize: 13 }
+        }, React.createElement("option", { value: "all" }, "All Categories"), cats.map(c => React.createElement("option", { key: c, value: c }, c))),
+        React.createElement("div", { style: { fontSize: 12, color: "#64748b" } },
+          products.filter(p => (p.pricing || {}).onSale).length + " items on sale")),
+      React.createElement(Card, null,
+        React.createElement("div", { style: { overflowX: "auto" } },
+          React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 12 } },
+            React.createElement("thead", null, React.createElement("tr", null,
+              ["Product", "Category", "Cost", "Reg Price (L3)", "+$ / +%", "Sale Price", "Discount", "Start", "End", "Status", ""].map((h, i) =>
+                React.createElement("th", { key: i, style: { padding: "8px 6px", fontSize: 10, color: "#94a3b8", fontWeight: 700, textAlign: i >= 2 && i <= 6 ? "right" : "left", textTransform: "uppercase", borderBottom: "2px solid #2d3748", whiteSpace: "nowrap" } }, h)))),
+            React.createElement("tbody", null,
+              products.filter(p => {
+                if (saleCat !== "all" && p.category !== saleCat) return false;
+                if (saleSearch && !p.name.toLowerCase().includes(saleSearch.toLowerCase())) return false;
+                return true;
+              }).sort((a, b) => {
+                const aOn = (a.pricing || {}).onSale ? 1 : 0;
+                const bOn = (b.pricing || {}).onSale ? 1 : 0;
+                if (aOn !== bOn) return bOn - aOn;
+                return (a.category || "").localeCompare(b.category || "") || a.name.localeCompare(b.name);
+              }).map(p => {
+                const pr = p.pricing || {};
+                const cost = Number(pr.cost) || 0;
+                const regPrice = Number(pr.level3) || 0;
+                const salePrice = Number(pr.sales) || 0;
+                const isOnSale = !!pr.onSale;
+                const saleStart = pr.saleStart || "";
+                const saleEnd = pr.saleEnd || "";
+                const discountPct = regPrice > 0 && salePrice > 0 ? ((regPrice - salePrice) / regPrice * 100).toFixed(1) : null;
+                const plusDollar = cost > 0 && regPrice > 0 ? (regPrice - cost) : null;
+                const plusPct = cost > 0 && regPrice > 0 ? ((regPrice - cost) / cost * 100) : null;
+                const isExpired = saleEnd && saleEnd < td;
+                return React.createElement("tr", { key: p.id, style: { borderBottom: "1px solid #1e2535", background: isOnSale ? "#f59e0b08" : "transparent" } },
+                  React.createElement("td", { style: { padding: "6px 6px", fontWeight: 600 } },
+                    React.createElement("div", null, pName(p)),
+                    React.createElement("div", { style: { fontSize: 10, color: "#64748b", fontFamily: "'DM Mono',monospace" } }, p.id)),
+                  React.createElement("td", { style: { padding: "6px", fontSize: 11, color: "#64748b" } }, p.category || "—"),
+                  React.createElement("td", { style: { padding: "6px", textAlign: "right", fontFamily: "'DM Mono',monospace", color: "#ef4444", fontWeight: 700 } }, fmt(cost)),
+                  React.createElement("td", { style: { padding: "6px", textAlign: "right", fontFamily: "'DM Mono',monospace", fontWeight: 600, color: "#e2e8f0" } }, regPrice > 0 ? fmt(regPrice) : "—"),
+                  React.createElement("td", { style: { padding: "6px", textAlign: "right", fontSize: 10, fontFamily: "'DM Mono',monospace", color: "#22c55e" } },
+                    plusPct !== null ? (plusDollar >= 0 ? "+" : "") + "$" + plusDollar.toFixed(2) + " / " + (plusPct >= 0 ? "+" : "") + plusPct.toFixed(1) + "%" : "—"),
+                  React.createElement("td", { style: { padding: "6px", textAlign: "right" } },
+                    React.createElement("input", { type: "number", step: "0.01", value: pr.sales || "", "data-testid": "input-sale-price-" + p.id,
+                      onChange: e => setProducts(prev => prev.map(pp => pp.id === p.id ? { ...pp, pricing: { ...pp.pricing, sales: e.target.value ? Number(e.target.value) : "" } } : pp)),
+                      style: { width: 80, background: "#0f1117", border: isOnSale ? "1px solid #f59e0b" : "1px solid #2d3748", borderRadius: 4, padding: "4px 6px", color: isOnSale ? "#f59e0b" : "#94a3b8", fontSize: 12, fontFamily: "'DM Mono',monospace", fontWeight: 700, textAlign: "right" } })),
+                  React.createElement("td", { style: { padding: "6px", textAlign: "right", fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 600, color: discountPct && Number(discountPct) > 0 ? "#ef4444" : "#475569" } },
+                    discountPct && Number(discountPct) > 0 ? "-" + discountPct + "%" : "—"),
+                  React.createElement("td", { style: { padding: "6px" } },
+                    React.createElement("input", { type: "date", value: saleStart, "data-testid": "input-sale-start-" + p.id,
+                      onChange: e => setProducts(prev => prev.map(pp => pp.id === p.id ? { ...pp, pricing: { ...pp.pricing, saleStart: e.target.value } } : pp)),
+                      style: { background: "#0f1117", border: "1px solid #2d3748", borderRadius: 4, padding: "3px 6px", color: "#e2e8f0", fontSize: 11 } })),
+                  React.createElement("td", { style: { padding: "6px" } },
+                    React.createElement("input", { type: "date", value: saleEnd, "data-testid": "input-sale-end-" + p.id,
+                      onChange: e => setProducts(prev => prev.map(pp => pp.id === p.id ? { ...pp, pricing: { ...pp.pricing, saleEnd: e.target.value } } : pp)),
+                      style: { background: "#0f1117", border: "1px solid #2d3748", borderRadius: 4, padding: "3px 6px", color: isExpired ? "#ef4444" : "#e2e8f0", fontSize: 11 } })),
+                  React.createElement("td", { style: { padding: "6px" } },
+                    React.createElement("button", { "data-testid": "btn-toggle-sale-" + p.id,
+                      onClick: () => setProducts(prev => prev.map(pp => pp.id === p.id ? { ...pp, pricing: { ...pp.pricing, onSale: !pr.onSale } } : pp)),
+                      style: { padding: "4px 10px", borderRadius: 6, border: isOnSale ? "1px solid #f59e0b" : "1px solid #47556944", background: isOnSale ? "#f59e0b22" : "transparent", color: isOnSale ? "#f59e0b" : "#475569", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" } },
+                      isOnSale ? (isExpired ? "\u26A0 Expired" : "\u2713 On Sale") : "Off")),
+                  React.createElement("td", { style: { padding: "6px", textAlign: "right" } },
+                    isOnSale && React.createElement("button", { "data-testid": "btn-clear-sale-" + p.id,
+                      onClick: () => setProducts(prev => prev.map(pp => pp.id === p.id ? { ...pp, pricing: { ...pp.pricing, onSale: false, sales: "", saleStart: "", saleEnd: "" } } : pp)),
+                      style: { padding: "3px 8px", borderRadius: 4, border: "1px solid #ef444444", background: "#ef444411", color: "#ef4444", fontSize: 10, fontWeight: 600, cursor: "pointer" } }, "Clear")));
+              })))))),
 
     activeTab === "documents" && React.createElement("div", null,
       React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 20 } },

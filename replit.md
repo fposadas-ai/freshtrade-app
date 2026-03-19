@@ -1,186 +1,80 @@
 # FreshTrade Distribution Management System
 
 ## Overview
-
-FreshTrade is a meat and seafood distribution management system. The main application is a single-page React app (served from `client/public/freshtrade.html` and `client/public/app.js`) that manages business operations including products, customers, invoices, sales orders, deliveries, purchase orders, suppliers, credit memos, routes, salespeople, production runs, and receipts.
-
-The React/TypeScript frontend in `client/src/` acts as a thin redirect layer that immediately sends users to `/freshtrade` (the actual app). The real application logic lives in the plain React + vanilla JS bundle at `client/public/app.js`.
-
-The backend is an Express.js server that persists all data to a PostgreSQL database using a simple `data_store` table (key-value store with JSONB), plus a `users` table.
+FreshTrade is a comprehensive meat and seafood distribution management system designed to streamline business operations. It handles products, customers, invoices, sales orders, deliveries, purchase orders, suppliers, credit memos, routes, salespeople, production runs, and receipts. The system aims to provide a robust solution for managing complex distribution logistics.
 
 ## User Preferences
-
 Preferred communication style: Simple, everyday language.
 
 ## System Architecture
 
-### Frontend Architecture
+### Frontend
+The main application is a single-page React app served from `client/public/freshtrade.html` and `client/public/app.js`. It's a self-contained React 18 application loaded via CDN scripts, with all business logic, UI rendering, icons, and state management within `app.js`. A minimal React/TypeScript shell (`client/src/`) acts as a redirect to the main app, with `shadcn/ui` and `Radix UI` components configured for future use. State is managed using React hooks, and data is fetched via direct API calls. Client-side routing is handled by component state.
 
-- **Main App**: `client/public/freshtrade.html` + `client/public/app.js` — a self-contained React 18 app loaded via CDN scripts (no build step). All business logic, UI rendering, icons, and state management live here.
-- **React/TypeScript shell** (`client/src/`): Minimal — `App.tsx` just redirects to `/freshtrade`. The shadcn/ui component library is set up here but the main app doesn't use it directly.
-- **UI Components**: Full shadcn/ui component library (`client/src/components/ui/`) using Radix UI primitives + Tailwind CSS, available for future use.
-- **State Management**: useState/useEffect/useCallback hooks inside `app.js`. No external state library.
-- **Data Fetching**: TanStack React Query is configured (`client/src/lib/queryClient.ts`) for the TypeScript side. The main app uses direct fetch calls to the REST API.
-- **Routing**: No client-side router. Navigation is handled by component state within `app.js`.
-
-### Backend Architecture
-
-- **Framework**: Express.js 5 running on Node.js with TypeScript (via `tsx` in dev, esbuild bundle in production).
-- **Entry Point**: `server/index.ts` creates an HTTP server, registers routes, and serves static files.
-- **API Routes** (`server/routes.ts`):
-  - `GET /api/data` — fetch all tables at once
-  - `GET /api/data/:tableName` — fetch one table
-  - `PUT /api/data/:tableName` — save one table
-  - `PUT /api/data` (bulk) — save multiple tables
-  - Table names are validated against a hardcoded allowlist
-  - `POST /api/stripe/create-checkout` — create Stripe Checkout Session for invoice payment (card + ACH)
-  - `GET /api/stripe/session/:sessionId` — check Stripe payment status
-  - `GET /api/stripe/success` — payment success landing page
-  - `GET /api/stripe/cancel` — payment cancel landing page
-- **Stripe Integration**: Uses `@replit/connectors-sdk` to proxy requests to Stripe API. Connected via Replit's native Stripe connector. Supports credit card and ACH bank transfer payments.
-- **Storage Layer** (`server/storage.ts`): `DatabaseStorage` class wraps a `pg.Pool`. Uses raw SQL queries (not Drizzle ORM) for runtime data access. Drizzle is used only for schema definition and migrations.
-- **Dev Server**: Vite runs in middleware mode inside the Express server during development (`server/vite.ts`).
-- **Production Build**: `script/build.ts` runs Vite for the client and esbuild for the server, bundling key server dependencies to improve cold start.
+### Backend
+The backend is an Express.js 5 server running on Node.js with TypeScript. It provides a REST API for data management, including fetching and saving tables, and integrates with Stripe for payment processing. Data is stored in a PostgreSQL database. During development, Vite runs in middleware mode within the Express server, while production builds use Vite for the client and esbuild for the server.
 
 ### Data Storage
-
-- **Database**: PostgreSQL (required via `DATABASE_URL` env var).
-- **Schema** (`shared/schema.ts`):
-  - `users` table: `id` (UUID), `username`, `password`
-  - `data_store` table: `id`, `table_name` (unique), `data` (JSONB), `updated_at`
-- **ORM**: Drizzle ORM is used for schema definition and migrations (`drizzle-kit push`). Runtime queries use raw `pg` Pool calls.
-- **Data Model**: All business data (products, customers, invoices, etc.) is stored as JSONB arrays in `data_store`, keyed by table name. This is a flexible schema-less approach inside a relational DB.
+PostgreSQL is the primary database, utilizing a `data_store` table for key-value storage of business data (products, customers, etc., as JSONB arrays) and a `users` table. Drizzle ORM is used for schema definition and migrations, while runtime queries directly use `pg.Pool`.
 
 ### Authentication
+The system includes a user model with username/password fields, and dependencies for session-based authentication using `express-session`, `connect-pg-simple`, `passport`, and `passport-local` are configured, indicating a planned or partial implementation of session-based authentication.
 
-- User model exists in the schema with username/password fields.
-- `connect-pg-simple`, `express-session`, `passport`, and `passport-local` are listed as dependencies, suggesting session-based auth with Passport.js is planned or partially implemented, but not wired up in the current routes.
-
-### Build & Development
-
-- **Dev**: `npm run dev` → `tsx server/index.ts` (Vite middleware + Express)
-- **Build**: `npm run build` → Vite builds client to `dist/public`, esbuild bundles server to `dist/index.cjs`
-- **DB Migrations**: `npm run db:push` → `drizzle-kit push`
-- **TypeScript**: Strict mode, paths aliased (`@/*` → `client/src/*`, `@shared/*` → `shared/*`)
+### Core Features
+- **Catch Weight Tolerance Warnings**: Implements warnings for product weight deviations, configurable via settings, with visual indicators and confirmation prompts.
+- **Label Customization**: Provides comprehensive, field-order-based label designers for Zebra and sheet labels, allowing dynamic reordering and font size adjustments, with live previews.
+- **Date-Based Route View**: Offers a date navigator in the Command Center to filter and manage orders by delivery date, with inline date editing capabilities.
+- **Routing Page Print Tracking**: Tracks print status (pick, label, invoice) for individual orders on the routing page, with print selection checkboxes and status indicators.
+- **Invoice Pagination**: Manages invoice printing with dynamic row capacity calculation, page layout, and consistent headers/footers across pages.
+- **USB Barcode Scanner**: Supports USB barcode scanners for Proof of Delivery, processing rapid input to match invoice IDs or product IDs.
+- **Order Guide**: A customer-specific product list manager allowing reordering and adding/removing products. Integrates with Sales Orders to pre-populate order grids.
+- **Customer Order History**: Computes and displays per-product order history (count, total/avg quantity, last ordered date) for customers, visible in order guides and Sales Order/Invoice creation.
+- **Pricing Center**: A dedicated module for admin/managers to manage product pricing, customer price levels, and apply bulk price adjustments, including real-time updates to open orders.
+- **Reports Module**: Offers 8 types of reports (Customer Ledger, Product Ledger, Sales Report, etc.) with filtering options, print-friendly output, and data aggregation.
 
 ## External Dependencies
 
 ### Core Runtime
-- **PostgreSQL** — primary database; requires `DATABASE_URL` environment variable
-- **Express 5** — HTTP server framework
-- **Vite** — frontend build tool and dev server (middleware mode in development)
+- **PostgreSQL**
+- **Express 5**
+- **Vite**
 
 ### UI Libraries
-- **React 18** — UI framework (loaded via CDN in `freshtrade.html`; also bundled via Vite for the TS shell)
-- **Radix UI** — full suite of accessible UI primitives (accordion, dialog, dropdown, select, tabs, toast, etc.)
-- **shadcn/ui** — component library built on Radix UI + Tailwind (New York style)
-- **Tailwind CSS** — utility-first CSS with custom theme tokens (HSL CSS variables, dark mode support)
-- **Recharts** — charting (via `chart.tsx`)
-- **Lucide React** — icon library
-- **TanStack React Query** — server state management
+- **React 18**
+- **Radix UI**
+- **shadcn/ui**
+- **Tailwind CSS**
+- **Recharts**
+- **Lucide React**
+- **TanStack React Query**
 
 ### Forms & Validation
-- **React Hook Form** + `@hookform/resolvers`
-- **Zod** — schema validation
-- **drizzle-zod** — generates Zod schemas from Drizzle table definitions
+- **React Hook Form**
+- **Zod**
+- **drizzle-zod**
 
 ### Database & ORM
-- **drizzle-orm** — schema definition and query builder
-- **drizzle-kit** — migration tooling
-- **pg** (node-postgres) — raw PostgreSQL client for runtime queries
+- **drizzle-orm**
+- **drizzle-kit**
+- **pg** (node-postgres)
 
-### Auth (configured, partially implemented)
-- **express-session** — session middleware
-- **connect-pg-simple** — PostgreSQL session store
-- **passport** + **passport-local** — authentication framework
+### Authentication
+- **express-session**
+- **connect-pg-simple**
+- **passport**
+- **passport-local**
 
 ### Replit-specific
-- `@replit/vite-plugin-runtime-error-modal` — shows runtime errors in dev
-- `@replit/vite-plugin-cartographer` — Replit dev tooling
-- `@replit/vite-plugin-dev-banner` — Replit dev banner
-
-### Catch Weight Tolerance Warnings
-- **Tolerance Setting**: `settings.preferences.catchWeightTolerance` (default 5%)
-- **Warning Detection**: When a piece weight deviates from expected (`avgWeightPerCase` or `avgWeightPerPiece`) by more than the tolerance %, a warning is shown
-- **Visual Indicators**: Warning card turns orange (`#f59e0b`), shows ⚠️ icon, and displays a message like "⚠ Weight is 12% too high — expected ~8.5 lbs"
-- **Apply Button**: Turns orange and shows warning count when there are active warnings; prompts confirmation before applying
-- **Warning State**: `cwWarnings` state keyed by `"lineIdx-pieceIdx"`, stores `{ deviation, dir, expected, actual }`; cleared on invoice change or successful apply
-
-### Label Customization (Shipping Labels)
-- **Zebra Label Designer**: Comprehensive field-order-based label designer in Settings > Labels > Zebra section. Each field row has: up/down arrows to reorder, toggle on/off, per-field font size input. Live preview updates instantly on every change. Fields rendered dynamically based on `shippingFieldOrder` array.
-- **Field-Order Rendering**: `renderShippingLabelHTML` uses `shippingFieldOrder` array to render fields top-to-bottom in any user-defined order. Each field is a self-contained block. No more fixed two-column layout.
-- **Invoice Number**: `shippingShowInvoice` toggle defaults ON. `buildLabels` matches invoices via `inv.soId || inv.salesOrderId || inv.fromSO`. Dedicated `shippingFontInvoice` font size setting.
-- **Settings Merge**: On app load, `labelsZebra` and `labelsSheet` settings are merged with defaults (`{...defaults, ...saved}`) so newly added fields always have values. Missing fields appended to `shippingFieldOrder` arrays.
-- **Dynamic Label Size**: `printZebraLabel` uses `width`/`height` from settings for `@page` size and `.label-item` dimensions.
-- **Sheet Labels**: `SheetFieldOrder` component in Settings > Labels > Sheet section lets you reorder fields with up/down arrows. Stored in `labelsSheet.shippingFieldOrder` array.
-- **Barcode on Avery**: Avery 5363 labels support barcode rendering, controlled by the Barcode toggle.
-- **Route-level labels**: Route print paths now use `buildLabels()` instead of manual label construction, ensuring all fields (including invoiceId) are consistent.
-
-### Date-Based Route View
-- **Date Navigator**: Command Center has a date selector bar with prev/next day arrows, "Today" button, date picker, and weekday display
-- **Date Filtering**: All orders (pool + route panels) are filtered by `(deliveryDate || date) === routeDate`; only orders for the selected day are shown
-- **Change Delivery Date**: Each order row has a calendar (📅) button that opens an inline date picker to move the order to a different day
-- **Timezone-Safe Dates**: `today()` and `dueDate()` use local date components (getFullYear/getMonth/getDate) instead of UTC-based `toISOString()`
-- **State**: `routeDate` defaults to `today()`, `changeDateTarget` stores `{id, orderType}` for inline date editing
-
-### Routing Page Print Tracking
-- **Print Status**: In-memory state tracks per-order print status (`pick`, `label`, `invoice`) with P/L/I indicators
-- **Print Checkboxes**: Per-order checkboxes for selecting which invoices to print and which to include statements
-- **Select All**: Button to toggle all orders for print selection
-- **Print Marking**: Status marked as printed only when actual print execution occurs (not on modal open)
-- Route view grid uses 11 columns (vs 8 for pool view) to accommodate print tracking columns
-
-### Invoice Pagination (Print)
-- **Row Capacity**: `ROWS_PAGE1 = ROWS_CONT = 13` — each page can hold 13 "slots" worth of line items
-- **CW Slot Counting**: Catch-weight items with piece weights take multiple slots: 1-4 pieces = 2 slots, 5-8 pieces = 3 slots, 9+ pieces = 4 slots. Non-CW items = 1 slot.
-- **Page Layout**: Each page div has a fixed height of `9.5in` with flexbox layout: header (flex-none), table area (flex-grow), footer with totals/signature (flex-none)
-- **Print Margins**: `@page` margin is `0.5in 0.5in 0.6in 0.5in` (top/right/bottom/left), html2pdf margins match
-- **Page Structure**: `fullHeader` on every page, `totalsBox` on last page only, `signatureFooter` + `pageFooter` on every page, "Continued on next page…" on non-last pages
-- **Blank Fill Rows**: Pages are padded with empty alternating-color rows to fill remaining slot capacity
-
-### USB Barcode Scanner (Proof of Delivery)
-- **Toggle**: "Scanner" button in POD header toggles scanner mode on/off (green when active)
-- **How it works**: USB barcode scanners act like keyboards — they type characters rapidly and end with Enter. The `useEffect` keydown listener captures rapid input (100ms buffer timeout) and processes on Enter.
-- **Matching logic** (in `processScanCodeRef`): 1) Direct invoice ID match, 2) SO number prefix extraction (`SO-XXXX`), 3) Fuzzy numeric match
-- **UI**: Green scanner status bar with pulsing dot, manual barcode input field, last scan result indicator
-- **Barcode format from labels**: `SO-XXXX-PRODID-NNN` (order ID + product ID + sequence)
-- **Manual entry**: Text input in scanner bar accepts manual barcode entry (Enter to submit)
-
-### Order Guide (Customer Product List Manager)
-- **Purpose**: Purely for managing each customer's product list (their "order guide"). No order placement — that happens in Sales Orders
-- **Two-column layout**: Left shows customer's current standard order products (with ✕ remove and ▲▼ reorder); right shows available products to add (with search + category filter)
-- **Persistence**: Changes to `customer.standardOrder` array saved via `setCustomers`
-- **Sales Orders integration**: When creating a new SO, selecting a customer auto-loads their guide products into the grid (qty=0, prices auto-filled). A blue "Load Guide" bar also lets you reload manually. SO create/edit modals are 95vw wide for maximum screen usage
-- **SpreadsheetGrid compact mode**: Reduced row padding (4px vs 8px), smaller inputs (height 26-28px), smaller fonts for fitting more products on screen
-- **getPrice fallback**: Tries specialPricing → customer.priceLevel → level3 → level2 → level1 → yourCost → retail → foodService → wholesale → any numeric value
-
-### Customer Order History
-- **Helper Function**: `getCustomerOrderHistory(custId, salesOrders, invoices)` computes per-product order history: count (times ordered), totalQty, avgQty, lastDate
-- **Order Guide**: Product grid has a "History" column showing avg qty (blue) and order count for each product
-- **Sales Order / Invoice Creation**: SpreadsheetGrid shows a "Hist" column when a customer is selected, computed via `useMemo`
-- **Data Sources**: Aggregates from all non-cancelled SOs and non-voided invoices for the selected customer
-- **Display**: Avg qty in blue monospace font, count as gray "Nx" text, tooltip shows full details
-
-### Pricing Center (Admin/Manager Only)
-- **Dedicated Module**: Under FINANCE > Pricing in the sidebar. Replaces old dashboard QPC and purchasing pricing tab.
-- **Product Pricing Tab**: Full table of all products with inline editing for cost and all 5 price levels plus sale price. Shows GP%, price floors/ceilings. "Fill from Cost" button recalculates all levels using recommended structure from system preferences. "Reprice Open Orders" button updates all open SOs/invoices with new prices.
-- **Customer Levels Tab**: View/edit each customer's price level assignment. Inline special pricing editor shows all products with current level price and custom override input.
-- **Today & Upcoming Tab**: Live view of all SO/invoice line items from today onward. Directly edit line prices in-place to update documents instantly.
-- **Bulk Adjust Tab**: Select a price level and category, apply percentage or flat-dollar changes across all matching products. Live preview shows before/after for every product. Respects price floors and ceilings.
-- **Price Limits Tab**: Set per-product floor (minimum) and ceiling (maximum) prices. Bulk adjustments automatically enforce these limits.
-- **Role Restriction**: Only admin and manager roles can access the Pricing Center. Other roles see a locked screen.
-
-### Reports Module
-- **8 Report Types**: Customer Ledger (all invoices/payments/credits for one customer), Product Ledger, Purchase History (products bought by customer in date range), Payment History (all payments by a customer), Open Receivables (all unpaid invoices across all customers with aging buckets), Sales Report (total sales by date range with customer and category breakdowns), Customer List, Shortages Report, Product List
-- **Controls**: Report type dropdown, optional customer dropdown (shown only for customer-specific reports), date range pickers, Generate and Print buttons
-- **Output**: White print-friendly area inside a Card, with tables, summary cards (for Sales Report), and aging bucket visualization (for Open AR)
-- **Print**: Opens a new window with styled HTML for printing
-- **Data Filters**: Voided invoices excluded from all reports; void/returned payments excluded; void credit memos excluded
+- `@replit/vite-plugin-runtime-error-modal`
+- `@replit/vite-plugin-cartographer`
+- `@replit/vite-plugin-dev-banner`
 
 ### Other Utilities
-- **date-fns** — date manipulation
-- **nanoid** — unique ID generation
-- **class-variance-authority** + **clsx** + **tailwind-merge** — CSS class utilities
-- **vaul** — drawer component
-- **embla-carousel-react** — carousel
-- **cmdk** — command menu
+- **date-fns**
+- **nanoid**
+- **class-variance-authority**
+- **clsx**
+- **tailwind-merge**
+- **vaul**
+- **embla-carousel-react**
+- **cmdk**
