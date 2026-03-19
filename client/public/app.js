@@ -18151,18 +18151,18 @@ function Purchasing({
     if (!qpcProduct) return;
     const prod = products.find(p => p.id === qpcProduct);
     if (!prod) return;
-    // Build new pricing object
-    const newPricing = {
-      ...prod.pricing
-    };
+    const newPricing = { ...prod.pricing };
+    const priceKeys = ["cost", "level1", "level2", "level3", "level4", "level5", "sales", "piecePrice", "level1Piece", "level2Piece", "level3Piece", "level4Piece", "level5Piece"];
     let changedLevels = [];
     Object.entries(qpcNewPrices).forEach(([key, val]) => {
-      if (val !== "" && val !== undefined) {
+      if (priceKeys.includes(key) && val !== "" && val !== undefined) {
         const numVal = Math.round(Number(val) * 100) / 100;
         if (numVal !== Number(prod.pricing[key] || 0)) {
           newPricing[key] = numVal;
           changedLevels.push(key);
         }
+      } else if (!priceKeys.includes(key)) {
+        newPricing[key] = val;
       }
     });
     if (changedLevels.length === 0) {
@@ -19956,15 +19956,7 @@ function Purchasing({
     onClick: () => {
       setQpcProduct(p.id);
       setQpcSearch(p.name);
-      setQpcNewPrices({
-        cost: p.pricing.cost,
-        level1: p.pricing.level1,
-        level2: p.pricing.level2,
-        level3: p.pricing.level3,
-        level4: p.pricing.level4,
-        level5: p.pricing.level5,
-        sales: p.pricing.sales || ""
-      });
+      setQpcNewPrices({ ...p.pricing });
       setQpcSelectedSOs({});
     },
     style: {
@@ -19994,6 +19986,7 @@ function Purchasing({
   }, p.category))))), qpcProduct && (() => {
     const prod = products.find(p => p.id === qpcProduct);
     if (!prod) return null;
+    const isWB = prod.catchWeight || prod.fixedWeight;
     const allLevels = [{
       id: "cost",
       label: "Cost",
@@ -20001,7 +19994,10 @@ function Purchasing({
     }, ...priceLevels.map(pl => ({
       id: pl.id,
       label: pl.label,
-      color: pl.color
+      color: pl.color,
+      method: prod.pricing[pl.id + "Method"] || "manual",
+      markup: Number(prod.pricing[pl.id + "Markup"]) || 0,
+      pieceKey: isWB ? pl.id + "Piece" : null
     })), {
       id: "sales",
       label: "🔥 Sales",
@@ -20032,16 +20028,26 @@ function Purchasing({
         fontSize: 11,
         color: "#64748b"
       }
-    }, prod.id, " \xB7 ", prod.category, " \xB7 ", prod.catchWeight ? "Catch Weight / lb" : "Per Piece")), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 11,
-        color: "#64748b"
-      }
-    }, "Stock: ", /*#__PURE__*/React.createElement("b", {
-      style: {
-        color: "#22c55e"
-      }
-    }, prod.stockPieces, " pcs"))), /*#__PURE__*/React.createElement("div", {
+    }, prod.id, " \xB7 ", prod.category, " \xB7 ", prod.catchWeight ? "Catch Weight / lb" : prod.soldByPiece ? "Per Piece" : "Per Case")), React.createElement("div", {
+      style: { display: "flex", alignItems: "center", gap: 8 }
+    }, React.createElement("div", {
+      style: { fontSize: 11, color: "#64748b" }
+    }, "Stock: ", React.createElement("b", { style: { color: "#22c55e" } }, prod.soldByPiece ? (prod.stockPieces || 0) + " pcs" : (prod.stockCases || 0) + " cs")),
+    React.createElement("button", {
+      onClick: () => {
+        const cost = Number(qpcNewPrices.cost) || 0;
+        if (cost <= 0) { showToast("Enter a cost first", "warn"); return; }
+        const np = { ...qpcNewPrices };
+        priceLevels.forEach(pl => {
+          const m = pl.method || "manual";
+          const mv = pl.markupValue || 0;
+          if (m === "costPlus") np[pl.id] = String(Math.round(cost * (1 + mv / 100) * 100) / 100);
+          else if (m === "margin" && mv < 100) np[pl.id] = String(Math.round(cost / (1 - mv / 100) * 100) / 100);
+        });
+        setQpcNewPrices(np);
+      },
+      style: { padding: "3px 10px", borderRadius: 5, border: "1px solid #22c55e", background: "#22c55e11", color: "#22c55e", fontWeight: 700, fontSize: 10, cursor: "pointer" }
+    }, "\u26A1 Fill from Cost"))), React.createElement("div", {
       style: {
         display: "grid",
         gridTemplateColumns: "repeat(2,1fr)",
@@ -20075,50 +20081,27 @@ function Purchasing({
           color: lvl.color,
           textTransform: "uppercase"
         }
-      }, lvl.label), margin && /*#__PURE__*/React.createElement("span", {
-        style: {
-          fontSize: 9,
-          color: Number(margin) > 0 ? "#22c55e" : "#ef4444",
-          fontWeight: 600
-        }
-      }, margin, "% margin")), /*#__PURE__*/React.createElement("div", {
-        style: {
-          display: "flex",
-          alignItems: "center",
-          gap: 6
-        }
-      }, /*#__PURE__*/React.createElement("span", {
-        style: {
-          fontSize: 11,
-          color: "#475569",
-          fontFamily: "'DM Mono',monospace",
-          textDecoration: changed ? "line-through" : "none",
-          minWidth: 48
-        }
-      }, "$", current.toFixed(2)), changed && /*#__PURE__*/React.createElement("span", {
-        style: {
-          color: lvl.color
-        }
-      }, "\u2192"), /*#__PURE__*/React.createElement("input", {
-        value: newVal ?? "",
-        onChange: e => setQpcNewPrices(prev => ({
-          ...prev,
-          [lvl.id]: e.target.value
+      }, lvl.label),
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 4 } },
+          lvl.method && lvl.method !== "manual" && React.createElement("span", { style: { fontSize: 8, padding: "1px 4px", borderRadius: 3, background: "#f59e0b22", color: "#f59e0b", fontWeight: 700 } }, lvl.method === "pct" ? `+${lvl.markup}%` : lvl.method === "flat" ? `+$${lvl.markup}` : ""),
+          margin && React.createElement("span", { style: { fontSize: 9, color: Number(margin) > 0 ? "#22c55e" : "#ef4444", fontWeight: 600 } }, margin, "% GP"))),
+      React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6 } },
+        React.createElement("span", { style: { fontSize: 11, color: "#475569", fontFamily: "'DM Mono',monospace", textDecoration: changed ? "line-through" : "none", minWidth: 48 } }, "$", current.toFixed(2)),
+        changed && React.createElement("span", { style: { color: lvl.color } }, "\u2192"),
+        React.createElement("input", {
+          value: newVal ?? "",
+          onChange: e => setQpcNewPrices(prev => ({ ...prev, [lvl.id]: e.target.value })),
+          type: "number", step: "0.01",
+          style: { flex: 1, background: "#0a0d14", border: `1px solid ${changed ? lvl.color + "44" : "#2d3748"}`, borderRadius: 6, padding: "4px 8px", color: changed ? lvl.color : "#e2e8f0", fontSize: 13, fontFamily: "'DM Mono',monospace", fontWeight: 600 }
         })),
-        type: "number",
-        step: "0.01",
-        style: {
-          flex: 1,
-          background: "#0a0d14",
-          border: `1px solid ${changed ? lvl.color + "44" : "#2d3748"}`,
-          borderRadius: 6,
-          padding: "4px 8px",
-          color: changed ? lvl.color : "#e2e8f0",
-          fontSize: 13,
-          fontFamily: "'DM Mono',monospace",
-          fontWeight: 600
-        }
-      })));
+      lvl.pieceKey && React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 4, marginTop: 4 } },
+        React.createElement("span", { style: { fontSize: 9, color: "#3b82f6", fontWeight: 600 } }, "+Pc $"),
+        React.createElement("input", {
+          value: qpcNewPrices[lvl.pieceKey] ?? "",
+          onChange: e => setQpcNewPrices(prev => ({ ...prev, [lvl.pieceKey]: e.target.value })),
+          type: "number", step: "0.01", placeholder: "0.00",
+          style: { flex: 1, background: "#0a0d14", border: "1px solid #3b82f633", borderRadius: 4, padding: "3px 6px", color: "#3b82f6", fontSize: 11, fontFamily: "'DM Mono',monospace", fontWeight: 600 }
+        })));
     }))), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
