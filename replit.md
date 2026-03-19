@@ -161,8 +161,17 @@ Preferred communication style: Simple, everyday language.
 - **Data Sources**: Aggregates from all non-cancelled SOs and non-voided invoices for the selected customer
 - **Display**: Avg qty in blue monospace font, count as gray "Nx" text, tooltip shows full details
 
+### Pricing Center (Admin/Manager Only)
+- **Dedicated Module**: Under FINANCE > Pricing in the sidebar. Replaces old dashboard QPC and purchasing pricing tab.
+- **Product Pricing Tab**: Full table of all products with inline editing for cost and all 5 price levels plus sale price. Shows GP%, price floors/ceilings. "Fill from Cost" button recalculates all levels using recommended structure from system preferences. "Reprice Open Orders" button updates all open SOs/invoices with new prices.
+- **Customer Levels Tab**: View/edit each customer's price level assignment. Inline special pricing editor shows all products with current level price and custom override input.
+- **Today & Upcoming Tab**: Live view of all SO/invoice line items from today onward. Directly edit line prices in-place to update documents instantly.
+- **Bulk Adjust Tab**: Select a price level and category, apply percentage or flat-dollar changes across all matching products. Live preview shows before/after for every product. Respects price floors and ceilings.
+- **Price Limits Tab**: Set per-product floor (minimum) and ceiling (maximum) prices. Bulk adjustments automatically enforce these limits.
+- **Role Restriction**: Only admin and manager roles can access the Pricing Center. Other roles see a locked screen.
+
 ### Reports Module
-- **5 Report Types**: Customer Ledger (all invoices/payments/credits for one customer), Purchase History (products bought by customer in date range), Payment History (all payments by a customer), Open Receivables (all unpaid invoices across all customers with aging buckets), Sales Report (total sales by date range with customer and category breakdowns)
+- **8 Report Types**: Customer Ledger (all invoices/payments/credits for one customer), Product Ledger, Purchase History (products bought by customer in date range), Payment History (all payments by a customer), Open Receivables (all unpaid invoices across all customers with aging buckets), Sales Report (total sales by date range with customer and category breakdowns), Customer List, Shortages Report, Product List
 - **Controls**: Report type dropdown, optional customer dropdown (shown only for customer-specific reports), date range pickers, Generate and Print buttons
 - **Output**: White print-friendly area inside a Card, with tables, summary cards (for Sales Report), and aging bucket visualization (for Open AR)
 - **Print**: Opens a new window with styled HTML for printing
