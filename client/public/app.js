@@ -28852,7 +28852,7 @@ function PricingCenter({ products, setProducts, customers, setCustomers, salesOr
         React.createElement("div", { style: { overflowX: "auto" } },
           React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 12 } },
             React.createElement("thead", null, React.createElement("tr", null,
-              ["Product", "Category", "Cost", ...priceLevels.map(pl => pl.label), "Sale", "GP%", ""].map((h, i) =>
+              ["Product", "Pack / Info", "Cost", ...priceLevels.map(pl => pl.label), "Sale", "GP%", ""].map((h, i) =>
                 React.createElement("th", { key: i, style: { padding: "8px 6px", fontSize: 10, color: "#94a3b8", fontWeight: 700, textAlign: i >= 2 ? "right" : "left", textTransform: "uppercase", borderBottom: "2px solid #2d3748", whiteSpace: "nowrap" } }, h)))),
             React.createElement("tbody", null, filteredProducts.map(p => {
               const isEditing = editingProd === p.id;
@@ -28861,53 +28861,125 @@ function PricingCenter({ products, setProducts, customers, setCustomers, salesOr
               const gp = cost > 0 && Number(pr.level3) > 0 ? ((Number(pr.level3) - cost) / Number(pr.level3) * 100).toFixed(1) : null;
               const hasFloor = Number(p.pricing && p.pricing.priceFloor) > 0;
               const hasCeiling = Number(p.pricing && p.pricing.priceCeiling) > 0;
-              return React.createElement("tr", {
-                key: p.id,
-                style: { borderBottom: "1px solid #1e2535", background: isEditing ? "#f59e0b08" : "transparent" }
+              const hasPiece = p.soldByPiece === true;
+              const isOnSale = !!pr.onSale;
+              return React.createElement(React.Fragment, { key: p.id },
+              React.createElement("tr", {
+                style: { borderBottom: isEditing ? "none" : "1px solid #1e2535", background: isEditing ? "#f59e0b08" : isOnSale ? "#f59e0b05" : "transparent" }
               },
                 React.createElement("td", { style: { padding: "6px", fontWeight: 600, maxWidth: 200 } },
-                  React.createElement("div", null, pName(p)),
-                  React.createElement("div", { style: { fontSize: 10, color: "#64748b", fontFamily: "'DM Mono',monospace" } }, p.id),
-                  (hasFloor || hasCeiling) && React.createElement("div", { style: { fontSize: 9, color: "#f59e0b" } }, hasFloor ? "Floor: " + fmt(p.pricing.priceFloor) : "", hasFloor && hasCeiling ? " · " : "", hasCeiling ? "Cap: " + fmt(p.pricing.priceCeiling) : "")),
-                React.createElement("td", { style: { padding: "6px", fontSize: 11, color: "#64748b" } }, p.category || "—"),
+                  React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6 } },
+                    React.createElement("span", null, pName(p)),
+                    isOnSale && React.createElement("span", { style: { fontSize: 8, background: "#f59e0b22", color: "#f59e0b", padding: "1px 5px", borderRadius: 4, fontWeight: 700 } }, "SALE"),
+                    hasPiece && React.createElement("span", { style: { fontSize: 8, background: "#3b82f622", color: "#3b82f6", padding: "1px 5px", borderRadius: 4, fontWeight: 700 } }, "PCS")),
+                  React.createElement("div", { style: { fontSize: 10, color: "#64748b", fontFamily: "'DM Mono',monospace" } }, p.id)),
+                React.createElement("td", { style: { padding: "6px", fontSize: 10, color: "#64748b", maxWidth: 120 } },
+                  React.createElement("div", null, p.category || "—"),
+                  p.packSize && React.createElement("div", { style: { color: "#475569" } }, p.packSize),
+                  (hasFloor || hasCeiling) && React.createElement("div", { style: { color: "#f59e0b", fontSize: 9 } }, hasFloor ? "\u2193" + fmt(p.pricing.priceFloor) : "", hasFloor && hasCeiling ? " " : "", hasCeiling ? "\u2191" + fmt(p.pricing.priceCeiling) : "")),
                 React.createElement("td", { style: { padding: "6px", textAlign: "right" } },
-                  isEditing ? React.createElement("input", {
-                    type: "number", step: "0.01", value: pr.cost ?? "",
-                    onChange: e => setEditPrices(prev => ({ ...prev, cost: e.target.value })),
-                    style: { width: 72, background: "#0f1117", border: "1px solid #ef4444", borderRadius: 4, padding: "4px 6px", color: "#ef4444", fontSize: 12, fontFamily: "'DM Mono',monospace", fontWeight: 700, textAlign: "right" }
-                  }) : React.createElement("span", { style: { color: "#ef4444", fontWeight: 700, fontFamily: "'DM Mono',monospace" } }, fmt(cost))),
+                  React.createElement("span", { style: { color: "#ef4444", fontWeight: 700, fontFamily: "'DM Mono',monospace" } }, fmt(cost))),
                 ...priceLevels.map(pl => {
                   const val = Number(pr[pl.id]) || 0;
+                  const pieceVal = hasPiece ? Number(pr[pl.id + "Piece"]) || 0 : 0;
                   const plusDollar = cost > 0 && val > 0 ? (val - cost) : null;
                   const plusPct = cost > 0 && val > 0 ? ((val - cost) / cost * 100) : null;
+                  const mLabel = pl.method === "costPlus" ? "C+" + pl.markupValue + "%" : pl.method === "margin" ? "M" + pl.markupValue + "%" : "";
                   return React.createElement("td", { key: pl.id, style: { padding: "6px", textAlign: "right" } },
-                    isEditing ? React.createElement("input", {
-                      type: "number", step: "0.01", value: pr[pl.id] ?? "",
-                      onChange: e => setEditPrices(prev => ({ ...prev, [pl.id]: e.target.value })),
-                      style: { width: 72, background: "#0f1117", border: `1px solid ${pl.color}66`, borderRadius: 4, padding: "4px 6px", color: pl.color, fontSize: 12, fontFamily: "'DM Mono',monospace", fontWeight: 700, textAlign: "right" }
-                    }) : React.createElement("div", null,
+                    React.createElement("div", null,
                       React.createElement("span", { style: { color: val > 0 ? pl.color : "#475569", fontFamily: "'DM Mono',monospace", fontWeight: 600 } }, val > 0 ? fmt(val) : "—"),
-                      plusPct !== null && React.createElement("div", { style: { fontSize: 9, color: plusDollar >= 0 ? "#22c55e" : "#ef4444", fontFamily: "'DM Mono',monospace", lineHeight: 1.2 } },
-                        (plusDollar >= 0 ? "+" : "") + "$" + plusDollar.toFixed(2) + " · " + (plusPct >= 0 ? "+" : "") + plusPct.toFixed(1) + "%")));
+                      hasPiece && pieceVal > 0 && React.createElement("span", { style: { fontSize: 10, color: pl.color, opacity: 0.7, marginLeft: 2 } }, "/"),
+                      hasPiece && pieceVal > 0 && React.createElement("span", { style: { fontSize: 10, color: pl.color, fontFamily: "'DM Mono',monospace", fontWeight: 600, opacity: 0.7 } }, fmt(pieceVal))),
+                    plusPct !== null && React.createElement("div", { style: { fontSize: 9, color: plusDollar >= 0 ? "#22c55e" : "#ef4444", fontFamily: "'DM Mono',monospace", lineHeight: 1.2 } },
+                      (plusDollar >= 0 ? "+" : "") + "$" + plusDollar.toFixed(2) + " · " + (plusPct >= 0 ? "+" : "") + plusPct.toFixed(1) + "%"),
+                    mLabel && React.createElement("div", { style: { fontSize: 8, color: "#64748b", fontFamily: "'DM Mono',monospace", lineHeight: 1.1 } }, mLabel));
                 }),
                 React.createElement("td", { style: { padding: "6px", textAlign: "right" } },
-                  isEditing ? React.createElement("input", {
-                    type: "number", step: "0.01", value: pr.sales ?? "",
-                    onChange: e => setEditPrices(prev => ({ ...prev, sales: e.target.value })),
-                    style: { width: 72, background: "#0f1117", border: "1px solid #f59e0b66", borderRadius: 4, padding: "4px 6px", color: "#f59e0b", fontSize: 12, fontFamily: "'DM Mono',monospace", fontWeight: 700, textAlign: "right" }
-                  }) : React.createElement("span", { style: { color: Number(pr.sales) > 0 ? "#f59e0b" : "#475569", fontFamily: "'DM Mono',monospace", fontWeight: 600 } }, Number(pr.sales) > 0 ? fmt(pr.sales) : "—")),
+                  React.createElement("span", { style: { color: Number(pr.sales) > 0 ? "#f59e0b" : "#475569", fontFamily: "'DM Mono',monospace", fontWeight: 600 } }, Number(pr.sales) > 0 ? fmt(pr.sales) : "—")),
                 React.createElement("td", { style: { padding: "6px", textAlign: "right", fontWeight: 600, color: gp !== null ? (Number(gp) > 0 ? "#22c55e" : "#ef4444") : "#475569" } }, gp !== null ? gp + "%" : "—"),
                 React.createElement("td", { style: { padding: "6px", textAlign: "right", whiteSpace: "nowrap" } },
-                  isEditing ? React.createElement(React.Fragment, null,
-                    React.createElement("button", { onClick: fillFromCost, style: { padding: "3px 8px", borderRadius: 4, border: "1px solid #22c55e", background: "#22c55e11", color: "#22c55e", fontSize: 10, fontWeight: 700, cursor: "pointer", marginRight: 4 }, title: "Fill from cost using recommended structure" }, "\u26A1"),
-                    React.createElement("button", { onClick: () => { saveEdit(); repriceOpenDocs(p.id, editPrices); }, style: { padding: "3px 8px", borderRadius: 4, border: "1px solid #3b82f6", background: "#3b82f611", color: "#3b82f6", fontSize: 10, fontWeight: 700, cursor: "pointer", marginRight: 4 }, title: "Save & reprice open orders" }, "\u21BB"),
-                    React.createElement(Btn, { size: "sm", onClick: saveEdit, icon: "check" }, "Save"),
-                    React.createElement("button", { onClick: () => { setEditingProd(null); setEditPrices({}); }, style: { marginLeft: 4, padding: "3px 8px", borderRadius: 4, border: "1px solid #475569", background: "transparent", color: "#94a3b8", fontSize: 10, cursor: "pointer" } }, "\u2715"))
-                  : React.createElement("button", {
-                      onClick: () => startEdit(p),
-                      "data-testid": "btn-edit-price-" + p.id,
-                      style: { padding: "4px 10px", borderRadius: 6, border: "1px solid #f59e0b44", background: "#f59e0b11", color: "#f59e0b", fontSize: 11, fontWeight: 600, cursor: "pointer" }
-                    }, "Edit")));
+                  React.createElement("button", {
+                    onClick: () => isEditing ? (setEditingProd(null), setEditPrices({})) : startEdit(p),
+                    "data-testid": "btn-edit-price-" + p.id,
+                    style: { padding: "4px 10px", borderRadius: 6, border: isEditing ? "1px solid #f59e0b" : "1px solid #f59e0b44", background: isEditing ? "#f59e0b22" : "#f59e0b11", color: "#f59e0b", fontSize: 11, fontWeight: 600, cursor: "pointer" }
+                  }, isEditing ? "Close" : "Edit"))),
+              isEditing && React.createElement("tr", null,
+                React.createElement("td", { colSpan: 3 + priceLevels.length + 3, style: { padding: "0 6px 12px", background: "#f59e0b08", borderBottom: "2px solid #f59e0b33" } },
+                  React.createElement("div", { style: { background: "#0f1117", borderRadius: 10, padding: 16, border: "1px solid #2d3748" } },
+                    React.createElement("div", { style: { display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 } },
+                      React.createElement("div", { style: { fontWeight: 700, fontSize: 13, color: "#f1f5f9", flex: 1 } }, "\u270F\uFE0F Editing: ", pName(p),
+                        p.packSize && React.createElement("span", { style: { fontSize: 11, color: "#64748b", fontWeight: 400, marginLeft: 8 } }, p.packSize),
+                        p.catchWeight && React.createElement("span", { style: { fontSize: 9, background: "#a855f722", color: "#a855f7", padding: "2px 6px", borderRadius: 4, fontWeight: 700, marginLeft: 6 } }, "CW"),
+                        hasPiece && React.createElement("span", { style: { fontSize: 9, background: "#3b82f622", color: "#3b82f6", padding: "2px 6px", borderRadius: 4, fontWeight: 700, marginLeft: 6 } }, "PIECE")),
+                      React.createElement("div", { style: { display: "flex", gap: 6 } },
+                        React.createElement("button", { onClick: fillFromCost, style: { padding: "5px 12px", borderRadius: 6, border: "1px solid #22c55e", background: "#22c55e11", color: "#22c55e", fontSize: 11, fontWeight: 700, cursor: "pointer" }, title: "Fill all levels from cost using pricing structure" }, "\u26A1 Fill from Cost"),
+                        React.createElement("button", { onClick: () => { saveEdit(); repriceOpenDocs(p.id, editPrices); }, style: { padding: "5px 12px", borderRadius: 6, border: "1px solid #3b82f6", background: "#3b82f611", color: "#3b82f6", fontSize: 11, fontWeight: 700, cursor: "pointer" }, title: "Save and update open orders/invoices" }, "\u21BB Save & Reprice Orders"),
+                        React.createElement(Btn, { size: "sm", onClick: saveEdit, icon: "check" }, "Save"),
+                        React.createElement("button", { onClick: () => { setEditingProd(null); setEditPrices({}); }, style: { padding: "5px 10px", borderRadius: 6, border: "1px solid #475569", background: "transparent", color: "#94a3b8", fontSize: 11, cursor: "pointer" } }, "\u2715 Cancel"))),
+                    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10 } },
+                      React.createElement("div", { style: { background: "#1a2030", borderRadius: 8, padding: 10, border: "1px solid #ef444444" } },
+                        React.createElement("div", { style: { fontSize: 9, fontWeight: 700, color: "#ef4444", textTransform: "uppercase", marginBottom: 4 } }, "Cost"),
+                        React.createElement("input", { type: "number", step: "0.01", value: editPrices.cost ?? "",
+                          onChange: e => setEditPrices(prev => ({ ...prev, cost: e.target.value })),
+                          style: { width: "100%", background: "#0f1117", border: "1px solid #ef444466", borderRadius: 6, padding: "6px 8px", color: "#ef4444", fontSize: 14, fontFamily: "'DM Mono',monospace", fontWeight: 700, textAlign: "right" } })),
+                      ...priceLevels.map(pl => {
+                        const mLabel = pl.method === "costPlus" ? "Cost + " + pl.markupValue + "%" : pl.method === "margin" ? "Margin " + pl.markupValue + "%" : "Manual";
+                        const editCost = Number(editPrices.cost) || 0;
+                        const editVal = Number(editPrices[pl.id]) || 0;
+                        const ePlusDollar = editCost > 0 && editVal > 0 ? editVal - editCost : null;
+                        const ePlusPct = editCost > 0 && editVal > 0 ? ((editVal - editCost) / editCost * 100) : null;
+                        return React.createElement("div", { key: pl.id, style: { background: "#1a2030", borderRadius: 8, padding: 10, border: `1px solid ${pl.color}44` } },
+                          React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 } },
+                            React.createElement("span", { style: { fontSize: 9, fontWeight: 700, color: pl.color, textTransform: "uppercase" } }, pl.name),
+                            React.createElement("span", { style: { fontSize: 8, color: "#64748b", fontFamily: "'DM Mono',monospace", background: "#0f1117", padding: "1px 4px", borderRadius: 3 } }, mLabel)),
+                          React.createElement("input", { type: "number", step: "0.01", value: editPrices[pl.id] ?? "",
+                            onChange: e => setEditPrices(prev => ({ ...prev, [pl.id]: e.target.value })),
+                            style: { width: "100%", background: "#0f1117", border: `1px solid ${pl.color}44`, borderRadius: 6, padding: "6px 8px", color: pl.color, fontSize: 14, fontFamily: "'DM Mono',monospace", fontWeight: 700, textAlign: "right", marginBottom: 4 } }),
+                          ePlusPct !== null && React.createElement("div", { style: { fontSize: 10, fontFamily: "'DM Mono',monospace", color: ePlusDollar >= 0 ? "#22c55e" : "#ef4444", textAlign: "right" } },
+                            (ePlusDollar >= 0 ? "+" : "") + "$" + ePlusDollar.toFixed(2) + "  |  " + (ePlusPct >= 0 ? "+" : "") + ePlusPct.toFixed(1) + "% from cost"),
+                          hasPiece && React.createElement("div", { style: { marginTop: 6, borderTop: "1px solid #2d3748", paddingTop: 6 } },
+                            React.createElement("div", { style: { fontSize: 8, color: "#64748b", marginBottom: 2 } }, "PIECE PRICE"),
+                            React.createElement("input", { type: "number", step: "0.01", value: editPrices[pl.id + "Piece"] ?? "",
+                              onChange: e => setEditPrices(prev => ({ ...prev, [pl.id + "Piece"]: e.target.value })),
+                              style: { width: "100%", background: "#0f1117", border: `1px solid ${pl.color}33`, borderRadius: 4, padding: "4px 6px", color: pl.color, fontSize: 12, fontFamily: "'DM Mono',monospace", fontWeight: 600, textAlign: "right", opacity: 0.8 } })));
+                      }),
+                      React.createElement("div", { style: { background: "#1a2030", borderRadius: 8, padding: 10, border: "1px solid #f59e0b44" } },
+                        React.createElement("div", { style: { fontSize: 9, fontWeight: 700, color: "#f59e0b", textTransform: "uppercase", marginBottom: 4 } }, "Sale Price"),
+                        React.createElement("input", { type: "number", step: "0.01", value: editPrices.sales ?? "",
+                          onChange: e => setEditPrices(prev => ({ ...prev, sales: e.target.value })),
+                          style: { width: "100%", background: "#0f1117", border: "1px solid #f59e0b44", borderRadius: 6, padding: "6px 8px", color: "#f59e0b", fontSize: 14, fontFamily: "'DM Mono',monospace", fontWeight: 700, textAlign: "right", marginBottom: 4 } }),
+                        hasPiece && React.createElement("div", { style: { marginTop: 6, borderTop: "1px solid #2d3748", paddingTop: 6 } },
+                          React.createElement("div", { style: { fontSize: 8, color: "#64748b", marginBottom: 2 } }, "PIECE PRICE"),
+                          React.createElement("input", { type: "number", step: "0.01", value: editPrices.salesPiece ?? "",
+                            onChange: e => setEditPrices(prev => ({ ...prev, salesPiece: e.target.value })),
+                            style: { width: "100%", background: "#0f1117", border: "1px solid #f59e0b33", borderRadius: 4, padding: "4px 6px", color: "#f59e0b", fontSize: 12, fontFamily: "'DM Mono',monospace", fontWeight: 600, textAlign: "right", opacity: 0.8 } })))),
+                    hasPiece && React.createElement("div", { style: { marginTop: 12, padding: "8px 12px", background: "#3b82f611", border: "1px solid #3b82f633", borderRadius: 8, fontSize: 11, color: "#3b82f6" } },
+                      "\uD83D\uDCE6 This product sells by piece. Piece prices are shown below each case price."),
+                    React.createElement("div", { style: { display: "flex", gap: 10, marginTop: 12 } },
+                      React.createElement("div", { style: { background: "#1a2030", borderRadius: 8, padding: "8px 12px", border: "1px solid #2d3748", flex: 1 } },
+                        React.createElement("div", { style: { fontSize: 9, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", marginBottom: 4 } }, "Price Floor"),
+                        React.createElement("input", { type: "number", step: "0.01", value: editPrices.priceFloor ?? "",
+                          onChange: e => setEditPrices(prev => ({ ...prev, priceFloor: e.target.value })),
+                          placeholder: "No floor",
+                          style: { width: "100%", background: "#0f1117", border: "1px solid #2d3748", borderRadius: 4, padding: "4px 6px", color: "#e2e8f0", fontSize: 12, fontFamily: "'DM Mono',monospace", textAlign: "right" } })),
+                      React.createElement("div", { style: { background: "#1a2030", borderRadius: 8, padding: "8px 12px", border: "1px solid #2d3748", flex: 1 } },
+                        React.createElement("div", { style: { fontSize: 9, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", marginBottom: 4 } }, "Price Ceiling"),
+                        React.createElement("input", { type: "number", step: "0.01", value: editPrices.priceCeiling ?? "",
+                          onChange: e => setEditPrices(prev => ({ ...prev, priceCeiling: e.target.value })),
+                          placeholder: "No cap",
+                          style: { width: "100%", background: "#0f1117", border: "1px solid #2d3748", borderRadius: 4, padding: "4px 6px", color: "#e2e8f0", fontSize: 12, fontFamily: "'DM Mono',monospace", textAlign: "right" } })),
+                      React.createElement("div", { style: { background: "#1a2030", borderRadius: 8, padding: "8px 12px", border: "1px solid #2d3748", flex: 1 } },
+                        React.createElement("div", { style: { fontSize: 9, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", marginBottom: 4 } }, "Piece Price (Base)"),
+                        React.createElement("input", { type: "number", step: "0.01", value: editPrices.piecePrice ?? "",
+                          onChange: e => setEditPrices(prev => ({ ...prev, piecePrice: e.target.value })),
+                          placeholder: "—",
+                          disabled: !hasPiece,
+                          style: { width: "100%", background: "#0f1117", border: "1px solid #2d3748", borderRadius: 4, padding: "4px 6px", color: hasPiece ? "#3b82f6" : "#475569", fontSize: 12, fontFamily: "'DM Mono',monospace", textAlign: "right", opacity: hasPiece ? 1 : 0.5 } })),
+                      React.createElement("div", { style: { background: "#1a2030", borderRadius: 8, padding: "8px 12px", border: "1px solid #2d3748", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", flex: 1 } },
+                        React.createElement("div", { style: { fontSize: 9, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", marginBottom: 6 } }, "On Sale?"),
+                        React.createElement("button", { onClick: () => setEditPrices(prev => ({ ...prev, onSale: !prev.onSale })),
+                          style: { padding: "4px 14px", borderRadius: 6, border: editPrices.onSale ? "1px solid #f59e0b" : "1px solid #47556944", background: editPrices.onSale ? "#f59e0b22" : "transparent", color: editPrices.onSale ? "#f59e0b" : "#475569", fontSize: 12, fontWeight: 700, cursor: "pointer" } },
+                          editPrices.onSale ? "\u2713 On Sale" : "Off")))))));
             })))))),
 
     activeTab === "customers" && React.createElement("div", null,
