@@ -28677,20 +28677,20 @@ function PricingCenter({ products, setProducts, customers, setCustomers, salesOr
   const todayInvs = invoices.filter(inv => inv.date >= td && inv.status !== "voided");
 
   const onSaleProds = products.filter(p => (p.pricing || {}).onSale);
-  const expiredSaleProds = onSaleProds.filter(p => p.pricing.saleEnd && p.pricing.saleEnd < td);
-  const activeSaleProds = onSaleProds.filter(p => !p.pricing.saleEnd || p.pricing.saleEnd >= td);
-  const avgSaleDiscount = onSaleProds.length > 0 ? (onSaleProds.reduce((s,p) => { const r=Number((p.pricing||{}).level3)||0; const sl=Number((p.pricing||{}).sales)||0; return s + (r>0&&sl>0?(r-sl)/r*100:0); },0)/onSaleProds.length).toFixed(0) : null;
-  const docLines = [...todaySOs.flatMap(so => (so.lines || []).map((l, li) => ({ docType: "SO", doc: so, line: l, lineIdx: li }))), ...todayInvs.flatMap(inv => (inv.lines || []).map((l, li) => ({ docType: "INV", doc: inv, line: l, lineIdx: li })))];
+  const expiredSaleProds = onSaleProds.filter(p => (p.pricing || {}).saleEnd && p.pricing.saleEnd < td);
+  const activeSaleProds = onSaleProds.filter(p => !(p.pricing || {}).saleEnd || p.pricing.saleEnd >= td);
+  const avgSaleDiscount = onSaleProds.length > 0 ? (onSaleProds.reduce((s, p) => { const r = Number((p.pricing || {}).level3) || 0; const sl = Number((p.pricing || {}).sales) || 0; return s + (r > 0 && sl > 0 ? (r - sl) / r * 100 : 0); }, 0) / onSaleProds.length).toFixed(0) : null;
+  const docLines = [...(todaySOs || []).flatMap(so => (so.lines || []).map((l, li) => ({ docType: "SO", doc: so, line: l, lineIdx: li }))), ...(todayInvs || []).flatMap(inv => (inv.lines || []).map((l, li) => ({ docType: "INV", doc: inv, line: l, lineIdx: li })))];
   const docTotalValue = docLines.reduce((s, r) => s + (Number(r.line.total) || 0), 0);
   const docUniqueCustomers = new Set(docLines.map(r => r.doc.customerId).filter(Boolean)).size;
-  const limitsWithFloor = products.filter(p => Number((p.pricing||{}).priceFloor) > 0).length;
-  const limitsWithCeiling = products.filter(p => Number((p.pricing||{}).priceCeiling) > 0).length;
-  const limitsWithEither = products.filter(p => Number((p.pricing||{}).priceFloor) > 0 || Number((p.pricing||{}).priceCeiling) > 0).length;
-  const bulkProds = (bulkCat === "all" ? [...products] : products.filter(p => p.category === bulkCat)).sort((a, b) => (a.category||"").localeCompare(b.category||"") || a.name.localeCompare(b.name));
+  const limitsWithFloor = products.filter(p => Number((p.pricing || {}).priceFloor) > 0).length;
+  const limitsWithCeiling = products.filter(p => Number((p.pricing || {}).priceCeiling) > 0).length;
+  const limitsWithEither = products.filter(p => Number((p.pricing || {}).priceFloor) > 0 || Number((p.pricing || {}).priceCeiling) > 0).length;
+  const bulkProds = (bulkCat === "all" ? [...products] : products.filter(p => p.category === bulkCat)).sort((a, b) => (a.category || "").localeCompare(b.category || "") || (a.name || "").localeCompare(b.name || ""));
   const bulkVal = Number(bulkValue) || 0;
-  const bulkAffectedCount = bulkVal ? bulkProds.filter(p => { const cur = Number((p.pricing||{})[bulkLevel])||0; return cur > 0; }).length : 0;
+  const bulkAffectedCount = bulkVal ? bulkProds.filter(p => { const cur = Number((p.pricing || {})[bulkLevel]) || 0; return cur > 0; }).length : 0;
   const bulkSelectedLvl = priceLevels.find(pl => pl.id === bulkLevel);
-  const limProds = products.filter(p => !limitSearch || p.name.toLowerCase().includes(limitSearch.toLowerCase()) || (p.id||"").toLowerCase().includes(limitSearch.toLowerCase())).sort((a, b) => (a.category||"").localeCompare(b.category||"") || a.name.localeCompare(b.name));
+  const limProds = products.filter(p => !limitSearch || (p.name || "").toLowerCase().includes(limitSearch.toLowerCase()) || (p.id || "").toLowerCase().includes(limitSearch.toLowerCase())).sort((a, b) => (a.category || "").localeCompare(b.category || "") || (a.name || "").localeCompare(b.name || ""));
 
   const updateLinePrice = (docType, docId, lineIdx, newPrice) => {
     const price = Number(newPrice);
