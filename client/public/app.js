@@ -28676,6 +28676,22 @@ function PricingCenter({ products, setProducts, customers, setCustomers, salesOr
   const todaySOs = salesOrders.filter(so => so.date >= td && so.status !== "cancelled");
   const todayInvs = invoices.filter(inv => inv.date >= td && inv.status !== "voided");
 
+  const onSaleProds = products.filter(p => (p.pricing || {}).onSale);
+  const expiredSaleProds = onSaleProds.filter(p => p.pricing.saleEnd && p.pricing.saleEnd < td);
+  const activeSaleProds = onSaleProds.filter(p => !p.pricing.saleEnd || p.pricing.saleEnd >= td);
+  const avgSaleDiscount = onSaleProds.length > 0 ? (onSaleProds.reduce((s,p) => { const r=Number((p.pricing||{}).level3)||0; const sl=Number((p.pricing||{}).sales)||0; return s + (r>0&&sl>0?(r-sl)/r*100:0); },0)/onSaleProds.length).toFixed(0) : null;
+  const docLines = [...todaySOs.flatMap(so => (so.lines || []).map((l, li) => ({ docType: "SO", doc: so, line: l, lineIdx: li }))), ...todayInvs.flatMap(inv => (inv.lines || []).map((l, li) => ({ docType: "INV", doc: inv, line: l, lineIdx: li })))];
+  const docTotalValue = docLines.reduce((s, r) => s + (Number(r.line.total) || 0), 0);
+  const docUniqueCustomers = new Set(docLines.map(r => r.doc.customerId).filter(Boolean)).size;
+  const limitsWithFloor = products.filter(p => Number((p.pricing||{}).priceFloor) > 0).length;
+  const limitsWithCeiling = products.filter(p => Number((p.pricing||{}).priceCeiling) > 0).length;
+  const limitsWithEither = products.filter(p => Number((p.pricing||{}).priceFloor) > 0 || Number((p.pricing||{}).priceCeiling) > 0).length;
+  const bulkProds = (bulkCat === "all" ? [...products] : products.filter(p => p.category === bulkCat)).sort((a, b) => (a.category||"").localeCompare(b.category||"") || a.name.localeCompare(b.name));
+  const bulkVal = Number(bulkValue) || 0;
+  const bulkAffectedCount = bulkVal ? bulkProds.filter(p => { const cur = Number((p.pricing||{})[bulkLevel])||0; return cur > 0; }).length : 0;
+  const bulkSelectedLvl = priceLevels.find(pl => pl.id === bulkLevel);
+  const limProds = products.filter(p => !limitSearch || p.name.toLowerCase().includes(limitSearch.toLowerCase()) || (p.id||"").toLowerCase().includes(limitSearch.toLowerCase())).sort((a, b) => (a.category||"").localeCompare(b.category||"") || a.name.localeCompare(b.name));
+
   const updateLinePrice = (docType, docId, lineIdx, newPrice) => {
     const price = Number(newPrice);
     if (isNaN(price) || price < 0) return;
@@ -29101,20 +29117,34 @@ function PricingCenter({ products, setProducts, customers, setCustomers, salesOr
               }))))),
 
     activeTab === "sales" && React.createElement("div", null,
+      React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 14, marginBottom: 20 } },
+        React.createElement("div", { style: { background: "#1a2030", borderRadius: 10, padding: 14, textAlign: "center" } },
+          React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "#f59e0b", textTransform: "uppercase" } }, "On Sale"),
+          React.createElement("div", { style: { fontSize: 28, fontWeight: 800, color: "#f1f5f9", marginTop: 4 } }, onSaleProds.length)),
+        React.createElement("div", { style: { background: "#1a2030", borderRadius: 10, padding: 14, textAlign: "center" } },
+          React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "#22c55e", textTransform: "uppercase" } }, "Active"),
+          React.createElement("div", { style: { fontSize: 28, fontWeight: 800, color: "#22c55e", marginTop: 4 } }, activeSaleProds.length)),
+        React.createElement("div", { style: { background: "#1a2030", borderRadius: 10, padding: 14, textAlign: "center" } },
+          React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "#ef4444", textTransform: "uppercase" } }, "Expired"),
+          React.createElement("div", { style: { fontSize: 28, fontWeight: 800, color: expiredSaleProds.length > 0 ? "#ef4444" : "#475569", marginTop: 4 } }, expiredSaleProds.length)),
+        React.createElement("div", { style: { background: "#1a2030", borderRadius: 10, padding: 14, textAlign: "center" } },
+          React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "#3b82f6", textTransform: "uppercase" } }, "Avg Discount"),
+          React.createElement("div", { style: { fontSize: 28, fontWeight: 800, color: "#f1f5f9", marginTop: 4 } }, avgSaleDiscount ? avgSaleDiscount + "%" : "—"))),
       React.createElement("div", { style: { display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap", alignItems: "center" } },
         React.createElement("input", { value: saleSearch, onChange: e => setSaleSearch(e.target.value), placeholder: "\uD83D\uDD0D Search products...", "data-testid": "input-sale-search",
           style: { flex: 1, minWidth: 200, background: "#1a2030", border: "1px solid #2d3748", borderRadius: 8, padding: "10px 14px", color: "#e2e8f0", fontSize: 13 } }),
         React.createElement("select", { value: saleCat, onChange: e => setSaleCat(e.target.value), "data-testid": "select-sale-category",
           style: { background: "#1a2030", border: "1px solid #2d3748", borderRadius: 8, padding: "10px 14px", color: "#e2e8f0", fontSize: 13 }
         }, React.createElement("option", { value: "all" }, "All Categories"), cats.map(c => React.createElement("option", { key: c, value: c }, c))),
-        React.createElement("div", { style: { fontSize: 12, color: "#64748b" } },
-          products.filter(p => (p.pricing || {}).onSale).length + " items on sale")),
+        expiredSaleProds.length > 0 && React.createElement("button", { "data-testid": "btn-clear-expired",
+          onClick: () => { setProducts(prev => prev.map(p => { if (!(p.pricing||{}).onSale || !p.pricing.saleEnd || p.pricing.saleEnd >= td) return p; return { ...p, pricing: { ...p.pricing, onSale: false, sales: "", saleStart: "", saleEnd: "" } }; })); showToast(`Cleared ${expiredSaleProds.length} expired sale(s)`); },
+          style: { padding: "8px 14px", borderRadius: 8, border: "1px solid #ef4444", background: "#ef444411", color: "#ef4444", fontSize: 12, fontWeight: 700, cursor: "pointer" } }, "\uD83D\uDDD1 Clear All Expired")),
       React.createElement(Card, null,
         React.createElement("div", { style: { overflowX: "auto" } },
           React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 12 } },
             React.createElement("thead", null, React.createElement("tr", null,
-              ["Product", "Category", "Cost", "Reg Price (L3)", "+$ / +%", "Sale Price", "Discount", "Start", "End", "Status", ""].map((h, i) =>
-                React.createElement("th", { key: i, style: { padding: "8px 6px", fontSize: 10, color: "#94a3b8", fontWeight: 700, textAlign: i >= 2 && i <= 6 ? "right" : "left", textTransform: "uppercase", borderBottom: "2px solid #2d3748", whiteSpace: "nowrap" } }, h)))),
+              ["Product", "Pack", "Cost", "Reg (L3)", "+Cost", "Sale Price", "Savings", "Disc %", "Start", "End", "Status", ""].map((h, i) =>
+                React.createElement("th", { key: i, style: { padding: "8px 6px", fontSize: 10, color: "#94a3b8", fontWeight: 700, textAlign: i >= 2 && i <= 7 ? "right" : "left", textTransform: "uppercase", borderBottom: "2px solid #2d3748", whiteSpace: "nowrap" } }, h)))),
             React.createElement("tbody", null,
               products.filter(p => {
                 if (saleCat !== "all" && p.category !== saleCat) return false;
@@ -29134,194 +29164,270 @@ function PricingCenter({ products, setProducts, customers, setCustomers, salesOr
                 const saleStart = pr.saleStart || "";
                 const saleEnd = pr.saleEnd || "";
                 const discountPct = regPrice > 0 && salePrice > 0 ? ((regPrice - salePrice) / regPrice * 100).toFixed(1) : null;
-                const plusDollar = cost > 0 && regPrice > 0 ? (regPrice - cost) : null;
-                const plusPct = cost > 0 && regPrice > 0 ? ((regPrice - cost) / cost * 100) : null;
+                const savingsDollar = regPrice > 0 && salePrice > 0 && salePrice < regPrice ? (regPrice - salePrice) : null;
+                const plusFromCost = cost > 0 && regPrice > 0 ? ((regPrice - cost) / cost * 100).toFixed(1) : null;
+                const saleGP = cost > 0 && salePrice > 0 ? ((salePrice - cost) / salePrice * 100).toFixed(1) : null;
                 const isExpired = saleEnd && saleEnd < td;
-                return React.createElement("tr", { key: p.id, style: { borderBottom: "1px solid #1e2535", background: isOnSale ? "#f59e0b08" : "transparent" } },
-                  React.createElement("td", { style: { padding: "6px 6px", fontWeight: 600 } },
-                    React.createElement("div", null, pName(p)),
-                    React.createElement("div", { style: { fontSize: 10, color: "#64748b", fontFamily: "'DM Mono',monospace" } }, p.id)),
-                  React.createElement("td", { style: { padding: "6px", fontSize: 11, color: "#64748b" } }, p.category || "—"),
+                const hasPiece = p.soldByPiece === true;
+                return React.createElement("tr", { key: p.id, style: { borderBottom: "1px solid #1e2535", background: isOnSale ? (isExpired ? "#ef444408" : "#f59e0b08") : "transparent" } },
+                  React.createElement("td", { style: { padding: "6px", fontWeight: 600 } },
+                    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6 } },
+                      React.createElement("span", null, pName(p)),
+                      hasPiece && React.createElement("span", { style: { fontSize: 8, background: "#3b82f622", color: "#3b82f6", padding: "1px 4px", borderRadius: 3, fontWeight: 700 } }, "PCS")),
+                    React.createElement("div", { style: { fontSize: 10, color: "#64748b", fontFamily: "'DM Mono',monospace" } }, p.id),
+                    saleGP !== null && isOnSale && React.createElement("div", { style: { fontSize: 9, color: Number(saleGP) > 0 ? "#22c55e" : "#ef4444" } }, "Sale GP: " + saleGP + "%")),
+                  React.createElement("td", { style: { padding: "6px", fontSize: 10, color: "#64748b" } },
+                    React.createElement("div", null, p.category || "—"),
+                    p.packSize && React.createElement("div", { style: { fontSize: 9, color: "#475569" } }, p.packSize)),
                   React.createElement("td", { style: { padding: "6px", textAlign: "right", fontFamily: "'DM Mono',monospace", color: "#ef4444", fontWeight: 700 } }, fmt(cost)),
-                  React.createElement("td", { style: { padding: "6px", textAlign: "right", fontFamily: "'DM Mono',monospace", fontWeight: 600, color: "#e2e8f0" } }, regPrice > 0 ? fmt(regPrice) : "—"),
+                  React.createElement("td", { style: { padding: "6px", textAlign: "right", fontFamily: "'DM Mono',monospace", fontWeight: 600, color: "#e2e8f0", textDecoration: isOnSale && salePrice > 0 ? "line-through" : "none", opacity: isOnSale && salePrice > 0 ? 0.5 : 1 } }, regPrice > 0 ? fmt(regPrice) : "—"),
                   React.createElement("td", { style: { padding: "6px", textAlign: "right", fontSize: 10, fontFamily: "'DM Mono',monospace", color: "#22c55e" } },
-                    plusPct !== null ? (plusDollar >= 0 ? "+" : "") + "$" + plusDollar.toFixed(2) + " / " + (plusPct >= 0 ? "+" : "") + plusPct.toFixed(1) + "%" : "—"),
+                    plusFromCost !== null ? "+" + plusFromCost + "%" : "—"),
                   React.createElement("td", { style: { padding: "6px", textAlign: "right" } },
                     React.createElement("input", { type: "number", step: "0.01", value: pr.sales || "", "data-testid": "input-sale-price-" + p.id,
                       onChange: e => setProducts(prev => prev.map(pp => pp.id === p.id ? { ...pp, pricing: { ...pp.pricing, sales: e.target.value ? Number(e.target.value) : "" } } : pp)),
-                      style: { width: 80, background: "#0f1117", border: isOnSale ? "1px solid #f59e0b" : "1px solid #2d3748", borderRadius: 4, padding: "4px 6px", color: isOnSale ? "#f59e0b" : "#94a3b8", fontSize: 12, fontFamily: "'DM Mono',monospace", fontWeight: 700, textAlign: "right" } })),
-                  React.createElement("td", { style: { padding: "6px", textAlign: "right", fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 600, color: discountPct && Number(discountPct) > 0 ? "#ef4444" : "#475569" } },
+                      style: { width: 85, background: "#0f1117", border: isOnSale ? "1px solid #f59e0b" : "1px solid #2d3748", borderRadius: 4, padding: "5px 6px", color: isOnSale ? "#f59e0b" : "#94a3b8", fontSize: 13, fontFamily: "'DM Mono',monospace", fontWeight: 700, textAlign: "right" } })),
+                  React.createElement("td", { style: { padding: "6px", textAlign: "right", fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 600, color: savingsDollar ? "#22c55e" : "#475569" } },
+                    savingsDollar ? "-" + fmt(savingsDollar) : "—"),
+                  React.createElement("td", { style: { padding: "6px", textAlign: "right", fontFamily: "'DM Mono',monospace", fontSize: 12, fontWeight: 700, color: discountPct && Number(discountPct) > 0 ? "#ef4444" : "#475569" } },
                     discountPct && Number(discountPct) > 0 ? "-" + discountPct + "%" : "—"),
                   React.createElement("td", { style: { padding: "6px" } },
                     React.createElement("input", { type: "date", value: saleStart, "data-testid": "input-sale-start-" + p.id,
                       onChange: e => setProducts(prev => prev.map(pp => pp.id === p.id ? { ...pp, pricing: { ...pp.pricing, saleStart: e.target.value } } : pp)),
-                      style: { background: "#0f1117", border: "1px solid #2d3748", borderRadius: 4, padding: "3px 6px", color: "#e2e8f0", fontSize: 11 } })),
+                      style: { background: "#0f1117", border: "1px solid #2d3748", borderRadius: 4, padding: "4px 6px", color: "#e2e8f0", fontSize: 11, width: 120 } })),
                   React.createElement("td", { style: { padding: "6px" } },
                     React.createElement("input", { type: "date", value: saleEnd, "data-testid": "input-sale-end-" + p.id,
                       onChange: e => setProducts(prev => prev.map(pp => pp.id === p.id ? { ...pp, pricing: { ...pp.pricing, saleEnd: e.target.value } } : pp)),
-                      style: { background: "#0f1117", border: "1px solid #2d3748", borderRadius: 4, padding: "3px 6px", color: isExpired ? "#ef4444" : "#e2e8f0", fontSize: 11 } })),
+                      style: { background: "#0f1117", border: isExpired ? "1px solid #ef4444" : "1px solid #2d3748", borderRadius: 4, padding: "4px 6px", color: isExpired ? "#ef4444" : "#e2e8f0", fontSize: 11, width: 120 } })),
                   React.createElement("td", { style: { padding: "6px" } },
                     React.createElement("button", { "data-testid": "btn-toggle-sale-" + p.id,
                       onClick: () => setProducts(prev => prev.map(pp => pp.id === p.id ? { ...pp, pricing: { ...pp.pricing, onSale: !pr.onSale } } : pp)),
-                      style: { padding: "4px 10px", borderRadius: 6, border: isOnSale ? "1px solid #f59e0b" : "1px solid #47556944", background: isOnSale ? "#f59e0b22" : "transparent", color: isOnSale ? "#f59e0b" : "#475569", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" } },
-                      isOnSale ? (isExpired ? "\u26A0 Expired" : "\u2713 On Sale") : "Off")),
+                      style: { padding: "5px 12px", borderRadius: 6, border: isOnSale ? (isExpired ? "1px solid #ef4444" : "1px solid #f59e0b") : "1px solid #47556944", background: isOnSale ? (isExpired ? "#ef444422" : "#f59e0b22") : "transparent", color: isOnSale ? (isExpired ? "#ef4444" : "#f59e0b") : "#475569", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" } },
+                      isOnSale ? (isExpired ? "\u26A0 Expired" : "\u2713 Active") : "Off")),
                   React.createElement("td", { style: { padding: "6px", textAlign: "right" } },
                     isOnSale && React.createElement("button", { "data-testid": "btn-clear-sale-" + p.id,
                       onClick: () => setProducts(prev => prev.map(pp => pp.id === p.id ? { ...pp, pricing: { ...pp.pricing, onSale: false, sales: "", saleStart: "", saleEnd: "" } } : pp)),
-                      style: { padding: "3px 8px", borderRadius: 4, border: "1px solid #ef444444", background: "#ef444411", color: "#ef4444", fontSize: 10, fontWeight: 600, cursor: "pointer" } }, "Clear")));
+                      style: { padding: "4px 10px", borderRadius: 4, border: "1px solid #ef444444", background: "#ef444411", color: "#ef4444", fontSize: 10, fontWeight: 600, cursor: "pointer" } }, "Clear")));
               })))))),
 
     activeTab === "documents" && React.createElement("div", null,
-      React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 20 } },
-        React.createElement("div", { style: { background: "#1a2030", borderRadius: 10, padding: 16, textAlign: "center" } },
-          React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "#3b82f6", textTransform: "uppercase" } }, "Open Sales Orders"),
-          React.createElement("div", { style: { fontSize: 28, fontWeight: 800, color: "#f1f5f9", marginTop: 4 } }, todaySOs.length)),
-        React.createElement("div", { style: { background: "#1a2030", borderRadius: 10, padding: 16, textAlign: "center" } },
+      React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 14, marginBottom: 20 } },
+        React.createElement("div", { style: { background: "#1a2030", borderRadius: 10, padding: 14, textAlign: "center" } },
+          React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "#3b82f6", textTransform: "uppercase" } }, "Open SOs"),
+          React.createElement("div", { style: { fontSize: 26, fontWeight: 800, color: "#f1f5f9", marginTop: 4 } }, todaySOs.length)),
+        React.createElement("div", { style: { background: "#1a2030", borderRadius: 10, padding: 14, textAlign: "center" } },
           React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "#a855f7", textTransform: "uppercase" } }, "Open Invoices"),
-          React.createElement("div", { style: { fontSize: 28, fontWeight: 800, color: "#f1f5f9", marginTop: 4 } }, todayInvs.length)),
-        React.createElement("div", { style: { background: "#1a2030", borderRadius: 10, padding: 16, textAlign: "center" } },
-          React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "#22c55e", textTransform: "uppercase" } }, "Unique Products"),
-          React.createElement("div", { style: { fontSize: 28, fontWeight: 800, color: "#f1f5f9", marginTop: 4 } }, new Set([...todaySOs.flatMap(so => (so.lines || []).map(l => l.productId)), ...todayInvs.flatMap(inv => (inv.lines || []).map(l => l.productId))].filter(Boolean)).size))),
+          React.createElement("div", { style: { fontSize: 26, fontWeight: 800, color: "#f1f5f9", marginTop: 4 } }, todayInvs.length)),
+        React.createElement("div", { style: { background: "#1a2030", borderRadius: 10, padding: 14, textAlign: "center" } },
+          React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "#22c55e", textTransform: "uppercase" } }, "Line Items"),
+          React.createElement("div", { style: { fontSize: 26, fontWeight: 800, color: "#f1f5f9", marginTop: 4 } }, docLines.length)),
+        React.createElement("div", { style: { background: "#1a2030", borderRadius: 10, padding: 14, textAlign: "center" } },
+          React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "#f59e0b", textTransform: "uppercase" } }, "Total Value"),
+          React.createElement("div", { style: { fontSize: 22, fontWeight: 800, color: "#f1f5f9", marginTop: 4, fontFamily: "'DM Mono',monospace" } }, fmt(docTotalValue))),
+        React.createElement("div", { style: { background: "#1a2030", borderRadius: 10, padding: 14, textAlign: "center" } },
+          React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "#64748b", textTransform: "uppercase" } }, "Customers"),
+          React.createElement("div", { style: { fontSize: 26, fontWeight: 800, color: "#f1f5f9", marginTop: 4 } }, docUniqueCustomers))),
       React.createElement(Card, null,
-        React.createElement("div", { style: { fontWeight: 700, fontSize: 14, color: "#f1f5f9", marginBottom: 12 } }, "Line Items — Edit Prices Directly"),
-        React.createElement("div", { style: { fontSize: 12, color: "#64748b", marginBottom: 16 } }, "Change any price below to update the sales order or invoice immediately"),
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 } },
+          React.createElement("div", null,
+            React.createElement("div", { style: { fontWeight: 700, fontSize: 14, color: "#f1f5f9" } }, "Line Items \u2014 Edit Prices Directly"),
+            React.createElement("div", { style: { fontSize: 12, color: "#64748b", marginTop: 2 } }, "Change any price below to update the sales order or invoice immediately")),
+          React.createElement("div", { style: { fontSize: 11, color: "#64748b" } }, docLines.length, " lines across ", todaySOs.length + todayInvs.length, " documents")),
         React.createElement("div", { style: { overflowX: "auto" } },
           React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 12 } },
             React.createElement("thead", null, React.createElement("tr", null,
-              ["Type", "Doc #", "Date", "Customer", "Product", "Qty", "Price", "Total", "Printed"].map((h, i) =>
-                React.createElement("th", { key: i, style: { padding: "8px 8px", fontSize: 10, color: "#94a3b8", fontWeight: 700, textAlign: i >= 6 ? "right" : "left", textTransform: "uppercase", borderBottom: "2px solid #2d3748", whiteSpace: "nowrap" } }, h)))),
+              ["Type", "Doc #", "Date", "Customer", "Product", "Pack", "Qty", "Unit", "Price", "Total", "GP%", "Printed"].map((h, i) =>
+                React.createElement("th", { key: i, style: { padding: "8px 6px", fontSize: 10, color: "#94a3b8", fontWeight: 700, textAlign: i >= 6 ? "right" : "left", textTransform: "uppercase", borderBottom: "2px solid #2d3748", whiteSpace: "nowrap", position: "sticky", top: 0, background: "#141826" } }, h)))),
             React.createElement("tbody", null,
-              [...todaySOs.flatMap(so => (so.lines || []).map((l, li) => ({ docType: "SO", doc: so, line: l, lineIdx: li }))),
-               ...todayInvs.flatMap(inv => (inv.lines || []).map((l, li) => ({ docType: "INV", doc: inv, line: l, lineIdx: li })))
-              ].map((row, ri) => {
+              docLines.map((row, ri) => {
                 const prod = products.find(pp => pp.id === row.line.productId);
                 const cust = customers.find(c => c.id === row.doc.customerId);
                 const isWB = row.line.pricePerLb !== undefined && row.line.pricePerLb !== null;
                 const curPrice = isWB ? row.line.pricePerLb : row.line.priceEach;
                 const isPrinted = row.docType === "INV" && row.doc.printed;
-                return React.createElement("tr", { key: ri, style: { borderBottom: "1px solid #1e2535", background: isPrinted ? "#f59e0b08" : "transparent" } },
-                  React.createElement("td", { style: { padding: "6px 8px" } }, React.createElement(Badge, { text: row.docType, color: row.docType === "SO" ? "#3b82f6" : "#a855f7" })),
-                  React.createElement("td", { style: { padding: "6px 8px", fontFamily: "'DM Mono',monospace", fontSize: 11 } }, row.doc.id),
-                  React.createElement("td", { style: { padding: "6px 8px", fontSize: 11 } }, fmtDate(row.doc.date)),
-                  React.createElement("td", { style: { padding: "6px 8px", fontWeight: 600 } }, cust ? cust.name : "—"),
-                  React.createElement("td", { style: { padding: "6px 8px" } }, prod ? pName(prod) : row.line.customName || "—"),
-                  React.createElement("td", { style: { padding: "6px 8px", fontFamily: "'DM Mono',monospace" } }, row.line.qty || 0),
-                  React.createElement("td", { style: { padding: "6px 8px", textAlign: "right" } },
+                const prodCost = prod ? Number((prod.pricing||{}).cost) || 0 : 0;
+                const lineGP = prodCost > 0 && curPrice > 0 ? ((curPrice - prodCost) / curPrice * 100).toFixed(1) : null;
+                return React.createElement("tr", { key: ri, style: { borderBottom: "1px solid #1e2535", background: isPrinted ? "#f59e0b06" : "transparent" } },
+                  React.createElement("td", { style: { padding: "6px" } }, React.createElement(Badge, { text: row.docType, color: row.docType === "SO" ? "#3b82f6" : "#a855f7" })),
+                  React.createElement("td", { style: { padding: "6px", fontFamily: "'DM Mono',monospace", fontSize: 11 } }, row.doc.id),
+                  React.createElement("td", { style: { padding: "6px", fontSize: 11 } }, fmtDate(row.doc.date)),
+                  React.createElement("td", { style: { padding: "6px", fontWeight: 600, maxWidth: 140 } }, cust ? cust.name : "—"),
+                  React.createElement("td", { style: { padding: "6px" } },
+                    React.createElement("div", null, prod ? pName(prod) : row.line.customName || "—"),
+                    prod && prod.packSize && React.createElement("div", { style: { fontSize: 9, color: "#475569" } }, prod.packSize)),
+                  React.createElement("td", { style: { padding: "6px", fontSize: 10, color: "#64748b" } }, prod ? prod.category || "" : ""),
+                  React.createElement("td", { style: { padding: "6px", textAlign: "right", fontFamily: "'DM Mono',monospace" } }, row.line.qty || 0),
+                  React.createElement("td", { style: { padding: "6px", textAlign: "right", fontSize: 10, color: "#64748b" } }, isWB ? "/lb" : row.line.unit || "CS"),
+                  React.createElement("td", { style: { padding: "6px", textAlign: "right" } },
                     React.createElement("input", {
                       type: "number", step: "0.01", value: curPrice || "",
                       onChange: e => updateLinePrice(row.docType, row.doc.id, row.lineIdx, e.target.value),
-                      style: { width: 80, background: "#0f1117", border: "1px solid #2d3748", borderRadius: 4, padding: "4px 6px", color: "#f59e0b", fontSize: 12, fontFamily: "'DM Mono',monospace", fontWeight: 700, textAlign: "right" }
+                      style: { width: 85, background: "#0f1117", border: "1px solid #f59e0b44", borderRadius: 4, padding: "5px 6px", color: "#f59e0b", fontSize: 13, fontFamily: "'DM Mono',monospace", fontWeight: 700, textAlign: "right" }
                     })),
-                  React.createElement("td", { style: { padding: "6px 8px", textAlign: "right", fontFamily: "'DM Mono',monospace", fontWeight: 600 } }, fmt(row.line.total)),
-                  React.createElement("td", { style: { padding: "6px 8px", textAlign: "center" } },
+                  React.createElement("td", { style: { padding: "6px", textAlign: "right", fontFamily: "'DM Mono',monospace", fontWeight: 600 } }, fmt(row.line.total)),
+                  React.createElement("td", { style: { padding: "6px", textAlign: "right", fontSize: 10, fontWeight: 600, color: lineGP !== null ? (Number(lineGP) > 0 ? "#22c55e" : "#ef4444") : "#475569" } }, lineGP !== null ? lineGP + "%" : "—"),
+                  React.createElement("td", { style: { padding: "6px", textAlign: "center" } },
                     row.docType === "SO" ? React.createElement("span", { style: { fontSize: 10, color: "#475569" } }, "\u2014") :
-                    isPrinted ? React.createElement("span", { style: { color: "#f59e0b", fontWeight: 700, fontSize: 11 } }, "\uD83D\uDDA8 Printed") :
-                    React.createElement("span", { style: { color: "#475569", fontSize: 11 } }, "Not printed")));
+                    isPrinted ? React.createElement("span", { style: { color: "#f59e0b", fontWeight: 700, fontSize: 10 } }, "\uD83D\uDDA8 Yes") :
+                    React.createElement("span", { style: { color: "#475569", fontSize: 10 } }, "No")));
               })))))),
 
     activeTab === "bulk" && React.createElement("div", null,
       React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 } },
         React.createElement(Card, null,
-          React.createElement("div", { style: { fontWeight: 700, fontSize: 15, color: "#f1f5f9", marginBottom: 16 } }, "Bulk Price Adjustment"),
-          React.createElement("div", { style: { fontSize: 12, color: "#64748b", marginBottom: 16 } }, "Apply percentage or flat-dollar changes across all products in a category. Useful for market swings."),
+          React.createElement("div", { style: { fontWeight: 700, fontSize: 15, color: "#f1f5f9", marginBottom: 4 } }, "Bulk Price Adjustment"),
+          React.createElement("div", { style: { fontSize: 12, color: "#64748b", marginBottom: 16 } }, "Apply percentage or flat-dollar changes across products. Useful for market price swings."),
           React.createElement("div", { style: { marginBottom: 16 } },
-            React.createElement("div", { style: { fontSize: 11, color: "#94a3b8", fontWeight: 600, marginBottom: 8 } }, "SELECT PRICE LEVEL"),
-            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 } },
-              [...priceLevels.map(pl => ({ id: pl.id, label: pl.label, color: pl.color })), { id: "sales", label: "Sale Price", color: "#f59e0b" }].map(lvl =>
+            React.createElement("div", { style: { fontSize: 10, color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 8 } }, "Price Level"),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 } },
+              [...priceLevels.map(pl => ({ id: pl.id, label: pl.name, color: pl.color, sub: pl.method === "costPlus" ? "C+" + pl.markupValue + "%" : pl.method === "margin" ? "M" + pl.markupValue + "%" : "" })), { id: "sales", label: "Sale", color: "#f59e0b", sub: "" }].map(lvl =>
                 React.createElement("button", {
                   key: lvl.id, onClick: () => setBulkLevel(lvl.id),
-                  style: { padding: 10, borderRadius: 8, border: `2px solid ${bulkLevel === lvl.id ? lvl.color : "#2d3748"}`, cursor: "pointer", background: bulkLevel === lvl.id ? `${lvl.color}22` : "transparent", color: bulkLevel === lvl.id ? lvl.color : "#94a3b8", fontSize: 11, fontWeight: 600 }
-                }, lvl.label)))),
+                  style: { padding: "8px 6px", borderRadius: 8, border: `2px solid ${bulkLevel === lvl.id ? lvl.color : "#2d3748"}`, cursor: "pointer", background: bulkLevel === lvl.id ? `${lvl.color}22` : "transparent", color: bulkLevel === lvl.id ? lvl.color : "#94a3b8", fontSize: 12, fontWeight: 700, textAlign: "center" }
+                },
+                  React.createElement("div", null, lvl.label),
+                  lvl.sub && React.createElement("div", { style: { fontSize: 9, color: "#64748b", marginTop: 2 } }, lvl.sub))))),
           React.createElement("div", { style: { marginBottom: 16 } },
-            React.createElement("div", { style: { fontSize: 11, color: "#94a3b8", fontWeight: 600, marginBottom: 8 } }, "SELECT CATEGORY"),
-            React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap" } },
+            React.createElement("div", { style: { fontSize: 10, color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 8 } }, "Category"),
+            React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap" } },
               ["all", ...cats].map(cat =>
                 React.createElement("button", {
                   key: cat, onClick: () => setBulkCat(cat),
-                  style: { padding: "7px 14px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, background: bulkCat === cat ? "#22c55e22" : "#2d3748", color: bulkCat === cat ? "#22c55e" : "#94a3b8", textTransform: "capitalize" }
-                }, cat === "all" ? "All Categories" : cat)))),
-          React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "flex-end", marginBottom: 16 } },
-            React.createElement("div", { style: { display: "flex", gap: 4, background: "#1a2030", borderRadius: 8, padding: 3 } },
-              [{ id: "percent", label: "% Change" }, { id: "flat", label: "$ Change" }].map(t =>
-                React.createElement("button", {
-                  key: t.id, onClick: () => setBulkType(t.id),
-                  style: { padding: "6px 14px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, background: bulkType === t.id ? "#f59e0b" : "transparent", color: bulkType === t.id ? "#000" : "#64748b" }
-                }, t.label))),
-            React.createElement("input", {
-              type: "number", step: bulkType === "percent" ? "1" : "0.01",
-              value: bulkValue, onChange: e => setBulkValue(e.target.value),
-              placeholder: bulkType === "percent" ? "+5 or -10" : "+1.50 or -0.50",
-              style: { flex: 1, background: "#0f1117", border: "1px solid #2d3748", borderRadius: 8, padding: "10px 14px", color: "#e2e8f0", fontSize: 14, fontWeight: 700 }
-            }),
-            React.createElement(Btn, { onClick: applyBulk, disabled: !bulkValue, icon: "check" }, "Apply")),
-          React.createElement("div", { style: { fontSize: 11, color: "#f59e0b", background: "#f59e0b11", borderRadius: 8, padding: 10, border: "1px solid #f59e0b33" } }, "\u26A0\uFE0F Price floors and ceilings will be enforced automatically during bulk adjustments")),
+                  style: { padding: "6px 12px", borderRadius: 8, border: bulkCat === cat ? "1px solid #22c55e" : "1px solid #2d3748", cursor: "pointer", fontSize: 11, fontWeight: 600, background: bulkCat === cat ? "#22c55e22" : "transparent", color: bulkCat === cat ? "#22c55e" : "#94a3b8", textTransform: "capitalize" }
+                }, cat === "all" ? "All" : cat)))),
+          React.createElement("div", { style: { marginBottom: 16 } },
+            React.createElement("div", { style: { fontSize: 10, color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 8 } }, "Adjustment"),
+            React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center" } },
+              React.createElement("div", { style: { display: "flex", gap: 2, background: "#1a2030", borderRadius: 8, padding: 3 } },
+                [{ id: "percent", label: "%" }, { id: "flat", label: "$" }].map(t =>
+                  React.createElement("button", {
+                    key: t.id, onClick: () => setBulkType(t.id),
+                    style: { padding: "8px 16px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 14, fontWeight: 700, background: bulkType === t.id ? "#f59e0b" : "transparent", color: bulkType === t.id ? "#000" : "#64748b" }
+                  }, t.label))),
+              React.createElement("input", {
+                type: "number", step: bulkType === "percent" ? "1" : "0.01",
+                value: bulkValue, onChange: e => setBulkValue(e.target.value),
+                placeholder: bulkType === "percent" ? "e.g. +5 or -10" : "e.g. +1.50 or -0.50",
+                "data-testid": "input-bulk-value",
+                style: { flex: 1, background: "#0f1117", border: "1px solid #2d3748", borderRadius: 8, padding: "10px 14px", color: "#e2e8f0", fontSize: 15, fontWeight: 700, fontFamily: "'DM Mono',monospace" }
+              }))),
+          bulkVal !== 0 && React.createElement("div", { style: { background: bulkVal > 0 ? "#22c55e11" : "#ef444411", border: bulkVal > 0 ? "1px solid #22c55e33" : "1px solid #ef444433", borderRadius: 8, padding: 12, marginBottom: 16, textAlign: "center" } },
+            React.createElement("div", { style: { fontSize: 22, fontWeight: 800, color: bulkVal > 0 ? "#22c55e" : "#ef4444", fontFamily: "'DM Mono',monospace" } },
+              bulkVal > 0 ? "\u2191" : "\u2193", " ", bulkType === "percent" ? Math.abs(bulkVal) + "%" : fmt(Math.abs(bulkVal))),
+            React.createElement("div", { style: { fontSize: 11, color: "#94a3b8", marginTop: 4 } }, bulkAffectedCount, " product", bulkAffectedCount !== 1 ? "s" : "", " will be affected")),
+          React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center" } },
+            React.createElement(Btn, { onClick: applyBulk, disabled: !bulkValue, icon: "check", "data-testid": "btn-apply-bulk" }, "Apply to ", bulkProds.length, " Products"),
+            React.createElement("div", { style: { flex: 1 } }),
+            React.createElement("div", { style: { fontSize: 10, color: "#f59e0b", display: "flex", alignItems: "center", gap: 4 } }, "\u26A0\uFE0F Floors & ceilings enforced"))),
         React.createElement(Card, null,
-          React.createElement("div", { style: { fontWeight: 700, fontSize: 15, color: "#f1f5f9", marginBottom: 12 } }, "Preview — ", bulkCat === "all" ? "All Categories" : bulkCat),
-          React.createElement("div", { style: { overflowY: "auto", maxHeight: 500 } },
+          React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 } },
+            React.createElement("div", { style: { fontWeight: 700, fontSize: 15, color: "#f1f5f9" } }, "Preview"),
+            React.createElement("div", { style: { fontSize: 11, color: "#64748b" } }, bulkProds.length, " products · ", bulkCat === "all" ? "All categories" : bulkCat)),
+          React.createElement("div", { style: { overflowY: "auto", maxHeight: 520 } },
             React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 12 } },
               React.createElement("thead", null, React.createElement("tr", null,
-                ["Product", "Current", "New", "Change"].map((h, i) =>
-                  React.createElement("th", { key: i, style: { padding: "6px 8px", fontSize: 10, color: "#94a3b8", fontWeight: 700, textAlign: i >= 1 ? "right" : "left", textTransform: "uppercase", borderBottom: "1px solid #2d3748", position: "sticky", top: 0, background: "#141826" } }, h)))),
+                ["Product", "Category", "Cost", "Current", "New", "+/-$", "+/-%", "GP%"].map((h, i) =>
+                  React.createElement("th", { key: i, style: { padding: "6px", fontSize: 10, color: "#94a3b8", fontWeight: 700, textAlign: i >= 2 ? "right" : "left", textTransform: "uppercase", borderBottom: "1px solid #2d3748", position: "sticky", top: 0, background: "#141826", whiteSpace: "nowrap" } }, h)))),
               React.createElement("tbody", null,
-                (bulkCat === "all" ? products : products.filter(p => p.category === bulkCat)).sort((a, b) => a.name.localeCompare(b.name)).map(p => {
-                  const cur = Number((p.pricing || {})[bulkLevel]) || 0;
-                  const val = Number(bulkValue) || 0;
-                  const nw = bulkType === "percent" ? cur * (1 + val / 100) : cur + val;
-                  const newP = Math.round(Math.max(0, nw) * 100) / 100;
+                bulkProds.map(p => {
+                  const pr = p.pricing || {};
+                  const cost = Number(pr.cost) || 0;
+                  const cur = Number(pr[bulkLevel]) || 0;
+                  const nw = bulkType === "percent" ? cur * (1 + bulkVal / 100) : cur + bulkVal;
+                  let newP = Math.round(Math.max(0, nw) * 100) / 100;
+                  const minP = Number(pr.priceFloor) || 0;
+                  const maxP = Number(pr.priceCeiling) || 0;
+                  if (minP > 0 && newP < minP) newP = minP;
+                  if (maxP > 0 && newP > maxP) newP = maxP;
                   const diff = newP - cur;
-                  return React.createElement("tr", { key: p.id, style: { borderBottom: "1px solid #1e2535" } },
-                    React.createElement("td", { style: { padding: "5px 8px", fontWeight: 600 } }, pName(p)),
-                    React.createElement("td", { style: { padding: "5px 8px", textAlign: "right", fontFamily: "'DM Mono',monospace" } }, fmt(cur)),
-                    React.createElement("td", { style: { padding: "5px 8px", textAlign: "right", fontFamily: "'DM Mono',monospace", fontWeight: 700, color: diff !== 0 ? (diff > 0 ? "#22c55e" : "#ef4444") : "#94a3b8" } }, val ? fmt(newP) : "—"),
-                    React.createElement("td", { style: { padding: "5px 8px", textAlign: "right", fontSize: 11, color: diff > 0 ? "#22c55e" : diff < 0 ? "#ef4444" : "#475569" } }, val ? (diff >= 0 ? "+" : "") + fmt(diff) : "—"));
+                  const diffPct = cur > 0 ? (diff / cur * 100) : 0;
+                  const newGP = cost > 0 && newP > 0 ? ((newP - cost) / newP * 100).toFixed(1) : null;
+                  const capped = (minP > 0 && nw < minP) || (maxP > 0 && nw > maxP);
+                  return React.createElement("tr", { key: p.id, style: { borderBottom: "1px solid #1e2535", background: capped ? "#f59e0b08" : "transparent" } },
+                    React.createElement("td", { style: { padding: "5px 6px", fontWeight: 600 } }, pName(p),
+                      capped && React.createElement("span", { style: { fontSize: 8, background: "#f59e0b22", color: "#f59e0b", padding: "1px 4px", borderRadius: 3, marginLeft: 4 } }, "CAPPED")),
+                    React.createElement("td", { style: { padding: "5px 6px", fontSize: 10, color: "#64748b" } }, p.category || "—"),
+                    React.createElement("td", { style: { padding: "5px 6px", textAlign: "right", fontFamily: "'DM Mono',monospace", fontSize: 11, color: "#ef4444" } }, fmt(cost)),
+                    React.createElement("td", { style: { padding: "5px 6px", textAlign: "right", fontFamily: "'DM Mono',monospace" } }, fmt(cur)),
+                    React.createElement("td", { style: { padding: "5px 6px", textAlign: "right", fontFamily: "'DM Mono',monospace", fontWeight: 700, color: bulkVal && diff !== 0 ? (diff > 0 ? "#22c55e" : "#ef4444") : "#94a3b8" } }, bulkVal ? fmt(newP) : "—"),
+                    React.createElement("td", { style: { padding: "5px 6px", textAlign: "right", fontSize: 11, fontFamily: "'DM Mono',monospace", color: diff > 0 ? "#22c55e" : diff < 0 ? "#ef4444" : "#475569" } }, bulkVal ? (diff >= 0 ? "+" : "") + fmt(diff) : "—"),
+                    React.createElement("td", { style: { padding: "5px 6px", textAlign: "right", fontSize: 11, fontFamily: "'DM Mono',monospace", color: diff > 0 ? "#22c55e" : diff < 0 ? "#ef4444" : "#475569" } }, bulkVal && cur > 0 ? (diffPct >= 0 ? "+" : "") + diffPct.toFixed(1) + "%" : "—"),
+                    React.createElement("td", { style: { padding: "5px 6px", textAlign: "right", fontSize: 11, fontWeight: 600, color: newGP !== null ? (Number(newGP) > 0 ? "#22c55e" : "#ef4444") : "#475569" } }, newGP !== null && bulkVal ? newGP + "%" : "—"));
                 }))))))),
 
     activeTab === "limits" && React.createElement("div", null,
+      React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 20 } },
+        React.createElement("div", { style: { background: "#1a2030", borderRadius: 10, padding: 14, textAlign: "center" } },
+          React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "#22c55e", textTransform: "uppercase" } }, "With Floor"),
+          React.createElement("div", { style: { fontSize: 28, fontWeight: 800, color: "#f1f5f9", marginTop: 4 } }, limitsWithFloor)),
+        React.createElement("div", { style: { background: "#1a2030", borderRadius: 10, padding: 14, textAlign: "center" } },
+          React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "#ef4444", textTransform: "uppercase" } }, "With Ceiling"),
+          React.createElement("div", { style: { fontSize: 28, fontWeight: 800, color: "#f1f5f9", marginTop: 4 } }, limitsWithCeiling)),
+        React.createElement("div", { style: { background: "#1a2030", borderRadius: 10, padding: 14, textAlign: "center" } },
+          React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "#f59e0b", textTransform: "uppercase" } }, "Protected"),
+          React.createElement("div", { style: { fontSize: 28, fontWeight: 800, color: "#f1f5f9", marginTop: 4 } }, limitsWithEither))),
       React.createElement(Card, null,
-        React.createElement("div", { style: { fontWeight: 700, fontSize: 15, color: "#f1f5f9", marginBottom: 8 } }, "Price Floors & Ceilings"),
-        React.createElement("div", { style: { fontSize: 12, color: "#64748b", marginBottom: 16 } }, "Set minimum (floor) and maximum (ceiling) prices per product. Bulk adjustments will not go below floors or above ceilings."),
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 } },
+          React.createElement("div", null,
+            React.createElement("div", { style: { fontWeight: 700, fontSize: 15, color: "#f1f5f9" } }, "Price Floors & Ceilings"),
+            React.createElement("div", { style: { fontSize: 12, color: "#64748b", marginTop: 2 } }, "Set minimum (floor) and maximum (ceiling) prices per product. Bulk adjustments respect these limits.")),
+          React.createElement("div", { style: { display: "flex", gap: 8 } },
+            React.createElement("button", { "data-testid": "btn-clear-all-limits",
+              onClick: () => { if (!confirm("Clear ALL price floors and ceilings?")) return; setProducts(prev => prev.map(p => ({ ...p, pricing: { ...(p.pricing||{}), priceFloor: "", priceCeiling: "" } }))); showToast("All limits cleared"); },
+              style: { padding: "6px 12px", borderRadius: 6, border: "1px solid #ef444444", background: "#ef444411", color: "#ef4444", fontSize: 11, fontWeight: 600, cursor: "pointer" } }, "Clear All Limits"))),
         React.createElement("input", {
           value: limitSearch, onChange: e => setLimitSearch(e.target.value),
           placeholder: "\uD83D\uDD0D Search products...",
+          "data-testid": "input-limit-search",
           style: { width: "100%", maxWidth: 400, background: "#1a2030", border: "1px solid #2d3748", borderRadius: 8, padding: "10px 14px", color: "#e2e8f0", fontSize: 13, marginBottom: 16 }
         }),
         React.createElement("div", { style: { overflowX: "auto" } },
           React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 12 } },
             React.createElement("thead", null, React.createElement("tr", null,
-              ["Product", "Category", "Cost", "Level 3", "Floor (Min)", "Ceiling (Max)", ""].map((h, i) =>
-                React.createElement("th", { key: i, style: { padding: "8px 8px", fontSize: 10, color: "#94a3b8", fontWeight: 700, textAlign: i >= 2 ? "right" : "left", textTransform: "uppercase", borderBottom: "2px solid #2d3748" } }, h)))),
+              ["Product", "Category", "Pack", "Cost", "L3 Price", "+Cost %", "Floor", "Ceiling", "Range", ""].map((h, i) =>
+                React.createElement("th", { key: i, style: { padding: "8px 6px", fontSize: 10, color: "#94a3b8", fontWeight: 700, textAlign: i >= 3 ? "right" : "left", textTransform: "uppercase", borderBottom: "2px solid #2d3748", whiteSpace: "nowrap" } }, h)))),
             React.createElement("tbody", null,
-              products.filter(p => !limitSearch || p.name.toLowerCase().includes(limitSearch.toLowerCase())).sort((a, b) => a.name.localeCompare(b.name)).map(p => {
+              limProds.map(p => {
                 const pr = p.pricing || {};
-                return React.createElement("tr", { key: p.id, style: { borderBottom: "1px solid #1e2535" } },
-                  React.createElement("td", { style: { padding: "6px 8px", fontWeight: 600 } }, pName(p)),
-                  React.createElement("td", { style: { padding: "6px 8px", fontSize: 11, color: "#64748b" } }, p.category || "—"),
-                  React.createElement("td", { style: { padding: "6px 8px", textAlign: "right", fontFamily: "'DM Mono',monospace", color: "#ef4444" } }, fmt(pr.cost || 0)),
-                  React.createElement("td", { style: { padding: "6px 8px", textAlign: "right", fontFamily: "'DM Mono',monospace" } }, fmt(pr.level3 || 0)),
-                  React.createElement("td", { style: { padding: "6px 8px", textAlign: "right" } },
+                const cost = Number(pr.cost) || 0;
+                const l3 = Number(pr.level3) || 0;
+                const floor = Number(pr.priceFloor) || 0;
+                const ceiling = Number(pr.priceCeiling) || 0;
+                const costPct = cost > 0 && l3 > 0 ? ((l3 - cost) / cost * 100).toFixed(1) : null;
+                const hasLimits = floor > 0 || ceiling > 0;
+                const rangeValid = floor > 0 && ceiling > 0 ? floor < ceiling : true;
+                return React.createElement("tr", { key: p.id, style: { borderBottom: "1px solid #1e2535", background: hasLimits ? "#f59e0b06" : "transparent" } },
+                  React.createElement("td", { style: { padding: "6px", fontWeight: 600 } },
+                    React.createElement("div", null, pName(p)),
+                    React.createElement("div", { style: { fontSize: 10, color: "#64748b", fontFamily: "'DM Mono',monospace" } }, p.id)),
+                  React.createElement("td", { style: { padding: "6px", fontSize: 11, color: "#64748b" } }, p.category || "—"),
+                  React.createElement("td", { style: { padding: "6px", fontSize: 10, color: "#475569" } }, p.packSize || "—"),
+                  React.createElement("td", { style: { padding: "6px", textAlign: "right", fontFamily: "'DM Mono',monospace", color: "#ef4444", fontWeight: 700 } }, fmt(cost)),
+                  React.createElement("td", { style: { padding: "6px", textAlign: "right", fontFamily: "'DM Mono',monospace", fontWeight: 600 } }, l3 > 0 ? fmt(l3) : "—"),
+                  React.createElement("td", { style: { padding: "6px", textAlign: "right", fontSize: 10, fontFamily: "'DM Mono',monospace", color: "#22c55e" } }, costPct !== null ? "+" + costPct + "%" : "—"),
+                  React.createElement("td", { style: { padding: "6px", textAlign: "right" } },
                     React.createElement("input", {
                       type: "number", step: "0.01", value: pr.priceFloor || "",
-                      onChange: e => {
-                        const val = e.target.value;
-                        setProducts(prev => prev.map(pp => pp.id === p.id ? { ...pp, pricing: { ...pp.pricing, priceFloor: val } } : pp));
-                      },
-                      placeholder: "No floor",
-                      style: { width: 80, background: "#0f1117", border: "1px solid #22c55e44", borderRadius: 4, padding: "4px 6px", color: "#22c55e", fontSize: 12, fontFamily: "'DM Mono',monospace", fontWeight: 600, textAlign: "right" }
+                      onChange: e => setProducts(prev => prev.map(pp => pp.id === p.id ? { ...pp, pricing: { ...pp.pricing, priceFloor: e.target.value } } : pp)),
+                      placeholder: "—",
+                      style: { width: 85, background: "#0f1117", border: floor > 0 ? "1px solid #22c55e66" : "1px solid #2d3748", borderRadius: 4, padding: "5px 6px", color: floor > 0 ? "#22c55e" : "#94a3b8", fontSize: 13, fontFamily: "'DM Mono',monospace", fontWeight: 700, textAlign: "right" }
                     })),
-                  React.createElement("td", { style: { padding: "6px 8px", textAlign: "right" } },
+                  React.createElement("td", { style: { padding: "6px", textAlign: "right" } },
                     React.createElement("input", {
                       type: "number", step: "0.01", value: pr.priceCeiling || "",
-                      onChange: e => {
-                        const val = e.target.value;
-                        setProducts(prev => prev.map(pp => pp.id === p.id ? { ...pp, pricing: { ...pp.pricing, priceCeiling: val } } : pp));
-                      },
-                      placeholder: "No cap",
-                      style: { width: 80, background: "#0f1117", border: "1px solid #ef444444", borderRadius: 4, padding: "4px 6px", color: "#ef4444", fontSize: 12, fontFamily: "'DM Mono',monospace", fontWeight: 600, textAlign: "right" }
+                      onChange: e => setProducts(prev => prev.map(pp => pp.id === p.id ? { ...pp, pricing: { ...pp.pricing, priceCeiling: e.target.value } } : pp)),
+                      placeholder: "—",
+                      style: { width: 85, background: "#0f1117", border: ceiling > 0 ? "1px solid #ef444466" : "1px solid #2d3748", borderRadius: 4, padding: "5px 6px", color: ceiling > 0 ? "#ef4444" : "#94a3b8", fontSize: 13, fontFamily: "'DM Mono',monospace", fontWeight: 700, textAlign: "right" }
                     })),
-                  React.createElement("td", { style: { padding: "6px 8px" } },
-                    (Number(pr.priceFloor) > 0 || Number(pr.priceCeiling) > 0) && React.createElement("button", {
+                  React.createElement("td", { style: { padding: "6px", textAlign: "right", fontSize: 10 } },
+                    floor > 0 && ceiling > 0 ? React.createElement("span", { style: { fontFamily: "'DM Mono',monospace", color: rangeValid ? "#64748b" : "#ef4444" } },
+                      rangeValid ? fmt(floor) + " – " + fmt(ceiling) : "\u26A0 Invalid") :
+                    floor > 0 ? React.createElement("span", { style: { fontFamily: "'DM Mono',monospace", color: "#22c55e" } }, "\u2265" + fmt(floor)) :
+                    ceiling > 0 ? React.createElement("span", { style: { fontFamily: "'DM Mono',monospace", color: "#ef4444" } }, "\u2264" + fmt(ceiling)) : "—"),
+                  React.createElement("td", { style: { padding: "6px" } },
+                    hasLimits && React.createElement("button", {
                       onClick: () => setProducts(prev => prev.map(pp => pp.id === p.id ? { ...pp, pricing: { ...pp.pricing, priceFloor: "", priceCeiling: "" } } : pp)),
-                      style: { padding: "3px 8px", borderRadius: 4, border: "1px solid #47556944", background: "transparent", color: "#94a3b8", fontSize: 10, cursor: "pointer" }
+                      style: { padding: "4px 8px", borderRadius: 4, border: "1px solid #47556944", background: "transparent", color: "#94a3b8", fontSize: 10, cursor: "pointer" }
                     }, "Clear")));
               }))))))));
 }
